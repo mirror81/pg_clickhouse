@@ -12,6 +12,7 @@ jobs:
   bake:
     name: 🍪 Bake with Postgres ${{ matrix.pgv }}
     runs-on: ubuntu-latest
+    if: ${{ github.repository == 'ClickHouse/pg_clickhouse' }}
     strategy:
       fail-fast: false
       matrix:
