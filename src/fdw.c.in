@@ -417,10 +417,13 @@ clickhouseGetForeignRelSize(PlannerInfo * root,
 	fpinfo->relation_name = makeStringInfo();
 	relname = get_rel_name(foreigntableid);
 	refname = rte->eref->aliasname;
-	appendStringInfo(fpinfo->relation_name, "%s", quote_identifier(relname));
+	appendStringInfoString(fpinfo->relation_name, quote_identifier(relname));
 	if (*refname && strcmp(refname, relname) != 0)
-		appendStringInfo(fpinfo->relation_name, " %s",
+	{
+		appendStringInfoChar(fpinfo->relation_name, ' ');
+		appendStringInfoString(fpinfo->relation_name,
 						 quote_identifier(rte->eref->aliasname));
+	}
 
 	/* No outer and inner relations. */
 	fpinfo->make_outerrel_subquery = false;

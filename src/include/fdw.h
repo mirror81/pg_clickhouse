@@ -77,6 +77,7 @@ ch_connection chfdw_http_connect(ch_connection_details * details);
 ch_connection chfdw_binary_connect(ch_connection_details * details);
 text	   *chfdw_http_fetch_raw_data(ch_cursor * cursor);
 List	   *chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * server);
+char *ch_quote_literal(const char *rawstr);
 
 typedef enum
 {

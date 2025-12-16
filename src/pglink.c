@@ -53,8 +53,9 @@ static void **binary_fetch_row(ch_cursor * cursor, List * attrs, TupleDesc tupde
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
 static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 								   const ch_query * query, char *table_name);
-
-static size_t escape_string(char *to, const char *from, size_t length);
+static size_t ch_escape_string(char *to, const char *from, size_t length);
+static void ch_quote_literal_internal(char *dst, const char *src, size_t len);
+extern char *ch_quote_literal(const char *rawstr);
 
 static libclickhouse_methods binary_methods =
 {
@@ -146,7 +147,9 @@ static void
 kill_query(void *conn, const char *query_id)
 {
 	ch_http_response_t *resp;
-	ch_query	query = new_query(psprintf("kill query where query_id='%s'", query_id));
+	ch_query	query = new_query(psprintf(
+										   "kill query where query_id=%s",
+										   ch_quote_literal(query_id)));
 
 	ch_http_set_progress_func(NULL);
 	resp = ch_http_simple_query(conn, &query);
@@ -405,19 +408,19 @@ extend_insert_query(ch_http_insert_state * state, TupleTableSlot * slot)
 				case BITOID:
 				case BYTEAOID:
 					{
-						char	   *strin,
-								   *strout;
+						char	   *text,
+								   *result;
 						size_t		len;
 						bool		tl = false;
 						Oid			typoutput = InvalidOid;
 
 						getTypeOutputInfo(type, &typoutput, &tl);
-						strin = OidOutputFunctionCall(typoutput, value);
-						len = strlen(strin) + 1;
-						strout = palloc(len * 3 + 1);
-						escape_string(strout, strin, len);
-						appendStringInfo(&state->sql, "%s", strout);
-						pfree(strout);
+						text = OidOutputFunctionCall(typoutput, value);
+						len = strlen(text) + 1;
+						result = palloc(len * 2 + 1);
+						ch_escape_string(result, text, len);
+						appendStringInfoString(&state->sql, result);
+						pfree(result);
 					}
 					break;
 				case DATEOID:
@@ -916,7 +919,7 @@ parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, L
 
 	ereport(ERROR, (errmsg(
 						   "pg_clickhouse: could not map %s.%s type <%s>",
-						   table_name, colname, typepart
+						   quote_identifier(table_name), quote_identifier(colname), typepart
 						   )));
 }
 
@@ -931,13 +934,14 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	List	   *result = NIL,
 			   *datts = NIL;
 	char	  **row_values;
-	char	   *sql;
 
-	sql = psprintf("SELECT name, engine, engine_full "
-				   "FROM system.tables WHERE database='%s' and name not like '.inner%%'", stmt->remote_schema);
-	query.sql = sql;
+	query.sql = psprintf("SELECT name, engine, engine_full "
+				   "FROM system.tables "
+				   "WHERE name NOT LIKE '.inner%%' "
+				   "AND database = %s",
+				   ch_quote_literal(stmt->remote_schema));
+
 	cursor = conn.methods->simple_query(conn.conn, &query);
-	pfree(sql);
 
 	datts = list_make2_int(1, 2);
 
@@ -975,13 +979,17 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 		}
 
 		initStringInfo(&buf);
-		appendStringInfo(&buf, "CREATE FOREIGN TABLE IF NOT EXISTS \"%s\".\"%s\" (\n",
-						 stmt->local_schema, table_name);
-		sql = psprintf("select name, type from system.columns where database='%s' and table='%s'",
-					   stmt->remote_schema, table_name);
-		query.sql = sql;
+		appendStringInfo(&buf,
+						 "CREATE FOREIGN TABLE IF NOT EXISTS %s.%s (\n",
+						 quote_identifier(stmt->local_schema),
+						 quote_identifier(table_name));
+		query.sql = psprintf("SELECT name, type "
+							 "FROM system.columns "
+							 "WHERE database = %s "
+							 "AND table = %s",
+							 ch_quote_literal(stmt->remote_schema),
+							 ch_quote_literal(table_name));
 		table_def = conn.methods->simple_query(conn.conn, &query);
-		pfree(sql);
 
 		while ((dvalues = (char **) conn.methods->fetch_row(table_def,
 															datts, NULL, NULL, NULL)) != NULL)
@@ -996,7 +1004,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 			first = false;
 
 			/* name */
-			appendStringInfo(&buf, "\t\"%s\" ", colname);
+			appendStringInfo(&buf, "\t%s ", quote_identifier(colname));
 
 			/* type */
 			appendStringInfoString(&buf, remote_type);
@@ -1030,7 +1038,10 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 						}
 					}
 					else
-						appendStringInfo(&buf, " '%s'", strVal(val));
+					{
+						appendStringInfoChar(&buf, ' ');
+						appendStringInfoString(&buf, ch_quote_literal(strVal(val)));
+					}
 				}
 				appendStringInfoString(&buf, ")");
 				list_free_deep(options);
@@ -1040,8 +1051,12 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 				appendStringInfoString(&buf, " NOT NULL");
 		}
 
-		appendStringInfo(&buf, "\n) SERVER %s OPTIONS (database '%s', table_name '%s'",
-						 server->servername, stmt->remote_schema, table_name);
+		appendStringInfo(
+						 &buf,
+						 "\n) SERVER %s OPTIONS (database %s, table_name %s",
+						 quote_identifier(server->servername),
+						 ch_quote_literal(stmt->remote_schema),
+						 ch_quote_literal(table_name));
 
 		if (engine && engine_full && strcmp(engine, "CollapsingMergeTree") == 0)
 		{
@@ -1050,11 +1065,11 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 			if (sub)
 			{
 				sub[1] = '\0';
-				appendStringInfo(&buf, ", engine '%s'", engine_full);
+				appendStringInfo(&buf, ", engine %s", ch_quote_literal(engine_full));
 			}
 		}
 		else if (engine)
-			appendStringInfo(&buf, ", engine '%s'", engine);
+			appendStringInfo(&buf, ", engine %s", ch_quote_literal(engine));
 
 		appendStringInfoString(&buf, ");\n");
 		result = lappend(result, buf.data);
@@ -1065,22 +1080,21 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	return result;
 }
 
-
 /*
- * Escaping arbitrary strings to get valid SQL literal strings.
+ * Escaping arbitrary strings to get valid ClickHouse SQL literal strings.
  *
- * length is the length of the source string. (Note: if a terminating NUL
- * is encountered sooner, escape_string stops short of "length"; the behavior
+ * length is the length of the source string. (Note: if a terminating NUL is
+ * encountered sooner, ch_escape_string stops short of "length"; the behavior
  * is thus rather like strncpy.)
  *
- * For safety the buffer at "to" must be at least 2*length + 1 bytes long.
- * A terminating NUL character is added to the output string, whether the
- * input is NUL-terminated or not.
+ * For safety the buffer at "to" must be at least 2*length + 1 bytes long. A
+ * terminating NUL character is added to the output string, whether the input
+ * is NUL-terminated or not.
  *
  * Returns the actual length of the output (not counting the terminating NUL).
  */
 static size_t
-escape_string(char *to, const char *from, size_t length)
+ch_escape_string(char *to, const char *from, size_t length)
 {
 	const char *source = from;
 	char	   *target = to;
@@ -1164,4 +1178,45 @@ escape_string(char *to, const char *from, size_t length)
 	*target = '\0';
 
 	return target - to;
+}
+
+/*
+ * Convenience function to single-quote a literal SQL string. Differs from
+ * PostgreSQL's quote_literal_cstr() by never returning an E-quoted string.
+ */
+static void
+ch_quote_literal_internal(char *dst, const char *src, size_t len)
+{
+	*dst++ = '\'';
+	while (*src)
+	{
+		if (SQL_STR_DOUBLE(*src, true))
+			*dst++ = *src;
+		*dst++ = *src++;
+	}
+	*dst++ = '\'';
+	*dst++ = '\0';
+}
+
+/*
+ * Convenience function to escape and return a string as a ClickHouse literal.
+ * Returns a palloc'd string.
+ */
+char	   *
+ch_quote_literal(const char *rawstr)
+{
+	char	   *result;
+	int			len;
+
+	len = strlen(rawstr);
+	/* We make a worst-case result area; wasting a little space is OK */
+	result = palloc(
+					(len * 2)	/* doubling for every character if each one is
+								 * a quote */
+					+ 2			/* two outer quotes */
+					+ 1			/* null terminator */
+		);
+
+	ch_quote_literal_internal(result, rawstr, len);
+	return result;
 }

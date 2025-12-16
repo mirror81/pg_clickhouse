@@ -667,7 +667,8 @@ foreign_expr_walker(Node * node,
 }
 
 /*
- * Add typmod decoration to the basic type name
+ * Add typmod decoration to the basic type name. Copied from
+ * src/backend/utils/adt/format_type.c in the Postgres source.
  */
 static char *
 printTypmod(const char *typname, int32 typmod, Oid typmodout)
@@ -1403,7 +1404,7 @@ deparseFromExprForRel(StringInfo buf, PlannerInfo * root, RelOptInfo * foreignre
 			{
 				Assert(fpinfo->jointype == JOIN_INNER);
 				Assert(fpinfo->joinclauses == NIL);
-				appendStringInfo(buf, "%s", join_sql_o.data);
+				appendStringInfoString(buf, join_sql_o.data);
 				return;
 			}
 		}
@@ -1424,7 +1425,7 @@ deparseFromExprForRel(StringInfo buf, PlannerInfo * root, RelOptInfo * foreignre
 			{
 				Assert(fpinfo->jointype == JOIN_INNER);
 				Assert(fpinfo->joinclauses == NIL);
-				appendStringInfo(buf, "%s", join_sql_i.data);
+				appendStringInfoString(buf, join_sql_i.data);
 				return;
 			}
 		}
@@ -1814,24 +1815,12 @@ deparseRelation(StringInfo buf, Relation rel)
  * Append a SQL string literal representing "val" to buf.
  */
 static void
-deparseStringLiteral(StringInfo buf, const char *val, bool quote)
+deparseStringLiteral(StringInfo buf, const char *val)
 {
-	const char *valptr;
+	char	   *quoted = ch_quote_literal(val);
 
-	if (quote)
-		appendStringInfoChar(buf, '\'');
-	for (valptr = val; *valptr; valptr++)
-	{
-		char		ch = *valptr;
-
-		if (SQL_STR_DOUBLE(ch, true))
-		{
-			appendStringInfoChar(buf, ch);
-		}
-		appendStringInfoChar(buf, ch);
-	}
-	if (quote)
-		appendStringInfoChar(buf, '\'');
+	appendStringInfoString(buf, quoted);
+	pfree(quoted);
 }
 
 /*
@@ -2120,7 +2109,7 @@ deparseArray(Datum arr, deparse_expr_cxt * context)
 						appendStringInfoString(buf, "false");
 					break;
 				default:
-					deparseStringLiteral(buf, extval, true);
+					deparseStringLiteral(buf, extval);
 					break;
 			}
 			pfree(extval);
@@ -2244,7 +2233,7 @@ deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 						appendStringInfoString(buf, extval);
 				}
 				else
-					appendStringInfo(buf, "'%s'", extval);
+					deparseStringLiteral(buf, extval);
 			}
 			break;
 		case BITOID:
@@ -2253,12 +2242,12 @@ deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 			break;
 		case BOOLOID:
 			if (strcmp(extval, "t") == 0)
-				appendStringInfoString(buf, "1");
+				appendStringInfoChar(buf, '1');
 			else
-				appendStringInfoString(buf, "0");
+				appendStringInfoChar(buf, '0');
 			break;
 		default:
-			deparseStringLiteral(buf, extval, true);
+			deparseStringLiteral(buf, extval);
 			break;
 	}
 

@@ -114,7 +114,12 @@ SELECT clickhouse_raw_query('INSERT INTO import_test.timezones VALUES (
 	''2020-01-01 12:00:00'',
 	''2020-01-01 12:00:00'')');
 
-IMPORT FOREIGN SCHEMA "import_test" FROM SERVER import_loopback INTO clickhouse;
+-- Injection attempt should import nothing.
+IMPORT FOREIGN SCHEMA "import_test' OR database = 'public" FROM SERVER import_loopback INTO clickhouse;
+\det clickhouse.*
+
+-- Should succeed.
+IMPORT FOREIGN SCHEMA import_test FROM SERVER import_loopback INTO clickhouse;
 
 \d+ clickhouse.ints;
 \d+ clickhouse.types;
