@@ -32,7 +32,7 @@ CH_CPP_LIB = $(CH_CPP_BUILD_DIR)/clickhouse/libclickhouse-cpp-lib$(DLSUFFIX)
 CH_CPP_FLAGS = -D CMAKE_BUILD_TYPE=Release -D WITH_OPENSSL=ON
 
 # Build static on Darwin by default.
-ifndef ($(CH_BUILD))
+ifndef CH_BUILD
 # ifeq ($(OS),darwin)
 	CH_BUILD = static
 # endif
@@ -71,7 +71,10 @@ ifneq ($(OS),darwin)
 endif
 
 # Clean up the clickhouse-cpp build directory and generated files.
-EXTRA_CLEAN = $(CH_CPP_BUILD_DIR) sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c compile_commands.json
+EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c compile_commands.json $(EXTENSION)-$(DISTVERSION).zip
+ifndef NO_VENDOR_CLEAN
+	EXTRA_CLEAN += $(CH_CPP_BUILD_DIR)
+endif
 
 # Import PGXS.
 PGXS := $(shell $(PG_CONFIG) --pgxs)

@@ -1,0 +1,153 @@
+# Run containers for each supported major version of ClickHouse. Each is based
+# on [pgxn-tools] to simplify testing and has PostgreSQL 18 running. Both
+# databases servers are on their usual ports and trust local connections
+# without passwords.
+#
+# Keep in sync with .github/workflows/clickhouse.yml
+
+networks:
+  default:
+    name: pgch
+
+volumes:
+  config:
+
+services:
+  ch_25_11:
+    image: pgxn/pgxn-tools
+    container_name: ch_25_11
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 25.11.2.24-stable
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+  ch_25_8:
+    image: pgxn/pgxn-tools
+    container_name: ch_25_8
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 25.8.12.129-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+
+  ch_25_3:
+    image: pgxn/pgxn-tools
+    container_name: ch_25_3
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 25.3.9.72-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+
+  ch_24_8:
+    image: pgxn/pgxn-tools
+    container_name: ch_24_8
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 25.3.9.72-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+
+  ch_24_3:
+    image: pgxn/pgxn-tools
+    container_name: ch_24_3
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 24.3.18.7-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+
+  ch_23_8:
+    image: pgxn/pgxn-tools
+    container_name: ch_23_8
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 23.8.16.40-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
+
+  ch_23_3:
+    image: pgxn/pgxn-tools
+    container_name: ch_23_3
+    platform: linux/amd64
+    stdin_open: true
+    stop_grace_period: 10ms
+    environment:
+      PGUSER: postgres
+      CH_RELEASE: 23.3.22.3-lts
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      /bin/sh -c '
+        .github/ubuntu/clickhouse.sh
+        pg-start 18 libcurl4-openssl-dev uuid-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        tail -f /dev/null
+      '
