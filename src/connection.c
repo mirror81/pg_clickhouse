@@ -242,5 +242,7 @@ connstring_parse(const char *connstring)
 		}
 	}
 
+	list_free(options);
+
 	return details;
 }
