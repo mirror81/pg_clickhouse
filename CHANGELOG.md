@@ -7,10 +7,40 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.1] — Not Yet Released
+## [v0.1.1] — 2025-12-17
 
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to `ALTER
+EXTENSION UPDATE`.
+
+### ⚡ Improvements
+
+*   Refactored the internal handling of the `pg_clickhouse.session_settings`
+    GUC to parse the settings only once rather than for every query sent to
+    ClickHouse
+
+### 🪲 Bug Fixes
+
+*   Fixed a crash when sending an empty `COPY FROM` via the binary driver
+
+### ⬆️ Dependency Updates
+
+*   Updated vendored clickhouse-cpp library
+
+### 🏗️ Build Setup
+
+*   Fixed the `Makefile` targets so that calling `make install` without first
+    calling `make` will properly create the versioned SQL file.
+
+### 📚 Documentation
+
+*   Added a [versioning policy] the documentation
+*   Fixed the badges and broken TPC-H links in [README.md]
+*   Added PGXN installation instructions to [README.md]
 
   [v0.1.1]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.0...v0.1.1
+  [versioning policy]: ./doc/pg_clickhouse.md#versioning-policy
+  [README.md]: README.md
 
 ## [v0.1.0] — 2025-12-09
 

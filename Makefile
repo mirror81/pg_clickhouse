@@ -5,7 +5,7 @@ EXTVERSION   = $(shell grep -m 1 'default_version' pg_clickhouse.control | \
 DISTVERSION  = $(shell grep -m 1 '[[:space:]]\{3\}"version":' META.json | \
                sed -e 's/[[:space:]]*"version":[[:space:]]*"\([^"]*\)",\{0,1\}/\1/')
 
-DATA         = $(wildcard sql/$(EXTENSION)--*.sql)
+DATA         = $(sort $(wildcard sql/$(EXTENSION)--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql)
 DOCS         = $(wildcard doc/*.md)
 TESTS        = $(wildcard test/sql/*.sql)
 REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
@@ -120,16 +120,16 @@ sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 src/fdw.c: src/fdw.c.in
 	sed -e 's,__VERSION__,$(DISTVERSION),g' $< > $@
 
-# Configure the installation of the clickhouse-cpp library.
-ifeq ($(CH_BUILD), static)
-install-ch-cpp:
-else
+# Configure install/uninstall of the clickhouse-cpp library.
+ifneq ($(CH_BUILD), static)
 # Copy all dynamic files; use -a to preserve symlinks.
 install-ch-cpp: $(CH_CPP_LIB) $(shlib)
 	cp -a $(CH_CPP_BUILD_DIR)/clickhouse/libclickhouse-cpp-lib*$(DLSUFFIX)* $(DESTDIR)$(pkglibdir)/
-endif
-
+uninstall-ch-cpp:
+	rm -f $(DESTDIR)$(pkglibdir)/libclickhouse-cpp-lib*$(DLSUFFIX)*
 install: install-ch-cpp
+uninstall: uninstall-ch-cpp
+endif
 
 # Build a PGXN distribution bundle.
 dist: $(EXTENSION)-$(DISTVERSION).zip
