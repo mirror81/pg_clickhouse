@@ -98,6 +98,9 @@ CREATE FOREIGN TABLE ftuples (
     c3 bool
 ) SERVER binary_loopback OPTIONS (table_name 'tuples');
 
+COPY fints FROM stdin;
+\.
+
 -- integers
 SELECT * FROM fints ORDER BY c1;
 SELECT c2, c1, c8, c3, c4, c7, c6, c5 FROM fints ORDER BY c1;

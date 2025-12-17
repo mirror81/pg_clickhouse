@@ -156,6 +156,7 @@ SELECT * FROM ft5 ORDER BY c1 LIMIT 5;
 (5 rows)
 
 COPY ftcopy FROM stdin;
+COPY ftcopy (c1, c2, c3, c4, c5, c6) FROM stdin;
 INSERT INTO ftcopy VALUES
 	(3, 4, '1990-03-03', '1990-03-03 12:02:02', '12:02:02', 'val3'),
 	(4, 5, '1991-04-04', '1990-04-04 12:04:04', '12:02:04', 'val4'),

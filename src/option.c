@@ -510,6 +510,7 @@ chfdw_check_settings_guc(char **newval, void **extra, GucSource source)
 
 	/* Convert them into a guc_malloc'd kv_list. */
 	kv_list    *settings = new_kv_list_from_pg_list(list, kv_pair_guc_malloc);
+
 	list_free(list);
 
 	if (!settings)

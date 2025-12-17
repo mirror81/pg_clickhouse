@@ -739,18 +739,18 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 {
 	ch_binary_insert_state *state = istate;
 
-	if (state->conversion_states == NULL)
-	{
-		MemoryContext old_mcxt;
-
-		old_mcxt = MemoryContextSwitchTo(state->memcxt);
-		state->conversion_states = ch_binary_make_tuple_map(
-															slot->tts_tupleDescriptor, state->outdesc);
-		MemoryContextSwitchTo(old_mcxt);
-	}
-
 	if (slot)
 	{
+		if (state->conversion_states == NULL)
+		{
+			MemoryContext old_mcxt;
+
+			old_mcxt = MemoryContextSwitchTo(state->memcxt);
+			state->conversion_states = ch_binary_make_tuple_map(
+																slot->tts_tupleDescriptor, state->outdesc);
+			MemoryContextSwitchTo(old_mcxt);
+		}
+
 		ch_binary_do_output_convertion(state, slot);
 
 		for (size_t i = 0; i < state->outdesc->natts; i++)
