@@ -235,6 +235,47 @@ the foreign tables. Columns will be defined using the [supported data
 types](#data-types) and, were detectible, the options supported by [CREATE
 FOREIGN TABLE](#create-foreign-table).
 
+> **⚠️ Imported Identifier Case Preservation**
+>
+> `IMPORT FOREIGN SCHEMA` runs `quote_identifier()` on the table and column
+> names it imports, which double-quotes identifiers with uppercase characters
+> or blank spaces. Such table and column names thus must be double-quoted in
+> PostgreSQL queries. Names with all lowercase and no blank space characters
+> do not need to be quoted.
+>
+> For example, given this ClickHouse table:
+>
+> ```sql
+> CREATE OR REPLACE TABLE test
+> (
+>     id UInt64,
+>     Name TEXT,
+>     updatedAt DateTime DEFAULT now()
+> )
+> ENGINE = MergeTree
+> ORDER BY id;
+> ```
+>
+> `IMPORT FOREIGN SCHEMA` creates this foreign table:
+>
+> ```sql
+> CREATE TABLE test
+> (
+>     id          BIGINT      NOT NULL,
+>     "Name"      TEXT        NOT NULL,
+>     "updatedAt" TIMESTAMPTZ NOT NULL
+> );
+> ```
+>
+> Queries therefore must quote appropriately, e.g.,
+>
+> ```sql
+> SELECT id, "Name", "updatedAt" FROM test;
+> ```
+>
+> To create objects with different names or all lowercase (and therefore
+> case-insensitive) names, use [CREATE FOREIGN TABLE](#create-foreign-table).
+
 ### CREATE FOREIGN TABLE
 
 Use [IMPORT FOREIGN SCHEMA] to create a foreign table that can query data from
@@ -247,7 +288,7 @@ CREATE FOREIGN TABLE uact (
     duration   smallint,
     sign       smallint
 ) SERVER taxi_srv OPTIONS(
-    table_name 'uact'
+    table_name 'uact',
     engine 'CollapsingMergeTree'
 );
 ```

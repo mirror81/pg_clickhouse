@@ -7,6 +7,17 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.2] — Unreleased
+
+### 📚 Documentation
+
+*   Added a note to the `IMPORT FOREIGN SCHEMA` documentation explaining how
+    table and column names imported from ClickHouse will have their letter
+    casing and blank spaces preserved if they have uppercase characters or
+    blank spaces.
+
+  [v0.1.2]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.1...v0.1.2
+
 ## [v0.1.1] — 2025-12-17
 
 This release makes binary-only changes. Once installed, any existing use of
