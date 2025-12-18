@@ -157,13 +157,19 @@ Docker container using the [pg_clickhouse image], which simply adds
 pg_clickhouse to the Docker [Postgres image]:
 
 ```sh
-docker run --network host --name pg_clickhouse -e POSTGRES_PASSWORD=my_pass \
-       -d ghcr.io/clickhouse/pg_clickhouse:18 -U postgres
+docker run -d --network host --name pg_clickhouse -e POSTGRES_PASSWORD=my_pass \
+       -d ghcr.io/clickhouse/pg_clickhouse:18
 ```
 
 ### Connect pg_clickhouse
 
-Now connect to Postgres and create pg_clickhouse:
+Now connect to Postgres:
+
+```sh
+docker exec -it pg_clickhouse psql -U postgres
+```
+
+And create pg_clickhouse:
 
 ```sql
 CREATE EXTENSION pg_clickhouse;
@@ -553,7 +559,7 @@ table.
 1.  Start with a simple `JOIN` that acts similarly to the previous airport
     query above:
 
-    ```sql
+    ```pgsql
     taxi=# SELECT
         count(1) AS total,
         "Borough"
