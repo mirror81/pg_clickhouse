@@ -132,13 +132,20 @@ http_disconnect(void *conn)
 static char *
 format_error(char *errstring)
 {
-	int			n = strlen(errstring);
+	size_t		n = strlen(errstring);
 
 	for (int i = 0; i < n; i++)
 	{
 		if (strncmp(errstring + i, "version", 7) == 0)
 			return pnstrdup(errstring, i - 2);
 	}
+
+	/*
+	 * For some reason ClickHouse 25.12 added a newline to an auth failure
+	 * error. Strip it out.
+	 */
+	if (n > 0 && errstring[n - 1] == '\n')
+		errstring[--n] = '\0';
 
 	return errstring;
 }
@@ -936,10 +943,10 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	char	  **row_values;
 
 	query.sql = psprintf("SELECT name, engine, engine_full "
-				   "FROM system.tables "
-				   "WHERE name NOT LIKE '.inner%%' "
-				   "AND database = %s",
-				   ch_quote_literal(stmt->remote_schema));
+						 "FROM system.tables "
+						 "WHERE name NOT LIKE '.inner%%' "
+						 "AND database = %s",
+						 ch_quote_literal(stmt->remote_schema));
 
 	cursor = conn.methods->simple_query(conn.conn, &query);
 

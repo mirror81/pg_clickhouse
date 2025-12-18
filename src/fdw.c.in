@@ -422,7 +422,7 @@ clickhouseGetForeignRelSize(PlannerInfo * root,
 	{
 		appendStringInfoChar(fpinfo->relation_name, ' ');
 		appendStringInfoString(fpinfo->relation_name,
-						 quote_identifier(rte->eref->aliasname));
+							   quote_identifier(rte->eref->aliasname));
 	}
 
 	/* No outer and inner relations. */
