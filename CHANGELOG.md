@@ -9,14 +9,25 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.2] — Unreleased
 
+### 📔 Notes
+
+*   Removed unused code designed to support custom PostgreSQL extensions:
+    [ajbool], ajtime, [country], and [istore].
+
 ### 📚 Documentation
 
 *   Added a note to the `IMPORT FOREIGN SCHEMA` documentation explaining how
     table and column names imported from ClickHouse will have their letter
     casing and blank spaces preserved if they have uppercase characters or
     blank spaces.
+*   Fixed the commands to start and connect to the pg_clickhouse Docker image
+    in the [tutorial].
 
   [v0.1.2]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.1...v0.1.2
+  [ajbool]: https://pgxn.org/dist/ajbool/ "ajbool on PGXN"
+  [country]: https://pgxn.org/dist/country/ "country on PGXN"
+  [istore]: https://pgxn.org/dist/istore/ "istore on PGXN"
+  [tutorial]: ./doc/tutorial.md
 
 ## [v0.1.1] — 2025-12-17
 

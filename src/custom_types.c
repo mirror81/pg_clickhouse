@@ -289,80 +289,7 @@ chfdw_check_for_custom_function(Oid funcid)
 			procform = (Form_pg_proc) GETSTRUCT(proctup);
 			proname = NameStr(procform->proname);
 
-			if (STR_EQUAL(extname, "istore"))
-			{
-				if (STR_EQUAL(proname, "sum"))
-				{
-					entry->cf_type = CF_ISTORE_SUM;
-					strcpy(entry->custom_name, "sumMap");
-				}
-				if (STR_EQUAL(proname, "sum_up"))
-				{
-					entry->cf_type = CF_ISTORE_SUM_UP;
-					strcpy(entry->custom_name, "arraySum");
-				}
-				else if (STR_EQUAL(proname, "istore_seed"))
-				{
-					entry->cf_type = CF_ISTORE_SEED;
-					entry->custom_name[0] = '\1';	/* complex */
-				}
-				else if (STR_EQUAL(proname, "accumulate"))
-				{
-					entry->cf_type = CF_ISTORE_ACCUMULATE;
-					entry->custom_name[0] = '\1';	/* complex */
-				}
-				else if (STR_EQUAL(proname, "slice"))
-				{
-					entry->cf_type = CF_UNSHIPPABLE;
-					entry->custom_name[0] = '\0';	/* complex */
-				}
-			}
-			else if (STR_EQUAL(extname, "country"))
-			{
-				if (STR_EQUAL(proname, "country_common_name"))
-				{
-					entry->cf_type = CF_UNSHIPPABLE;
-					entry->custom_name[0] = '\0';	/* complex */
-				}
-			}
-			else if (STR_EQUAL(extname, "ajtime"))
-			{
-				if (STR_EQUAL(proname, "ajtime_to_timestamp"))
-				{
-					entry->cf_type = CF_AJTIME_TO_TIMESTAMP;
-					strcpy(entry->custom_name, "");
-				}
-				else if (STR_EQUAL(proname, "ajtime_pl_interval"))
-				{
-					entry->cf_type = CF_AJTIME_PL_INTERVAL;
-					strcpy(entry->custom_name, "addSeconds");
-				}
-				else if (STR_EQUAL(proname, "ajtime_mi_interval"))
-				{
-					entry->cf_type = CF_AJTIME_MI_INTERVAL;
-					strcpy(entry->custom_name, "subtractSeconds");
-				}
-				else if (STR_EQUAL(proname, "day_diff"))
-				{
-					entry->cf_type = CF_AJTIME_DAY_DIFF;
-					strcpy(entry->custom_name, "toInt32");
-				}
-				else if (STR_EQUAL(proname, "ajdate"))
-				{
-					entry->cf_type = CF_AJTIME_AJDATE;
-					strcpy(entry->custom_name, "toDate");
-				}
-				else if (STR_EQUAL(proname, "ajtime_out"))
-				{
-					entry->cf_type = CF_AJTIME_OUT;
-				}
-			}
-			else if (STR_EQUAL(extname, "ajbool"))
-			{
-				if (STR_EQUAL(proname, "ajbool_out"))
-					entry->cf_type = CF_AJBOOL_OUT;
-			}
-			else if (STR_EQUAL(extname, "intarray"))
+			if (STR_EQUAL(extname, "intarray"))
 			{
 				if (STR_EQUAL(proname, "idx"))
 				{
@@ -384,32 +311,6 @@ chfdw_check_for_custom_function(Oid funcid)
 	return entry;
 }
 
-static Oid
-find_rowfunc(char *procname, Oid rettype)
-{
-	Oid			argtypes[1] = {RECORDOID};
-	Oid			procOid;
-	List	   *funcname = NIL;
-
-	funcname = list_make1(makeString(procname));
-	procOid = LookupFuncName(funcname, 1, argtypes, false);
-	if (!OidIsValid(procOid))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("function %s does not exist",
-						func_signature_string(funcname, 1, NIL, argtypes))));
-
-
-	if (get_func_rettype(procOid) != rettype)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				 errmsg("typmod_in function %s must return type %s",
-						procname, format_type_be(rettype))));
-
-	list_free_deep(funcname);
-	return procOid;
-}
-
 CustomObjectDef *
 chfdw_check_for_custom_type(Oid typeoid)
 {
@@ -424,41 +325,8 @@ chfdw_check_for_custom_type(Oid typeoid)
 	entry = hash_search(custom_objects_cache, (void *) &typeoid, HASH_FIND, NULL);
 	if (!entry)
 	{
-		HeapTuple	tp;
-
 		entry = hash_search(custom_objects_cache, (void *) &typeoid, HASH_ENTER, NULL);
 		init_custom_entry(entry);
-
-		tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeoid));
-		if (HeapTupleIsValid(tp))
-		{
-			Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
-			char	   *name = NameStr(typtup->typname);
-
-			if (STR_EQUAL(name, "istore"))
-			{
-				entry->cf_type = CF_ISTORE_TYPE;	/* bigistore or istore */
-				strcpy(entry->custom_name, "Tuple(Array(Int32), Array(Int64))");
-				entry->rowfunc = find_rowfunc("row_to_istore", typeoid);
-			}
-			else if (STR_EQUAL(name, "bigistore"))
-			{
-				entry->cf_type = CF_ISTORE_TYPE;	/* bigistore or istore */
-				strcpy(entry->custom_name, "Tuple(Array(Int32), Array(Int64))");
-				entry->rowfunc = find_rowfunc("row_to_bigistore", typeoid);
-			}
-			else if (STR_EQUAL(name, "ajtime"))
-			{
-				entry->cf_type = CF_AJTIME_TYPE;	/* ajtime */
-				strcpy(entry->custom_name, "timestamp");
-			}
-			else if (STR_EQUAL(name, "country"))
-			{
-				entry->cf_type = CF_COUNTRY_TYPE;	/* country type */
-				strcpy(entry->custom_name, "text");
-			}
-			ReleaseSysCache(tp);
-		}
 	}
 
 	return entry;
@@ -509,14 +377,7 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 
 			if (extname)
 			{
-				if (STR_EQUAL(extname, "ajtime"))
-					entry->cf_type = CF_AJTIME_OPERATOR;
-				else if (STR_EQUAL(extname, "istore"))
-				{
-					if (form && strcmp(NameStr(form->oprname), "->") == 0)
-						entry->cf_type = CF_ISTORE_FETCHVAL;
-				}
-				else if (STR_EQUAL(extname, "hstore"))
+				if (STR_EQUAL(extname, "hstore"))
 				{
 					if (form && strcmp(NameStr(form->oprname), "->") == 0)
 						entry->cf_type = CF_HSTORE_FETCHVAL;
@@ -591,11 +452,8 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 	for (attnum = 1; attnum <= tupdesc->natts; attnum++)
 	{
 		bool		found;
-		CustomObjectDef *cdef;
 		CustomColumnInfo entry_key,
 				   *entry;
-		custom_object_type cf_type = CF_ISTORE_ARR;
-
 		Form_pg_attribute attr = TupleDescAttr(tupdesc, attnum - 1);
 
 		entry_key.relid = relid;
@@ -628,20 +486,12 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 			else if (STR_EQUAL(def->defname, "aggregatefunction"))
 			{
 				entry->is_AggregateFunction = CF_AGGR_FUNC;
-				cf_type = CF_ISTORE_COL;
 			}
 			else if (STR_EQUAL(def->defname, "simpleaggregatefunction"))
 			{
 				entry->is_AggregateFunction = CF_AGGR_SIMPLE;
-				cf_type = CF_ISTORE_COL;
 			}
-			else if (STR_EQUAL(def->defname, "arrays"))
-				cf_type = CF_ISTORE_ARR;
 		}
-
-		cdef = chfdw_check_for_custom_type(attr->atttypid);
-		if (cdef && cdef->cf_type == CF_ISTORE_TYPE)
-			entry->coltype = cf_type;
 	}
 	table_close_compat(rel, NoLock);
 }

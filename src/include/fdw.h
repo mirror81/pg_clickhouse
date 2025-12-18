@@ -256,28 +256,10 @@ typedef enum
 	CF_SIGN_SUM,				/* SUM aggregation */
 	CF_SIGN_AVG,				/* AVG aggregation */
 	CF_SIGN_COUNT,				/* COUNT aggregation */
-	CF_ISTORE_TYPE,				/* istore type */
-	CF_ISTORE_SUM,				/* SUM on istore column */
-	CF_ISTORE_SUM_UP,			/* SUM_UP on istore column */
-	CF_ISTORE_ARR,				/* COLUMN splitted to array */
-	CF_ISTORE_COL,				/* COLUMN splitted to columns by key */
-	CF_ISTORE_FETCHVAL,			/* -> operation on istore */
-	CF_ISTORE_SEED,				/* istore_seed */
-	CF_ISTORE_ACCUMULATE,		/* accumulate */
-	CF_AJTIME_OPERATOR,			/* ajtime operation */
-	CF_AJTIME_TO_TIMESTAMP,		/* ajtime to timestamp */
 	CF_DATE_TRUNC,				/* date_trunc function */
 	CF_DATE_PART,				/* date_part function */
 	CF_TIMESTAMPTZ_PL_INTERVAL, /* timestamptz + interval */
 	CF_TIMEZONE,				/* timezone */
-	CF_COUNTRY_TYPE,
-	CF_AJTIME_PL_INTERVAL,
-	CF_AJTIME_MI_INTERVAL,
-	CF_AJTIME_TYPE,				/* ajtime type */
-	CF_AJTIME_DAY_DIFF,
-	CF_AJTIME_AJDATE,
-	CF_AJTIME_OUT,
-	CF_AJBOOL_OUT,
 	CF_HSTORE_FETCHVAL,			/* -> operation on hstore */
 	CF_INTARRAY_IDX,
 	CF_CH_FUNCTION,				/* adapted clickhouse function */

@@ -179,13 +179,6 @@ static bool is_subquery_var(Var * node, RelOptInfo * foreignrel,
 static void get_relation_column_alias_ids(Var * node, RelOptInfo * foreignrel,
 										  int *relno, int *colno);
 
-static char *
-get_alias_name()
-{
-	var_counter++;
-	return psprintf("_tmp%d", var_counter++);
-}
-
 /*
  * Examine each qual clause in input_conds, and classify them into two groups,
  * which are returned as two lists:
@@ -395,10 +388,6 @@ foreign_expr_walker(Node * node,
 				 * semantics on remote side.
 				 */
 				if (!chfdw_is_shippable(fe->funcid, ProcedureRelationId, fpinfo, &cdef))
-					return false;
-
-				/* only simple Var as first argument for accumulate */
-				if (cdef && cdef->cf_type == CF_ISTORE_ACCUMULATE && (!IsA(linitial(fe->args), Var)))
 					return false;
 
 				/*
@@ -1637,134 +1626,9 @@ deparseColumnRef(StringInfo buf, CustomObjectDef * cdef,
 	if (colname == NULL)
 		colname = get_attname(rte->relid, varattno, false);
 
-	if (cinfo && cinfo->coltype == CF_ISTORE_ARR)
-	{
-		char	   *colkey = psprintf("%s_keys", colname);
-		char	   *colval = psprintf("%s_values", colname);
-
-		if (cdef && cdef->cf_type == CF_ISTORE_SUM)
-		{
-			/* SUM context */
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colkey));
-			appendStringInfoChar(buf, ',');
-
-			if (cinfo->table_engine == CH_COLLAPSING_MERGE_TREE)
-			{
-				appendStringInfoString(buf, "arrayMap(x -> x * ");
-				appendStringInfoString(buf, cinfo->signfield);
-				appendStringInfoChar(buf, ',');
-				if (qualify_col)
-					ADD_REL_QUALIFIER(buf, varno);
-				appendStringInfoString(buf, quote_identifier(colval));
-				appendStringInfoChar(buf, ')');
-			}
-			else
-			{
-				if (qualify_col)
-					ADD_REL_QUALIFIER(buf, varno);
-				appendStringInfoString(buf, quote_identifier(colval));
-			}
-		}
-		else if (cdef && cdef->cf_type == CF_ISTORE_FETCHVAL)
-		{
-			/* values[indexOf(ids, */
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colval));
-			appendStringInfoString(buf, "[nullif(indexOf(");
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colkey));
-			appendStringInfoChar(buf, ',');
-		}
-		else if (cdef && cdef->cf_type == CF_ISTORE_SUM_UP)
-		{
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colval));
-
-			if (cdef->cf_context && list_length(cdef->cf_context) == 2)
-			{
-				appendStringInfoChar(buf, ',');
-				if (qualify_col)
-					ADD_REL_QUALIFIER(buf, varno);
-				appendStringInfoString(buf, quote_identifier(colkey));
-			}
-		}
-		else
-		{
-			appendStringInfoChar(buf, '(');
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colkey));
-			appendStringInfoChar(buf, ',');
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colval));
-			appendStringInfoChar(buf, ')');
-		}
-
-		pfree(colkey);
-		pfree(colval);
-	}
-	else if (cinfo && cinfo->coltype == CF_ISTORE_COL)
-	{
-		char	   *alias_name = get_alias_name();
-
-		if (cdef && cdef->cf_type == CF_ISTORE_FETCHVAL)
-		{
-			/*
-			 * ((finalizeAggregation(colname) as _tmp).2)[indexOf(_tmp.1, - we
-			 * fill this part <key>)] - should be filled later
-			 */
-
-			appendStringInfoString(buf, "((");
-
-			if (cinfo->is_AggregateFunction == CF_AGGR_FUNC)
-				appendStringInfoString(buf, "finalizeAggregation(");
-			else
-				appendStringInfoChar(buf, '(');
-
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-
-			appendStringInfoString(buf, quote_identifier(colname));
-			appendStringInfo(buf, ") as %s).2)[nullif(indexOf(%s.1, ", alias_name, alias_name);
-		}
-		else if (cdef && cdef->cf_type == CF_ISTORE_SUM_UP)
-		{
-			appendStringInfoChar(buf, '(');
-
-			if (cinfo->is_AggregateFunction == CF_AGGR_FUNC)
-				appendStringInfoString(buf, "finalizeAggregation(");
-			else
-				appendStringInfoChar(buf, '(');
-
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colname));
-			appendStringInfo(buf, ") as %s).2", alias_name);
-
-			if (cdef->cf_context && list_length(cdef->cf_context) == 2)
-				appendStringInfo(buf, ", %s.1", alias_name);
-		}
-		else
-		{
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, varno);
-			appendStringInfoString(buf, quote_identifier(colname));
-		}
-
-		pfree(alias_name);
-	}
-	else
-	{
-		if (qualify_col)
-			ADD_REL_QUALIFIER(buf, varno);
-		appendStringInfoString(buf, quote_identifier(colname));
-	}
+	if (qualify_col)
+		ADD_REL_QUALIFIER(buf, varno);
+	appendStringInfoString(buf, quote_identifier(colname));
 }
 
 /*
@@ -2185,30 +2049,7 @@ deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 	}
 	else
 	{
-		CustomObjectDef *cdef = chfdw_check_for_custom_function(typoutput);
-
 		extval = OidOutputFunctionCall(typoutput, node->constvalue);
-		if (cdef && cdef->cf_type == CF_AJBOOL_OUT)
-		{
-			/*
-			 * ajbool: 'f' => 0 't' => 1 'u' => -1
-			 */
-			if (extval[0] == 'f')
-				appendStringInfoChar(buf, '0');
-			else if (extval[0] == 't')
-				appendStringInfoChar(buf, '1');
-			else if (extval[0] == 'u')
-				appendStringInfoString(buf, "-1");
-			else
-				elog(ERROR, "unexpected output of ajbool");
-
-			goto cleanup;
-		}
-		else if (cdef && cdef->cf_type == CF_AJTIME_OUT)
-		{
-			closebr = true;
-			appendStringInfoString(buf, "toDateTime(");
-		}
 	}
 
 	switch (node->consttype)
@@ -2323,8 +2164,6 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	ListCell   *arg;
 	CustomObjectDef *cdef,
 			   *old_cdef;
-	CustomObjectDef funcdef;
-	CHFdwRelationInfo *fpinfo = context->scanrel->fdw_private;
 
 	/*
 	 * If the function call came from an implicit coercion, then just show the
@@ -2460,189 +2299,9 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 		appendStringInfoChar(buf, ')');
 		return;
 	}
-	else if (cdef && cdef->cf_type == CF_ISTORE_SEED)
-	{
-		if (!context->func)
-		{
-			/* not aggregation */
-			appendStringInfoChar(buf, '(');
-		}
-
-		appendStringInfoString(buf, "range(toUInt16(");
-		deparseExpr(list_nth(node->args, 1), context);
-		appendStringInfoString(buf, ") + 1), arrayResize(emptyArrayInt64(),toUInt16(");
-		deparseExpr(list_nth(node->args, 1), context);
-		appendStringInfoString(buf, ") + 1, coalesce(");
-		deparseExpr(list_nth(node->args, 2), context);
-		appendStringInfoString(buf, ", 0)");
-
-		if (context->func && context->func->cf_type == CF_ISTORE_SUM
-			&& fpinfo->ch_table_engine == CH_COLLAPSING_MERGE_TREE)
-			appendStringInfo(buf, " * %s", fpinfo->ch_table_sign_field);
-
-		appendStringInfoChar(buf, ')');
-
-		if (!context->func)
-			appendStringInfoChar(buf, ')');
-
-		return;
-	}
-	else if (cdef && cdef->cf_type == CF_ISTORE_ACCUMULATE)
-	{
-		Relids		relids = context->scanrel->relids;
-		Var		   *var = linitial(node->args);
-		bool		qualify_col = (bms_num_members(relids) > 1);
-		char	   *colname = NULL;
-		RangeTblEntry *rte;
-		CustomColumnInfo *cinfo;
-
-		if (!IsA(linitial(node->args), Var))
-			elog(ERROR, "pg_clickhouse supports simple accumulate with column as first parameter");
-
-		if (bms_is_member(var->varno, relids) && var->varlevelsup == 0)
-			rte = planner_rt_fetch(var->varno, context->root);
-		else
-			elog(ERROR, "unidentified first parameter in accumulate");
-
-		/* Get FDW specific options for this column */
-		cinfo = chfdw_get_custom_column_info(rte->relid, var->varattno);
-		if (!cinfo)
-			elog(ERROR, "unidentified first parameter in accumulate");
-
-		if (!context->func)
-		{
-			/* not aggregation */
-			appendStringInfoChar(buf, '(');
-		}
-
-		colname = cinfo->colname;
-		if (cinfo->coltype == CF_ISTORE_ARR)
-		{
-			char	   *max_key_alias = get_alias_name();
-			char	   *colkey = psprintf("%s_keys", colname);
-			char	   *colval = psprintf("%s_values", colname);
-
-			if (list_length(node->args) == 1)
-				elog(ERROR, "pg_clickhouse supports accumulate only with max_key parameter");
-
-			/*
-			 * first block if(a_keys[1] <= max_key, arrayMap(x -> a_keys[1] +
-			 * x - 1, arrayEnumerate(arrayResize(emptyArrayInt32(), (max_key)
-			 * - a_keys[1] + 1))), []),
-			 */
-			appendStringInfoString(buf, "if(");
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-
-			appendStringInfoString(buf, colkey);
-			appendStringInfoString(buf, "[1] <= (coalesce(");
-			deparseExpr((Expr *) list_nth(node->args, 1), context);
-			appendStringInfo(buf, ", 0) as %s), arrayMap(x -> ", max_key_alias);
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colkey);
-			appendStringInfoString(buf, "[1] + x - 1, arrayEnumerate(arrayResize(emptyArrayInt32(), (");
-			appendStringInfo(buf, "%s) - ", max_key_alias);
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colkey);
-			appendStringInfoString(buf, "[1] + 1))), []),");
-
-			/*
-			 * second block: if(a_keys[1] <= max_key, arrayCumSum(arrayMap(x
-			 * -> sign * (a_values[indexOf(a_keys, a_keys[1] + x - 1)]),
-			 * arrayEnumerate(arrayResize(emptyArrayInt32(), (max_key)
-			 * -a_keys[1] + 1)))), [])
-			 */
-			appendStringInfoString(buf, "if(");
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colkey);
-			appendStringInfo(buf, "[1] <= (%s", max_key_alias);
-			appendStringInfoString(buf, "), arrayCumSum(arrayMap(x ->");
-
-			if (context->func && context->func->cf_type == CF_ISTORE_SUM
-				&& fpinfo->ch_table_engine == CH_COLLAPSING_MERGE_TREE)
-				appendStringInfo(buf, "%s * ", fpinfo->ch_table_sign_field);
-
-			appendStringInfoChar(buf, '(');
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colval);
-			appendStringInfoString(buf, "[indexOf(");
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colkey);
-			appendStringInfoChar(buf, ',');
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, colkey);
-			appendStringInfoString(buf, "[1] + x - 1)]), arrayEnumerate(arrayResize(emptyArrayInt32(), (");
-			appendStringInfo(buf, "%s) - ", max_key_alias);
-			appendStringInfoString(buf, colkey);
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-			appendStringInfoString(buf, "[1] + 1)))), [])");
-
-			pfree(colkey);
-			pfree(colval);
-
-			return;
-		}
-		else if (cinfo->coltype == CF_ISTORE_COL)
-		{
-			/*
-			 * (mapFill((finalizeAggregation(col) as t1).1, t1.2, <max_key>)
-			 * as t2).1, arrayCumSum(t2.2)
-			 *
-			 * simple: (mapFill((col as t1).1, t1.2, <max_key>) as t2).1,
-			 * arrayCumSum(t2.2)
-			 */
-
-			char	   *alias1 = get_alias_name();
-			char	   *alias2 = get_alias_name();
-
-			appendStringInfoString(buf, "(mapFill((");
-			if (cinfo->is_AggregateFunction == CF_AGGR_FUNC)
-				appendStringInfoString(buf, "finalizeAggregation(");
-			else
-				appendStringInfoChar(buf, '(');
-
-			if (qualify_col)
-				ADD_REL_QUALIFIER(buf, var->varno);
-
-			appendStringInfoString(buf, colname);
-			appendStringInfo(buf, ") as %s).1, %s.2", alias1, alias1);
-
-			if (list_length(node->args) > 1)
-			{
-				/* max key, for now just assume it keys are always int32 */
-				appendStringInfoString(buf, ", toInt32(assumeNotNull(");
-				deparseExpr((Expr *) list_nth(node->args, 1), context);
-				appendStringInfoString(buf, "))");
-			}
-			appendStringInfo(buf, ") as %s).1, arrayCumSum(%s.2)", alias2, alias2);
-
-			return;
-		}
-		else
-			elog(ERROR, "accumulate for this kind of istore not implemented");
-
-		if (!context->func)
-			appendStringInfoChar(buf, ')');
-	}
 
 	appendStringInfoChar(buf, '(');
-	if (cdef && cdef->cf_type == CF_AJTIME_DAY_DIFF)
-	{
-		appendStringInfoString(buf, "(cast(");
-		deparseExpr((Expr *) list_nth(node->args, 1), context);
-		appendStringInfoString(buf, ", 'DateTime') - ");
-		deparseExpr((Expr *) linitial(node->args), context);
-		appendStringInfoString(buf, ") / 86400)");
-		return;
-	}
-	else if (cdef && (cdef->cf_type == CF_TIMEZONE || cdef->cf_type == CF_MATCH))
+	if (cdef && (cdef->cf_type == CF_TIMEZONE || cdef->cf_type == CF_MATCH))
 	{
 		deparseExpr((Expr *) list_nth(node->args, 1), context);
 		appendStringInfoString(buf, ", ");
@@ -2652,45 +2311,6 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	}
 
 	old_cdef = context->func;
-
-	/* sup_up requires only values part of array */
-	if (cdef && cdef->cf_type == CF_ISTORE_SUM_UP)
-	{
-		/*
-		 * sum_up(daily_time_spent_cohort, 12) => arraySum(arrayFilter((v, k)
-		 * -> k <= 12, daily_time_spent_cohort_values,
-		 * daily_time_spent_cohort_keys))
-		 *
-		 * sum_up(daily_time_spent_cohort) =>
-		 * arraySum(daily_time_spent_cohort_values)
-		 *
-		 * !!!! or in case of AggregateFunction:
-		 * sum_up(daily_time_spent_cohort, 12) => arraySum(arrayFilter((v, k)
-		 * -> k <= 12, (finalizeAggregation(daily_time_spent_cohort) as
-		 * _tmp).2, _tmp.1))
-		 *
-		 * sum_up(daily_time_spent_cohort) =>
-		 * arraySum(finalizeAggregation(daily_time_spent_cohort).2)
-		 */
-		funcdef = *cdef;
-		funcdef.cf_context = node->args;
-		context->func = &funcdef;
-
-		if (list_length(node->args) == 2)
-		{
-			appendStringInfoString(buf, "arrayFilter((v, k) -> k <= ");
-			appendStringInfoChar(buf, '(');
-			deparseExpr((Expr *) list_nth(node->args, 1), context);
-			appendStringInfoChar(buf, ')');
-			appendStringInfoChar(buf, ',');
-			deparseExpr((Expr *) linitial(node->args), context);
-			appendStringInfoChar(buf, ')');
-		}
-		else
-			deparseExpr((Expr *) linitial(node->args), context);
-
-		goto end;
-	}
 
 	/* ... and all the arguments */
 	first = true;
@@ -2703,7 +2323,6 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 		first = false;
 	}
 
-end:
 	context->func = old_cdef;
 	appendStringInfoChar(buf, ')');
 }
@@ -2810,9 +2429,6 @@ findFunction(Oid typoid, char *name)
 	catlist = SearchSysCacheList1(PROCNAMEARGSNSP,
 								  CStringGetDatum(name));
 
-	if (catlist->n_members == 0)
-		elog(ERROR, "pg_clickhouse requires istore extension to parse istore values");
-
 	for (i = 0; i < catlist->n_members; i++)
 	{
 		proctup = &catlist->members[i]->tuple;
@@ -2862,25 +2478,6 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 	{
 		switch (cdef->cf_type)
 		{
-			case CF_AJTIME_OPERATOR:
-				{
-					/* intervals with ajtime */
-					CustomObjectDef *fdef = chfdw_check_for_custom_function(form->oprcode);
-
-					if (fdef && fdef->cf_type == CF_AJTIME_PL_INTERVAL)
-					{
-						deparseIntervalOp(linitial(node->args),
-										  list_nth(node->args, 1), context, true);
-						goto cleanup;
-					}
-					else if (fdef && fdef->cf_type == CF_AJTIME_MI_INTERVAL)
-					{
-						deparseIntervalOp(linitial(node->args),
-										  list_nth(node->args, 1), context, false);
-						goto cleanup;
-					}
-				}
-				break;
 			case CF_TIMESTAMPTZ_PL_INTERVAL:
 				{
 					deparseIntervalOp(linitial(node->args),
@@ -2911,48 +2508,6 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 					else
 						elog(ERROR, "pg_clickhouse supports hstore fetchval "
 							 "only for scalars");
-
-					goto cleanup;
-				}
-				break;
-			case CF_ISTORE_FETCHVAL:
-				{
-					Node	   *arg = linitial(node->args);
-
-					if (IsA(arg, Var))
-					{
-						CustomObjectDef *temp;
-
-						temp = context->func;
-						context->func = cdef;
-
-						/* values[nullif(indexOf(ids, ... in deparseColumnRef */
-						deparseExpr((Expr *) arg, context);
-						deparseExpr((Expr *) list_nth(node->args, 1), context);
-						/* ... 0)] */
-						appendStringInfoString(buf, "), 0)]");
-
-						context->func = temp;
-					}
-					else if (IsA(arg, Const))
-					{
-						Const	   *constval = (Const *) arg;
-						Oid			akeys = findFunction(constval->consttype, "akeys");
-						Oid			avalues = findFunction(constval->consttype, "avals");
-
-						/*
-						 * ([val1, val2][nullif(indexOf([k1, k2], arg), 0])
-						 */
-						appendStringInfoChar(buf, '(');
-						deparseArray(OidFunctionCall1(avalues, constval->constvalue), context);
-						appendStringInfoString(buf, "[nullif(indexOf(");
-						deparseArray(OidFunctionCall1(akeys, constval->constvalue), context);
-						appendStringInfoString(buf, ", ");
-						deparseExpr((Expr *) list_nth(node->args, 1), context);
-						appendStringInfoString(buf, "), 0)])");
-					}
-					else
-						elog(ERROR, "pg_clickhouse supports fetchval only for columns and consts");
 
 					goto cleanup;
 				}

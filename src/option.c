@@ -152,7 +152,6 @@ InitChFdwOptions(void)
 		{"aggregatefunction", AttributeRelationId, false},
 		{"simpleaggregatefunction", AttributeRelationId, false},
 		{"column_name", AttributeRelationId, false},
-		{"arrays", AttributeRelationId, false},
 		{NULL, InvalidOid, false}
 	};
 

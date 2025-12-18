@@ -906,9 +906,6 @@ parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, L
 				*options = lappend(*options, makeString(func));
 			}
 
-			if (strncmp(func, "sumMap", 6) == 0)
-				return "istore";
-
 			return parse_type(table_name, colname, pos2 + 2, is_nullable, options);
 		}
 
