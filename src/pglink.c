@@ -156,7 +156,7 @@ kill_query(void *conn, const char *query_id)
 	ch_http_response_t *resp;
 	ch_query	query = new_query(psprintf(
 										   "kill query where query_id=%s",
-										   ch_quote_literal(query_id)));
+										   ch_quote_literal(query_id)), 0, NULL);
 
 	ch_http_set_progress_func(NULL);
 	resp = ch_http_simple_query(conn, &query);
@@ -498,7 +498,7 @@ http_insert_tuple(void *istate, TupleTableSlot * slot)
 	if ((slot == NULL && state->sql.len > 0)
 		|| state->sql.len > (MaxAllocSize / 2 /* 512MB */ ))
 	{
-		ch_query	query = new_query(state->sql.data);
+		ch_query	query = new_query(state->sql.data, 0, NULL);
 
 		http_simple_insert(state->conn, &query);
 		resetStringInfo(&state->sql);
@@ -934,7 +934,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	UserMapping *user = GetUserMapping(userid, server->serverid);
 	ch_connection conn = chfdw_get_connection(user);
 	ch_cursor  *cursor;
-	ch_query	query = new_query(NULL);
+	ch_query	query = new_query(NULL, 0, NULL);
 	List	   *result = NIL,
 			   *datts = NIL;
 	char	  **row_values;

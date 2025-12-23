@@ -115,6 +115,19 @@ json.sql
  24.8-25.3  | json_1.out
  22-24.3    | json_2.out
 
+param.sql
+---------
+
+ Postgres | File
+----------|-------------
+ 14-18    | param.out
+ 14-16    | param_1.out
+ 13       | param_2.out
+
+ ClickHouse | File
+------------|-----------
+ 23-25      | param.out
+
 subquery_pushdown.sql
 ---------------------
 

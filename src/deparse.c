@@ -132,6 +132,7 @@ static void deparseRelation(StringInfo buf, Relation rel);
 static void deparseExpr(Expr * expr, deparse_expr_cxt * context);
 static void deparseVar(Var * node, deparse_expr_cxt * context);
 static void deparseConst(Const * node, deparse_expr_cxt * context, int showtype);
+static void deparseParam(Param * node, deparse_expr_cxt * context);
 static void deparseSubscriptingRef(SubscriptingRef * node, deparse_expr_cxt * context);
 static void deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context);
 static void deparseOpExpr(OpExpr * node, deparse_expr_cxt * context);
@@ -146,6 +147,10 @@ static void deparseBoolExpr(BoolExpr * node, deparse_expr_cxt * context);
 static void deparseNullTest(NullTest * node, deparse_expr_cxt * context);
 static void deparseArrayExpr(ArrayExpr * node, deparse_expr_cxt * context);
 static void deparseArrayList(ArrayExpr * node, deparse_expr_cxt * context);
+static void printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod,
+							 deparse_expr_cxt * context);
+static void printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
+								   deparse_expr_cxt * context);
 static void deparseSelectSql(List * tlist, bool is_subquery, List * *retrieved_attrs,
 							 deparse_expr_cxt * context);
 static void appendOrderByClause(List * pathkeys, bool has_final_sort,
@@ -343,8 +348,23 @@ foreign_expr_walker(Node * node,
 			break;
 		case T_Param:
 			{
-				/* We are not supporting param push down */
-				return false;
+				Param	   *p = (Param *) node;
+
+				/*
+				 * If it's a MULTIEXPR Param, punt.  We can't tell from here
+				 * whether the referenced sublink/subplan contains any remote
+				 * Vars; if it does, handling that is too complicated to
+				 * consider supporting at present.  Fortunately, MULTIEXPR
+				 * Params are not reduced to plain PARAM_EXEC until the end of
+				 * planning, so we can easily detect this case.  (Normal
+				 * PARAM_EXEC Params are safe to ship because their values
+				 * come from somewhere else in the plan tree; but a MULTIEXPR
+				 * references a sub-select elsewhere in the same targetlist,
+				 * so we'd be on the hook to evaluate it somehow if we wanted
+				 * to handle such cases as direct foreign updates.)
+				 */
+				if (p->paramkind == PARAM_MULTIEXPR)
+					return false;
 			}
 			break;
 		case T_SubscriptingRef:
@@ -653,6 +673,55 @@ foreign_expr_walker(Node * node,
 	if (inner_cxt.found_AggregateFunction)
 		outer_cxt->found_AggregateFunction = true;
 	return true;
+}
+
+/*
+ * Returns true if given expr is something we'd have to send the value of
+ * to the foreign server.
+ *
+ * This should return true when the expression is a shippable node that
+ * deparseExpr would add to context->params_list.  Note that we don't care
+ * if the expression *contains* such a node, only whether one appears at top
+ * level.  We need this to detect cases where setrefs.c would recognize a
+ * false match between an fdw_exprs item (which came from the params_list)
+ * and an entry in fdw_scan_tlist (which we're considering putting the given
+ * expression into).
+ */
+bool
+is_foreign_param(PlannerInfo * root,
+				 RelOptInfo * baserel,
+				 Expr * expr)
+{
+	if (expr == NULL)
+		return false;
+
+	switch (nodeTag(expr))
+	{
+		case T_Var:
+			{
+				/* It would have to be sent unless it's a foreign Var */
+				Var		   *var = (Var *) expr;
+				CHFdwRelationInfo *fpinfo = (CHFdwRelationInfo *) (baserel->fdw_private);
+				Relids		relids;
+
+				if (IS_UPPER_REL(baserel))
+					relids = fpinfo->outerrel->relids;
+				else
+					relids = baserel->relids;
+
+				if (bms_is_member(var->varno, relids) && var->varlevelsup == 0)
+					return false;	/* foreign Var, so not a param */
+				else
+					return true;	/* it'd have to be a param */
+				break;
+			}
+		case T_Param:
+			/* Params always have to be sent to the foreign server */
+			return true;
+		default:
+			break;
+	}
+	return false;
 }
 
 /*
@@ -1713,6 +1782,9 @@ deparseExpr(Expr * node, deparse_expr_cxt * context)
 		case T_Const:
 			deparseConst((Const *) node, context, 0);
 			break;
+		case T_Param:
+			deparseParam((Param *) node, context);
+			break;
 		case T_SubscriptingRef:
 			deparseSubscriptingRef((SubscriptingRef *) node, context);
 			break;
@@ -1812,7 +1884,34 @@ deparseVar(Var * node, deparse_expr_cxt * context)
 						 planner_rt_fetch(node->varno, context->root),
 						 qualify_col);
 	else
-		elog(ERROR, "pg_clickhouse does not support params");
+	{
+		/* Treat like a Param */
+		if (context->params_list)
+		{
+			int			pindex = 0;
+			ListCell   *lc;
+
+			/* find its index in params_list */
+			foreach(lc, *context->params_list)
+			{
+				pindex++;
+				if (equal(node, (Node *) lfirst(lc)))
+					break;
+			}
+			if (lc == NULL)
+			{
+				/* not in list, so add it */
+				pindex++;
+				*context->params_list = lappend(*context->params_list, node);
+			}
+
+			printRemoteParam(pindex, node->vartype, node->vartypmod, context);
+		}
+		else
+		{
+			printRemotePlaceholder(node->vartype, node->vartypmod, context);
+		}
+	}
 }
 
 #define USE_ISO_DATES			1
@@ -2103,6 +2202,81 @@ cleanup:
 	if (extval)
 		pfree(extval);
 
+}
+
+/*
+ * Deparse given Param node.
+ *
+ * If we're generating the query "for real", add the Param to
+ * context->params_list if it's not already present, and then use its index
+ * in that list as the remote parameter number.  During EXPLAIN, there's
+ * no need to identify a parameter number.
+ */
+static void
+deparseParam(Param * node, deparse_expr_cxt * context)
+{
+	if (context->params_list)
+	{
+		int			pindex = 0;
+		ListCell   *lc;
+
+		/* find its index in params_list */
+		foreach(lc, *context->params_list)
+		{
+			pindex++;
+			if (equal(node, (Node *) lfirst(lc)))
+				break;
+		}
+		if (lc == NULL)
+		{
+			/* not in list, so add it */
+			pindex++;
+			*context->params_list = lappend(*context->params_list, node);
+		}
+
+		printRemoteParam(pindex, node->paramtype, node->paramtypmod, context);
+	}
+	else
+	{
+		printRemotePlaceholder(node->paramtype, node->paramtypmod, context);
+	}
+}
+
+/*
+ * Print the representation of a parameter to be sent to the remote side
+ * by param number and remote data type.
+ */
+static void
+printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod,
+				 deparse_expr_cxt * context)
+{
+	StringInfo	buf = context->buf;
+	char	   *ptypename = deparse_type_name(paramtype, paramtypmod);
+
+	appendStringInfo(buf, "{p%d:%s}", paramindex, ptypename);
+}
+
+/*
+ * Print the representation of a placeholder for a parameter that will be
+ * sent to the remote side at execution time.
+ *
+ * This is used when we're just trying to EXPLAIN the remote query. We don't
+ * have the actual value of the runtime parameter yet, and we don't want the
+ * remote planner to generate a plan that depends on such a value anyway.
+ * Thus, we can't do something simple like "CAST($1 AS paramtype)". Instead,
+ * we emit "SELECT CAST(NULL AS Nullable(paramtype))", which ClickHouse's
+ * planner should see as an unknown constant value, which is what we want.
+ * This might need adjustment if we ever make the planner flatten scalar
+ * subqueries.
+ */
+static void
+printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
+					   deparse_expr_cxt * context)
+{
+	StringInfo	buf = context->buf;
+	char	   *ptypename = deparse_type_name(paramtype, paramtypmod);
+
+	appendStringInfo(buf, "((SELECT CAST(null AS Nullable(%s))", ptypename);
 }
 
 /*

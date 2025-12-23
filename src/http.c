@@ -160,6 +160,9 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 	CURLU	   *cu = curl_url();
 	kv_iter		iter;
 	char	   *buf = NULL;
+	curl_mime  *form;
+	curl_mimepart *part;
+	int			i;
 
 	ch_http_response_t *resp = calloc(sizeof(ch_http_response_t), 1);
 
@@ -197,7 +200,6 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 
 	/* variable */
 	curl_easy_setopt(conn->curl, CURLOPT_WRITEDATA, resp);
-	curl_easy_setopt(conn->curl, CURLOPT_POSTFIELDS, query->sql);
 	curl_easy_setopt(conn->curl, CURLOPT_VERBOSE, curl_verbose);
 	if (curl_progressfunc)
 	{
@@ -210,15 +212,44 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 	if (conn->dbname)
 	{
 		headers = curl_slist_append(headers, psprintf("%s: %s", DATABASE_HEADER, conn->dbname));
+		if (!headers)
+		{
+			curl_free(url);
+			resp->http_status = -1;
+			resp->data = "out of memory";
+			return resp;
+		}
 		curl_easy_setopt(conn->curl, CURLOPT_HTTPHEADER, headers);
 	}
+
+	/* Construct and add the the POST form data. */
+	form = curl_mime_init(conn->curl);
+	if (!form)
+	{
+		curl_free(url);
+		if (headers)
+			curl_slist_free_all(headers);
+		resp->http_status = -1;
+		resp->data = "out of memory";
+		return resp;
+	}
+	part = curl_mime_addpart(form);
+	curl_mime_name(part, "query");
+	curl_mime_data(part, query->sql, CURL_ZERO_TERMINATED);
+	for (i = 0; i < query->num_params; i++)
+	{
+		part = curl_mime_addpart(form);
+		curl_mime_name(part, psprintf("param_p%d", i + 1));
+		curl_mime_data(part, query->param_values[i], CURL_ZERO_TERMINATED);
+	}
+	curl_easy_setopt(conn->curl, CURLOPT_MIMEPOST, form);
 
 	curl_error_happened = false;
 	errcode = curl_easy_perform(conn->curl);
 	curl_free(url);
+	curl_mime_free(form);
 	if (headers)
 		curl_slist_free_all(headers);
-
 
 	if (errcode == CURLE_ABORTED_BY_CALLBACK)
 	{

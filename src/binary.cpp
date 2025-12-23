@@ -184,6 +184,20 @@ static QuerySettings ch_binary_settings(const ch_query *query)
 	return res;
 }
 
+/*
+ * Converts query->param_values to QueryParams.
+ */
+static QueryParams ch_binary_params(const ch_query *query)
+{
+	int i;
+	auto res = QueryParams{};
+
+	for (i = 0; i < query->num_params; i++)
+		res.insert_or_assign(psprintf("p%d", i+1), QueryParamValue(query->param_values[i]));
+
+	return res;
+}
+
 static void set_state_error(ch_binary_read_state_t * state, const char * str)
 {
 	assert(state->error == NULL);
@@ -205,6 +219,8 @@ ch_binary_response_t * ch_binary_simple_query(
 		client->Select(
 			clickhouse::Query(query->sql).SetQuerySettings(
 				ch_binary_settings(query)
+			).SetParams(
+				ch_binary_params(query)
 			).OnDataCancelable([&resp, &values, &check_cancel](const Block & block) {
 				if (check_cancel && check_cancel())
 				{
@@ -342,6 +358,8 @@ void ch_binary_prepare_insert(void * conn, const ch_query * query, ch_binary_ins
 		block = new Block(client->BeginInsert(
 			clickhouse::Query(std::string(query->sql)+ " VALUES").SetQuerySettings(
 				ch_binary_settings(query)
+			).SetParams(
+				ch_binary_params(query)
 			)
 		));
 		*/

@@ -216,6 +216,9 @@ extern void chfdw_classify_conditions(PlannerInfo * root,
 extern bool chfdw_is_foreign_expr(PlannerInfo * root,
 								  RelOptInfo * baserel,
 								  Expr * expr);
+extern bool is_foreign_param(PlannerInfo *root,
+							 RelOptInfo *baserel,
+							 Expr *expr);
 extern char *chfdw_deparse_insert_sql(StringInfo buf, RangeTblEntry * rte,
 									  Index rtindex, Relation rel,
 									  List * targetAttrs);
