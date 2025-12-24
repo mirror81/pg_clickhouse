@@ -9,6 +9,21 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.2] — Unreleased
 
+### ⚡ Improvements
+
+*   Added support for parameterized execution, including `PREPARE` and
+    `EXECUTE`, by converting PostgreSQL `$1`-style parameters to ClickHouse
+    `{param:type}`-style parameters.
+
+### 📚 Documentation
+
+*   Documented `IMPORT FOREIGN SCHEMA` identifier case preservation behavior.
+*   Fixed the Postgres DOcker start and connect info in the
+    [tutorial](doc/tutorial.md).
+*   Added complete DML documentation to the [reference
+    docs](doc/pg_clickhouse.md), including the new `PREPARE`/`EXECUTE` support
+    and `INSERT`, `SET`, `COPY`, as well as shared library preloading.
+
 ### 📔 Notes
 
 *   Removed unused code designed to support custom PostgreSQL extensions:
