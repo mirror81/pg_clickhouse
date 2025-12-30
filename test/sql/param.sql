@@ -20,7 +20,7 @@ SELECT clickhouse_raw_query($$
         c5 Date,
         c6 String,
         c7 String,
-        c8 String
+        c8 Array(String)
     ) ENGINE = MergeTree PARTITION BY c4 ORDER BY (c1)
 $$);
 
@@ -34,7 +34,7 @@ SELECT clickhouse_raw_query($$
            addDays(toDate('1970-01-01'), number % 100),
            number % 10,
            number % 10,
-           'foo'
+           ['foo']
     FROM numbers(1, 110)
 $$);
 
@@ -51,7 +51,7 @@ CREATE FOREIGN TABLE bin_test.ft1 (
 	c5 timestamp,
 	c6 varchar(10),
 	c7 char(10) default 'ft1',
-	c8 text
+	c8 text[]
 ) SERVER param_bin_svr OPTIONS(
     database 'param_test',
     table_name 'ft1'
@@ -65,7 +65,7 @@ CREATE FOREIGN TABLE bin_test.ft2 (
 	c5 timestamp,
 	c6 varchar(10),
 	c7 char(10) default 'f21',
-	c8 text
+	c8 text[]
 ) SERVER param_bin_svr OPTIONS(
     database 'param_test',
     table_name 'ft1'
@@ -106,14 +106,14 @@ EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st4(1);
 -- once we try it enough times, should switch to generic plan
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st4(1);
 -- value of $1 should not be sent to remote
-PREPARE st5(text,int) AS SELECT * FROM bin_test.ft1 t1 WHERE c8 = $1 and c1 = $2;
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXECUTE st5('foo', 1);
+PREPARE st5(text[], int) AS SELECT * FROM bin_test.ft1 t1 WHERE c8 = $1 and c1 = $2;
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXECUTE st5('{foo}', 1);
 
 -- altering FDW options requires replanning
 PREPARE st6 AS SELECT * FROM bin_test.ft1 t1 WHERE t1.c1 = t1.c2 ORDER BY t1.c1;
@@ -154,7 +154,7 @@ CREATE FOREIGN TABLE http_test.ft1 (
 	c5 timestamp,
 	c6 varchar(10),
 	c7 char(10) default 'ft1',
-	c8 text
+	c8 text[]
 ) SERVER param_http_svr OPTIONS(
     database 'param_test',
     table_name 'ft1'
@@ -168,7 +168,7 @@ CREATE FOREIGN TABLE http_test.ft2 (
 	c5 timestamp,
 	c6 varchar(10),
 	c7 char(10) default 'f21',
-	c8 text
+	c8 text[]
 ) SERVER param_http_svr OPTIONS(
     database 'param_test',
     table_name 'ft1'
@@ -209,14 +209,14 @@ EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st4(1);
 -- once we try it enough times, should switch to generic plan
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st4(1);
 -- value of $1 should not be sent to remote
-PREPARE st5(text,int) AS SELECT * FROM http_test.ft1 t1 WHERE c8 = $1 and c1 = $2;
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('foo', 1);
-EXECUTE st5('foo', 1);
+PREPARE st5(text[], int) AS SELECT * FROM http_test.ft1 t1 WHERE c8 = $1 and c1 = $2;
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st5('{foo}', 1);
+EXECUTE st5('{foo}', 1);
 
 -- altering FDW options requires replanning
 PREPARE st6 AS SELECT * FROM http_test.ft1 t1 WHERE t1.c1 = t1.c2 ORDER BY t1.c1;

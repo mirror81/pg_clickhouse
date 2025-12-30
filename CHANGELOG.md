@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added support for parameterized execution, including `PREPARE` and
     `EXECUTE`, by converting PostgreSQL `$1`-style parameters to ClickHouse
     `{param:type}`-style parameters.
+*   Added support for inserting arrays to the http engine.
 
 ### 📚 Documentation
 

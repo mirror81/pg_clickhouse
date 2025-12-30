@@ -463,7 +463,7 @@ ch_binary_make_tuple_map(TupleDesc indesc, TupleDesc outdesc)
 }
 
 void
-ch_binary_do_output_convertion(ch_binary_insert_state * insert_state,
+ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 							   TupleTableSlot * slot)
 {
 	Datum	   *out_values = insert_state->values;

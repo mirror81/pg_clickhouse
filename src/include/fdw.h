@@ -78,6 +78,7 @@ ch_connection chfdw_binary_connect(ch_connection_details * details);
 text	   *chfdw_http_fetch_raw_data(ch_cursor * cursor);
 List	   *chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * server);
 char *ch_quote_literal(const char *rawstr);
+char	   *chfdw_datum_to_ch_literal(Datum value, Oid type);
 
 typedef enum
 {
@@ -228,6 +229,7 @@ extern void chfdw_deparse_select_stmt_for_rel(StringInfo buf, PlannerInfo * root
 											  bool has_final_sort, bool has_limit, bool is_subquery,
 											  List * *retrieved_attrs, List * *params_list);
 extern const char *chfdw_get_jointype_name(JoinType jointype);
+char * chfdw_array_to_ch_literal(Datum arr);
 
 /* in shippable.c */
 extern bool chfdw_is_builtin(Oid objectId);

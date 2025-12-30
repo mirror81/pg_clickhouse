@@ -114,7 +114,7 @@ typedef struct ChFdwScanState
 	/* for remote query execution */
 	ch_connection conn;			/* connection for the scan */
 	int			numParams;		/* number of parameters passed to query */
-	FmgrInfo   *param_flinfo;	/* output conversion functions for them */
+	Oid		   *param_oids;		/* output parameter type OIDs them */
 	List	   *param_exprs;	/* executable expressions for param values */
 	const char **param_values;	/* textual values of query parameters */
 	ch_cursor  *ch_cursor;		/* result of query from clickhouse */
@@ -253,11 +253,11 @@ static void finish_foreign_modify(CHFdwModifyState * fmstate);
 static void prepare_query_params(PlanState * node,
 								 List * fdw_exprs,
 								 int numParams,
-								 FmgrInfo * *param_flinfo,
+								 Oid * *param_oids,
 								 List * *param_exprs,
 								 const char ***param_values);
 static void process_query_params(ExprContext * econtext,
-								 FmgrInfo * param_flinfo,
+								 Oid * param_oids,
 								 List * param_exprs,
 								 const char **param_values);
 static bool foreign_join_ok(PlannerInfo * root, RelOptInfo * joinrel,
@@ -834,7 +834,7 @@ clickhouseBeginForeignScan(ForeignScanState * node, int eflags)
 		prepare_query_params((PlanState *) node,
 							 fsplan->fdw_exprs,
 							 numParams,
-							 &fsstate->param_flinfo,
+							 &fsstate->param_oids,
 							 &fsstate->param_exprs,
 							 &fsstate->param_values);
 }
@@ -998,7 +998,7 @@ clickhouseIterateForeignScan(ForeignScanState * node)
 		if (numParams > 0)
 		{
 			process_query_params(econtext,
-								 fsstate->param_flinfo,
+								 fsstate->param_oids,
 								 fsstate->param_exprs,
 								 values);
 		}
@@ -1459,7 +1459,7 @@ static void
 prepare_query_params(PlanState * node,
 					 List * fdw_exprs,
 					 int numParams,
-					 FmgrInfo * *param_flinfo,
+					 Oid * *param_oids,
 					 List * *param_exprs,
 					 const char ***param_values)
 {
@@ -1469,17 +1469,14 @@ prepare_query_params(PlanState * node,
 	Assert(numParams > 0);
 
 	/* Prepare for output conversion of parameters used in remote query. */
-	*param_flinfo = (FmgrInfo *) palloc0(sizeof(FmgrInfo) * numParams);
+	*param_oids = (Oid *) palloc0(sizeof(Oid) * numParams);
 
 	i = 0;
 	foreach(lc, fdw_exprs)
 	{
 		Node	   *param_expr = (Node *) lfirst(lc);
-		Oid			typefnoid;
-		bool		isvarlena;
 
-		getTypeOutputInfo(exprType(param_expr), &typefnoid, &isvarlena);
-		fmgr_info(typefnoid, &(*param_flinfo)[i]);
+		(*param_oids)[i] = exprType(param_expr);
 		i++;
 	}
 
@@ -1502,7 +1499,7 @@ prepare_query_params(PlanState * node,
  */
 static void
 process_query_params(ExprContext * econtext,
-					 FmgrInfo * param_flinfo,
+					 Oid * param_oids,
 					 List * param_exprs,
 					 const char **param_values)
 {
@@ -1524,13 +1521,9 @@ process_query_params(ExprContext * econtext,
 		 * type-specific output function, unless the value is null.
 		 */
 		if (isNull)
-		{
 			param_values[i] = NULL;
-		}
 		else
-		{
-			param_values[i] = OutputFunctionCall(&param_flinfo[i], expr_value);
-		}
+			param_values[i] = chfdw_datum_to_ch_literal(expr_value, param_oids[i]);
 
 		i++;
 	}

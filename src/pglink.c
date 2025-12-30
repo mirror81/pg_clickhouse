@@ -340,6 +340,75 @@ chfdw_http_fetch_raw_data(ch_cursor * cursor)
 }
 
 /*
+ * Convert a Datum to a ClickHouse literal string. Returns NULL if the value
+ * cannot be converted to a literal.
+ */
+extern char *
+chfdw_datum_to_ch_literal(Datum value, Oid type)
+{
+	if (type_is_array(type))
+		return chfdw_array_to_ch_literal(value);
+
+	switch (type)
+	{
+		case BOOLOID:
+		case INT2OID:
+		case INT4OID:
+			return psprintf("%d", DatumGetInt32(value));
+		case INT8OID:
+			return psprintf(INT64_FORMAT, DatumGetInt64(value));
+		case FLOAT4OID:
+			return psprintf("%f", DatumGetFloat4(value));
+		case FLOAT8OID:
+			return psprintf("%f", DatumGetFloat8(value));
+		case NUMERICOID:
+			return DatumGetCString(DirectFunctionCall1(numeric_out, value));
+		case BPCHAROID:
+		case VARCHAROID:
+		case TEXTOID:
+		case JSONOID:
+		case JSONBOID:
+		case NAMEOID:
+		case BITOID:
+		case BYTEAOID:
+			{
+				char	   *text,
+						   *result;
+				size_t		len;
+				bool		tl = false;
+				Oid			typoutput = InvalidOid;
+
+				getTypeOutputInfo(type, &typoutput, &tl);
+				text = OidOutputFunctionCall(typoutput, value);
+				len = strlen(text);
+				result = palloc(len * 2 + 1);
+				ch_escape_string(result, text, len+1);
+				return result;
+			}
+		case DATEOID:
+			/* we expect Date on other side */
+			return DatumGetCString(DirectFunctionCall1(ch_date_out, value));
+		case TIMEOID:
+			{
+				/* we expect DateTime on other side */
+				char	   *extval = DatumGetCString(DirectFunctionCall1(ch_time_out, value));
+				char	   *retval = psprintf("1970-01-01 %s", extval);
+
+				pfree(extval);
+				return retval;
+			}
+		case TIMESTAMPOID:
+		case TIMESTAMPTZOID:
+			/* we expect DateTime on other side */
+			return DatumGetCString(DirectFunctionCall1(ch_timestamp_out, value));
+		default:
+			ereport(ERROR, (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+							errmsg("cannot convert value to clickhouse value"),
+							errhint("Value data type: %u", type)));
+	}
+}
+
+/*
  * extend_insert_query
  *		Construct values part of INSERT query
  */
@@ -365,6 +434,7 @@ extend_insert_query(ch_http_insert_state * state, TupleTableSlot * slot)
 			Datum		value;
 			Oid			type;
 			bool		isnull;
+			char	   *string;
 
 			value = slot_getattr(slot, attnum, &isnull);
 			type = TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid;
@@ -382,87 +452,9 @@ extend_insert_query(ch_http_insert_state * state, TupleTableSlot * slot)
 				continue;
 			}
 
-			switch (type)
-			{
-				case BOOLOID:
-				case INT2OID:
-				case INT4OID:
-					appendStringInfo(&state->sql, "%d", DatumGetInt32(value));
-					break;
-				case INT8OID:
-					appendStringInfo(&state->sql, INT64_FORMAT, DatumGetInt64(value));
-					break;
-				case FLOAT4OID:
-					appendStringInfo(&state->sql, "%f", DatumGetFloat4(value));
-					break;
-				case FLOAT8OID:
-					appendStringInfo(&state->sql, "%f", DatumGetFloat8(value));
-					break;
-				case NUMERICOID:
-					{
-						char	   *extval = DatumGetCString(DirectFunctionCall1(numeric_out, value));
-
-						appendStringInfoString(&state->sql, extval);
-						pfree(extval);
-					}
-					break;
-				case BPCHAROID:
-				case VARCHAROID:
-				case TEXTOID:
-				case JSONOID:
-				case JSONBOID:
-				case NAMEOID:
-				case BITOID:
-				case BYTEAOID:
-					{
-						char	   *text,
-								   *result;
-						size_t		len;
-						bool		tl = false;
-						Oid			typoutput = InvalidOid;
-
-						getTypeOutputInfo(type, &typoutput, &tl);
-						text = OidOutputFunctionCall(typoutput, value);
-						len = strlen(text) + 1;
-						result = palloc(len * 2 + 1);
-						ch_escape_string(result, text, len);
-						appendStringInfoString(&state->sql, result);
-						pfree(result);
-					}
-					break;
-				case DATEOID:
-					{
-						/* we expect Date on other side */
-						char	   *extval = DatumGetCString(DirectFunctionCall1(ch_date_out, value));
-
-						appendStringInfoString(&state->sql, extval);
-						pfree(extval);
-						break;
-					}
-				case TIMEOID:
-					{
-						/* we expect DateTime on other side */
-						char	   *extval = DatumGetCString(DirectFunctionCall1(ch_time_out, value));
-
-						appendStringInfo(&state->sql, "1970-01-01 %s", extval);
-						pfree(extval);
-						break;
-					}
-				case TIMESTAMPOID:
-				case TIMESTAMPTZOID:
-					{
-						/* we expect DateTime on other side */
-						char	   *extval = DatumGetCString(DirectFunctionCall1(ch_timestamp_out, value));
-
-						appendStringInfoString(&state->sql, extval);
-						pfree(extval);
-						break;
-					}
-				default:
-					ereport(ERROR, (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-									errmsg("cannot convert constant value to clickhouse value"),
-									errhint("Constant value data type: %u", type)));
-			}
+			string = chfdw_datum_to_ch_literal(value, type);
+			appendStringInfoString(&state->sql, string);
+			pfree(string);
 #ifdef USE_ASSERT_CHECKING
 			pindex++;
 #endif
@@ -761,7 +753,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 			MemoryContextSwitchTo(old_mcxt);
 		}
 
-		ch_binary_do_output_convertion(state, slot);
+		ch_binary_do_output_conversion(state, slot);
 
 		for (size_t i = 0; i < state->outdesc->natts; i++)
 			ch_binary_column_append_data(state, i);

@@ -2085,6 +2085,21 @@ deparseArray(Datum arr, deparse_expr_cxt * context)
 }
 
 /*
+ * Exported function to convert an array to a ClickHouse string literal array.
+ */
+char	   *
+chfdw_array_to_ch_literal(Datum arr)
+{
+
+	deparse_expr_cxt context;
+
+	context.array_as_tuple = false;
+	context.buf = makeStringInfo();
+	deparseArray(arr, &context);
+	return context.buf->data;
+}
+
+/*
  * Deparse given constant value into context->buf.
  *
  * This function has to be kept in sync with ruleutils.c's get_const_expr.

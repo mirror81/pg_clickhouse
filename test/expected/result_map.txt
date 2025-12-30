@@ -89,6 +89,18 @@ http.sql
  23         | http_4.out
  22         | http_5.out
 
+http_inserts.sql
+----------------
+
+ Postgres | File
+----------|--------------------
+ 18       | http_inserts.out
+ 13-17    | http_inserts_1.out
+
+ ClickHouse | File
+------------|------------------
+ 22-25      | http_inserts.out
+
 import_schema.sql
 -----------------
 
@@ -120,7 +132,7 @@ param.sql
 
  Postgres | File
 ----------|-------------
- 14-18    | param.out
+ 17-18    | param.out
  14-16    | param_1.out
  13       | param_2.out
 
