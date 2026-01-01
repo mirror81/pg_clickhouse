@@ -299,6 +299,7 @@ static Oid get_corr_postgres_type(const TypeRef & type)
 		case Type::Code::LowCardinality:
 			return get_corr_postgres_type(type->As<LowCardinalityType>()->GetNestedType());
 		case Type::Code::Date:
+		case Type::Code::Date32:
 			return DATEOID;
 		case Type::Code::DateTime:
 			return TIMESTAMPOID;
@@ -538,13 +539,16 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			break;
 		}
 		case DATEOID: {
-			Timestamp t = date2timestamp_no_overflow(DatumGetDateADT(val));
-			pg_time_t d = timestamptz_to_time_t(t);
+           Timestamp t = date2timestamp_no_overflow(DatumGetDateADT(val));
+           pg_time_t d = timestamptz_to_time_t(t);
 
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Date:
 					col->As<ColumnDate>()->Append(d);
+					break;
+				case Type::Code::Date32:
+					col->As<ColumnDate32>()->Append(d);
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("DATE", col);
@@ -864,44 +868,28 @@ nested_col:
 		case Type::Code::Date: {
 			auto val = static_cast<pg_time_t>(col->As<ColumnDate>()->At(row));
 			*valtype = DATEOID;
-
-			if (val == 0)
-				/* clickhouse special case */
-				*is_null = true;
-			else
-			{
-				Timestamp t = (Timestamp)time_t_to_timestamptz(val);
-				ret = TimestampGetDatum(t);
-			}
+			ret = DirectFunctionCall1(timestamp_date, time_t_to_timestamptz(val));
+		}
+		break;
+		case Type::Code::Date32: {
+			auto val = static_cast<pg_time_t>(col->As<ColumnDate32>()->At(row));
+			*valtype = DATEOID;
+			ret = DirectFunctionCall1(timestamp_date, time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::DateTime: {
 			auto val = static_cast<pg_time_t>(col->As<ColumnDateTime>()->At(row));
 			*valtype = TIMESTAMPOID;
-
-			if (val == 0)
-				*is_null = true;
-			else
-			{
-				Timestamp t = (Timestamp)time_t_to_timestamptz(val);
-				ret = TimestampGetDatum(t);
-			}
+			ret = TimestampGetDatum(time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::DateTime64: {
 			auto dt_col = col->As<ColumnDateTime64>();
 			auto val = dt_col->At(row);
-
+			int64 power = pow(10, dt_col->GetPrecision());
 			*valtype = TIMESTAMPOID;
-
-			if (val == 0)
-				*is_null = true;
-			else
-			{
-				ret = ((1.0 * val) / pow(10, dt_col->GetPrecision())
-					   - (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY)
-					* USECS_PER_SEC;
-			}
+			ret = TimestampGetDatum(time_t_to_timestamptz(val / power))
+				+ (val % power) * (USECS_PER_SEC / power);
 		}
 		break;
 		case Type::Code::UUID: {

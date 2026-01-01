@@ -25,6 +25,21 @@ All notable changes to this project will be documented in this file. It uses the
     docs](doc/pg_clickhouse.md), including the new `PREPARE`/`EXECUTE` support
     and `INSERT`, `SET`, `COPY`, as well as shared library preloading.
 
+### 🪲 Bug Fixes
+
+*   Fixed the http engine's parsing of UUID arrays selected from ClickHouse.
+*   Fixed the binary engine's conversion of Date values, which in arrays ended
+    up too large by several orders of magnitude (e.g., `2025-12-05` would be
+    converted to `10529827-09-17` 😱). Thanks to Tom Lane for the pointer to
+    the proper function to easily convert epoch seconds to a date.
+*   Fixed a binary engine bug where dates and timestamps for epoch 0
+    (`1970-01-01 00:00:00`) rendered as `NULL`.
+*   Added support for the `Date32` ClickHouse type.
+*   Fixed conversion of `array_agg()` to support ClickHouse versions prior to
+    23.8.
+*   Fixed the precision of fractional seconds in the binary engine's
+    conversion of ClickHouse DateTime64 values to Postgres TIMESTAMP (#114).
+
 ### 📔 Notes
 
 *   Removed unused code designed to support custom PostgreSQL extensions:

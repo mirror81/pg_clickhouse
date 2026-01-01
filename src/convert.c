@@ -181,13 +181,6 @@ convert_bool_to_int16(ch_convert_output_state * state, Datum val)
 	return Int16GetDatum(DatumGetBool(val) ? 1 : 0);
 }
 
-static Datum
-convert_date(ch_convert_state * state, Datum val)
-{
-	val = DirectFunctionCall1(timestamp_date, val);
-	return convert_generic(state, val);
-}
-
 Datum
 ch_binary_convert_datum(void *state, Datum val)
 {
@@ -206,9 +199,7 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 	state->typmod = -1;
 	state->ctype = COERCION_PATH_NONE;
 
-	if (intype == DATEOID)
-		state->func = convert_date;
-	else if (intype == ANYARRAYOID)
+	if (intype == ANYARRAYOID)
 	{
 		ch_binary_array_t *slot = (ch_binary_array_t *) DatumGetPointer(val);
 

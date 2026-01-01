@@ -37,6 +37,7 @@
 #define F_DATE_PART_TEXT_DATE 1384
 #define F_PERCENTILE_CONT_FLOAT8_FLOAT8 3974
 #define F_PERCENTILE_CONT_FLOAT8_INTERVAL 3976
+#define F_ARRAY_AGG_ANYNONARRAY 2335
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -195,6 +196,7 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_REGEXP_LIKE_TEXT_TEXT:
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
 			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
+			case F_ARRAY_AGG_ANYNONARRAY:
 				special_builtin = true;
 				break;
 			default:
@@ -267,6 +269,11 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
 				{
 					strcpy(entry->custom_name, "quantile");
+					break;
+				}
+			case F_ARRAY_AGG_ANYNONARRAY:
+				{
+					strcpy(entry->custom_name, "groupArray");
 					break;
 				}
 		}

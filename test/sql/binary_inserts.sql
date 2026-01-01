@@ -25,7 +25,7 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.null_ints (
 ');
 
 SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.complex (
-    c1 Int32, c2 Date, c3 DateTime, c4 String, c5 FixedString(10), c6 LowCardinality(String), c7 DateTime64(3)
+    c1 Int32, c2 Date, c3 DateTime, c4 String, c5 FixedString(10), c6 LowCardinality(String), c7 Date32, c8 DateTime64(3)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
 
@@ -66,12 +66,14 @@ SELECT * FROM null_ints ORDER BY c1;
 SELECT * FROM null_ints ORDER BY c1;
 
 /* check dates and strings */
-ALTER TABLE complex ALTER COLUMN c7 SET DATA TYPE timestamp(3);
+ALTER TABLE complex ALTER COLUMN c8 SET DATA TYPE timestamp(3);
 \d+ complex
 INSERT INTO complex VALUES
-	(1, '2020-06-01', '2020-06-02 10:01:02', 't1', 'fix_t1', 'low1', '2020-06-02 10:01:02.123'),
-	(2, '2020-06-02', '2020-06-03 10:01:02', 5, 'fix_t2', 'low2', '2020-06-03 11:01:02.234'),
-	(3, '2020-06-03', '2020-06-04 10:01:02', 5, 'fix_t3', 'low3', '2020-06-04 12:01:02');
+	(1, '2020-06-01', '2020-06-02 10:01:02', 't1', 'fix_t1', 'low1', '2020-06-01', '2020-06-02 10:01:02.123'),
+	(2, '2020-06-02', '2020-06-03 10:01:02', 5, 'fix_t2', 'low2', '2020-06-02', '2020-06-03 11:01:02.234'),
+	(3, '2020-06-03', '2020-06-04 10:01:02', 5, 'fix_t3', 'low3', '2020-06-03', '2020-06-04 12:01:02'),
+	(4, '1970-01-01', '1970-01-01 00:00:00', 5, 'fix_t4', 'low4', '1970-01-01', '1970-01-01 00:00:00'),
+	(5, '2000-01-01', '2000-01-01 00:00:00', 5, 'fix_t5', 'low5', '2000-01-01', '2000-01-01 00:00:00');
 SELECT * FROM complex ORDER BY c1;
 
 /* check arrays */

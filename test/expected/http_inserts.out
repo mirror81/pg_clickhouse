@@ -50,7 +50,7 @@ SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.null_ints (
 (1 row)
 
 SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.complex (
-    c1 Int32, c2 Date, c3 DateTime, c4 String, c5 FixedString(10), c6 LowCardinality(String), c7 DateTime64(3)
+    c1 Int32, c2 Date, c3 DateTime, c4 String, c5 FixedString(10), c6 LowCardinality(String), c7 Date32, c8 DateTime64(3)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
  clickhouse_raw_query 
@@ -171,7 +171,7 @@ SELECT * FROM null_ints ORDER BY c1;
 (13 rows)
 
 /* check dates and strings */
-ALTER TABLE complex ALTER COLUMN c7 SET DATA TYPE timestamp(3);
+ALTER TABLE complex ALTER COLUMN c8 SET DATA TYPE timestamp(3);
 \d+ complex
                                                  Foreign table "public.complex"
  Column |              Type              | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
@@ -182,7 +182,8 @@ ALTER TABLE complex ALTER COLUMN c7 SET DATA TYPE timestamp(3);
  c4     | text                           |           | not null |         |             | extended |              | 
  c5     | character varying(10)          |           | not null |         |             | extended |              | 
  c6     | text                           |           | not null |         |             | extended |              | 
- c7     | timestamp(3) without time zone |           | not null |         |             | plain    |              | 
+ c7     | date                           |           | not null |         |             | plain    |              | 
+ c8     | timestamp(3) without time zone |           | not null |         |             | plain    |              | 
 Not-null constraints:
     "complex_c1_not_null" NOT NULL "c1"
     "complex_c2_not_null" NOT NULL "c2"
@@ -191,20 +192,25 @@ Not-null constraints:
     "complex_c5_not_null" NOT NULL "c5"
     "complex_c6_not_null" NOT NULL "c6"
     "complex_c7_not_null" NOT NULL "c7"
+    "complex_c8_not_null" NOT NULL "c8"
 Server: http_inserts_loopback
 FDW options: (database 'http_inserts_test', table_name 'complex', engine 'MergeTree')
 
 INSERT INTO complex VALUES
-	(1, '2020-06-01', '2020-06-02 10:01:02', 't1', 'fix_t1', 'low1', '2020-06-02 10:01:02.123'),
-	(2, '2020-06-02', '2020-06-03 10:01:02', 5, 'fix_t2', 'low2', '2020-06-03 11:01:02.234'),
-	(3, '2020-06-03', '2020-06-04 10:01:02', 5, 'fix_t3', 'low3', '2020-06-04 12:01:02');
+	(1, '2020-06-01', '2020-06-02 10:01:02', 't1', 'fix_t1', 'low1', '2020-06-01', '2020-06-02 10:01:02.123'),
+	(2, '2020-06-02', '2020-06-03 10:01:02', 5, 'fix_t2', 'low2', '2020-06-02', '2020-06-03 11:01:02.234'),
+	(3, '2020-06-03', '2020-06-04 10:01:02', 5, 'fix_t3', 'low3', '2020-06-03', '2020-06-04 12:01:02'),
+	(4, '1970-01-01', '1970-01-01 00:00:00', 5, 'fix_t4', 'low4', '1970-01-01', '1970-01-01 00:00:00'),
+	(5, '2000-01-01', '2000-01-01 00:00:00', 5, 'fix_t5', 'low5', '2000-01-01', '2000-01-01 00:00:00');
 SELECT * FROM complex ORDER BY c1;
- c1 |     c2     |         c3          | c4 |   c5   |  c6  |         c7          
-----+------------+---------------------+----+--------+------+---------------------
-  1 | 2020-06-01 | 2020-06-02 10:01:02 | t1 | fix_t1 | low1 | 2020-06-02 10:01:02
-  2 | 2020-06-02 | 2020-06-03 10:01:02 | 5  | fix_t2 | low2 | 2020-06-03 11:01:02
-  3 | 2020-06-03 | 2020-06-04 10:01:02 | 5  | fix_t3 | low3 | 2020-06-04 12:01:02
-(3 rows)
+ c1 |     c2     |         c3          | c4 |   c5   |  c6  |     c7     |         c8          
+----+------------+---------------------+----+--------+------+------------+---------------------
+  1 | 2020-06-01 | 2020-06-02 10:01:02 | t1 | fix_t1 | low1 | 2020-06-01 | 2020-06-02 10:01:02
+  2 | 2020-06-02 | 2020-06-03 10:01:02 | 5  | fix_t2 | low2 | 2020-06-02 | 2020-06-03 11:01:02
+  3 | 2020-06-03 | 2020-06-04 10:01:02 | 5  | fix_t3 | low3 | 2020-06-03 | 2020-06-04 12:01:02
+  4 | 1970-01-01 | 1970-01-01 00:00:00 | 5  | fix_t4 | low4 | 1970-01-01 | 1970-01-01 00:00:00
+  5 | 2000-01-01 | 2000-01-01 00:00:00 | 5  | fix_t5 | low5 | 2000-01-01 | 2000-01-01 00:00:00
+(5 rows)
 
 /* check arrays */
 INSERT INTO arrays VALUES

@@ -905,6 +905,9 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 						valstr[pos] = '{';
 					if (valstr[pos] == ']')
 						valstr[pos] = '}';
+					if (valstr[pos] == '\'' && pgtype == UUIDARRAYOID)
+						/* Remove ClickHouse's single quotes around UUIDs */
+						valstr[pos] = ' ';
 					pos++;
 				}
 			}

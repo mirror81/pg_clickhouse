@@ -788,6 +788,7 @@ types:
 ------------+------------------+-------------------------------
  Bool       | boolean          | 
  Date       | date             | 
+ Date32     | date             | 
  DateTime   | timestamp        | 
  Decimal    | numeric          | 
  Float32    | real             | 
@@ -916,6 +917,8 @@ pushed down.
 
 These PostgreSQL aggregate functions pushdown to ClickHouse.
 
+*   [array_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparray)
+*   [avg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/avg)
 *   [count](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/count)
 
 ### Custom Aggregates

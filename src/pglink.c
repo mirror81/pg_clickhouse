@@ -382,7 +382,7 @@ chfdw_datum_to_ch_literal(Datum value, Oid type)
 				text = OidOutputFunctionCall(typoutput, value);
 				len = strlen(text);
 				result = palloc(len * 2 + 1);
-				ch_escape_string(result, text, len+1);
+				ch_escape_string(result, text, len + 1);
 				return result;
 			}
 		case DATEOID:
@@ -785,6 +785,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 		('String',   'text',             ''),
 		('DateTime', 'timestamp',        ''),
 		('Date',     'date',             ''),
+		('Date32',   'date',             ''),
 		('UUID',     'uuid',             ''),
 		('IPv4',     'inet',             ''),
 		('IPv6',     'inet',             ''),
@@ -810,6 +811,7 @@ static char *str_types_map[][2] = {
 	{"String", "TEXT"},
 	{"DateTime", "TIMESTAMP"},
 	{"Date", "DATE"},			/* must come after other Date types */
+	{"Date32", "DATE"},
 	{"UUID", "UUID"},
 	{"IPv4", "inet"},
 	{"IPv6", "inet"},
