@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.2] — Unreleased
+## [v0.1.2] — 2026-01-07
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
@@ -19,7 +23,7 @@ All notable changes to this project will be documented in this file. It uses the
 ### 📚 Documentation
 
 *   Documented `IMPORT FOREIGN SCHEMA` identifier case preservation behavior.
-*   Fixed the Postgres DOcker start and connect info in the
+*   Fixed the Postgres Docker start and connect info in the
     [tutorial](doc/tutorial.md).
 *   Added complete DML documentation to the [reference
     docs](doc/pg_clickhouse.md), including the new `PREPARE`/`EXECUTE` support
@@ -38,7 +42,8 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed conversion of `array_agg()` to support ClickHouse versions prior to
     23.8.
 *   Fixed the precision of fractional seconds in the binary engine's
-    conversion of ClickHouse DateTime64 values to Postgres TIMESTAMP (#114).
+    conversion of ClickHouse `DateTime64` values to Postgres `TIMESTAMP`
+    (#114).
 
 ### 📔 Notes
 
@@ -54,6 +59,8 @@ All notable changes to this project will be documented in this file. It uses the
     blank spaces.
 *   Fixed the commands to start and connect to the pg_clickhouse Docker image
     in the [tutorial].
+*   Documented the Postgres aggregate functions known (via new tests) to push
+    down to ClickHouse.
 
   [v0.1.2]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.1...v0.1.2
   [ajbool]: https://pgxn.org/dist/ajbool/ "ajbool on PGXN"
@@ -64,8 +71,8 @@ All notable changes to this project will be documented in this file. It uses the
 ## [v0.1.1] — 2025-12-17
 
 This release makes binary-only changes. Once installed, any existing use of
-pg_clickhouse v0.1 will get its benefits on reload without needing to `ALTER
-EXTENSION UPDATE`.
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 

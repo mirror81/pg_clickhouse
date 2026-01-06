@@ -195,3 +195,10 @@ lsp: compile_commands.json
 compile_commands.json:
 	$(MAKE) clean
 	bear -- $(MAKE) all
+
+# ClickHouse Docker Containers
+start-containers:
+	docker compose -f dev/docker-compose.yml up -d --remove-orphans
+
+stop-containers:
+	docker compose -f dev/docker-compose.yml down --remove-orphans --volumes
