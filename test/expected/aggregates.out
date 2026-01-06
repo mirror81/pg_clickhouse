@@ -575,5 +575,641 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
  {5.1,1.99,8.14,8.53,3.57,2.47,8.24,4.79,6.75,7.69}
 (1 row)
 
+-- min(UInt64)
+                   QUERY PLAN                    
+-------------------------------------------------
+ Foreign Scan
+   Output: (min(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(id) FROM agg_test.hits
+(4 rows)
+
+   min    
+----------
+ 41607833
+(1 row)
+
+                   QUERY PLAN                    
+-------------------------------------------------
+ Foreign Scan
+   Output: (min(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(id) FROM agg_test.hits
+(4 rows)
+
+   min    
+----------
+ 41607833
+(1 row)
+
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(id) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+   min    
+----------
+ 41607833
+(1 row)
+
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(id) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+   min    
+----------
+ 41607833
+(1 row)
+
+-- min(DateTime64)
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Foreign Scan
+   Output: (min("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min("timestamp") FROM agg_test.hits
+(4 rows)
+
+            min             
+----------------------------
+ 2025-12-05 11:51:04.390884
+(1 row)
+
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Foreign Scan
+   Output: (min("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min("timestamp") FROM agg_test.hits
+(4 rows)
+
+            min             
+----------------------------
+ 2025-12-05 11:51:04.390884
+(1 row)
+
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min("timestamp") FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+            min             
+----------------------------
+ 2025-12-10 16:24:16.877779
+(1 row)
+
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min("timestamp") FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+            min             
+----------------------------
+ 2025-12-10 16:24:16.877779
+(1 row)
+
+-- min(Date)
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Foreign Scan
+   Output: (min(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(datestamp) FROM agg_test.hits
+(4 rows)
+
+    min     
+------------
+ 2025-12-05
+(1 row)
+
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Foreign Scan
+   Output: (min(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(datestamp) FROM agg_test.hits
+(4 rows)
+
+    min     
+------------
+ 2025-12-05
+(1 row)
+
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(datestamp) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    min     
+------------
+ 2025-12-10
+(1 row)
+
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(datestamp) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    min     
+------------
+ 2025-12-10
+(1 row)
+
+-- min(String)
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (min(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(path) FROM agg_test.hits
+(4 rows)
+
+   min    
+----------
+ /profile
+(1 row)
+
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (min(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(path) FROM agg_test.hits
+(4 rows)
+
+   min    
+----------
+ /profile
+(1 row)
+
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(path) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+   min   
+---------
+ /search
+(1 row)
+
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(path) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+   min   
+---------
+ /search
+(1 row)
+
+-- min(UInt32)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Foreign Scan
+   Output: (min(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(duration) FROM agg_test.hits
+(4 rows)
+
+ min 
+-----
+   2
+(1 row)
+
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Foreign Scan
+   Output: (min(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(duration) FROM agg_test.hits
+(4 rows)
+
+ min 
+-----
+   2
+(1 row)
+
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(duration) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+ min 
+-----
+  15
+(1 row)
+
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(duration) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+ min 
+-----
+  15
+(1 row)
+
+-- min(Decimal)
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (min(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(cost) FROM agg_test.hits
+(4 rows)
+
+ min  
+------
+ 1.20
+(1 row)
+
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (min(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(cost) FROM agg_test.hits
+(4 rows)
+
+ min 
+-----
+ 1.2
+(1 row)
+
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(cost) FROM agg_test.hits WHERE ((cost < 1000000000))
+(4 rows)
+
+ min  
+------
+ 1.99
+(1 row)
+
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (min(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT min(cost) FROM agg_test.hits WHERE ((cost < 1000000000))
+(4 rows)
+
+ min  
+------
+ 1.99
+(1 row)
+
+-- max(UInt64)
+                   QUERY PLAN                    
+-------------------------------------------------
+ Foreign Scan
+   Output: (max(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(id) FROM agg_test.hits
+(4 rows)
+
+    max     
+------------
+ 4264738908
+(1 row)
+
+                   QUERY PLAN                    
+-------------------------------------------------
+ Foreign Scan
+   Output: (max(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(id) FROM agg_test.hits
+(4 rows)
+
+    max     
+------------
+ 4264738908
+(1 row)
+
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(id) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    max    
+-----------
+ 914876110
+(1 row)
+
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(id))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(id) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    max    
+-----------
+ 914876110
+(1 row)
+
+-- max(DateTime64)
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Foreign Scan
+   Output: (max("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max("timestamp") FROM agg_test.hits
+(4 rows)
+
+            max             
+----------------------------
+ 2025-12-19 07:24:50.960198
+(1 row)
+
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Foreign Scan
+   Output: (max("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max("timestamp") FROM agg_test.hits
+(4 rows)
+
+            max             
+----------------------------
+ 2025-12-19 07:24:50.960198
+(1 row)
+
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max("timestamp") FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+            max            
+---------------------------
+ 2025-12-18 16:36:18.43735
+(1 row)
+
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max("timestamp"))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max("timestamp") FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+            max            
+---------------------------
+ 2025-12-18 16:36:18.43735
+(1 row)
+
+-- max(Date)
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Foreign Scan
+   Output: (max(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(datestamp) FROM agg_test.hits
+(4 rows)
+
+    max     
+------------
+ 2025-12-19
+(1 row)
+
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Foreign Scan
+   Output: (max(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(datestamp) FROM agg_test.hits
+(4 rows)
+
+    max     
+------------
+ 2025-12-19
+(1 row)
+
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(datestamp) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    max     
+------------
+ 2025-12-18
+(1 row)
+
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(datestamp))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(datestamp) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+    max     
+------------
+ 2025-12-18
+(1 row)
+
+-- max(String)
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (max(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(path) FROM agg_test.hits
+(4 rows)
+
+         max         
+---------------------
+ /widgets/voluptatem
+(1 row)
+
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (max(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(path) FROM agg_test.hits
+(4 rows)
+
+         max         
+---------------------
+ /widgets/voluptatem
+(1 row)
+
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(path) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+         max         
+---------------------
+ /widgets/voluptatem
+(1 row)
+
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(path))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(path) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+         max         
+---------------------
+ /widgets/voluptatem
+(1 row)
+
+-- max(UInt32)
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Foreign Scan
+   Output: (max(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(duration) FROM agg_test.hits
+(4 rows)
+
+ max  
+------
+ 7672
+(1 row)
+
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Foreign Scan
+   Output: (max(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(duration) FROM agg_test.hits
+(4 rows)
+
+ max  
+------
+ 7672
+(1 row)
+
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(duration) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+ max  
+------
+ 7672
+(1 row)
+
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(duration))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(duration) FROM agg_test.hits WHERE ((duration < 1000000000))
+(4 rows)
+
+ max  
+------
+ 7672
+(1 row)
+
+-- max(Decimal)
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (max(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(cost) FROM agg_test.hits
+(4 rows)
+
+ max  
+------
+ 8.90
+(1 row)
+
+                    QUERY PLAN                     
+---------------------------------------------------
+ Foreign Scan
+   Output: (max(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(cost) FROM agg_test.hits
+(4 rows)
+
+ max 
+-----
+ 8.9
+(1 row)
+
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(cost) FROM agg_test.hits WHERE ((cost < 1000000000))
+(4 rows)
+
+ max  
+------
+ 8.53
+(1 row)
+
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (max(cost))
+   Relations: Aggregate on (hits)
+   Remote SQL: SELECT max(cost) FROM agg_test.hits WHERE ((cost < 1000000000))
+(4 rows)
+
+ max  
+------
+ 8.53
+(1 row)
+
 NOTICE:  drop cascades to foreign table agg_bin.hits
 NOTICE:  drop cascades to foreign table agg_http.hits

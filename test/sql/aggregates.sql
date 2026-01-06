@@ -112,6 +112,7 @@ IMPORT FOREIGN SCHEMA "agg_test" FROM SERVER agg_http_svr INTO agg_http;
 
 \set id_limit 1000000000
 
+-- avg()
 \echo -- AVG(UInt64)
 EXPLAIN (VERBOSE, COSTS OFF) SELECT avg(id) FROM agg_bin.hits;
 SELECT avg(id) FROM agg_bin.hits;
@@ -145,6 +146,7 @@ SELECT avg(cost) FROM agg_bin.hits WHERE cost < :id_limit;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT avg(cost) FROM agg_http.hits WHERE cost < :id_limit;
 SELECT avg(cost) FROM agg_http.hits WHERE cost < :id_limit;
 
+-- array_agg()
 \echo -- array_agg(UInt64)
 EXPLAIN (VERBOSE, COSTS OFF) SELECT array_agg(id) FROM agg_bin.hits;
 SELECT array_agg(id) FROM agg_bin.hits;
@@ -222,11 +224,139 @@ SELECT array_agg(cost) FROM agg_bin.hits WHERE id < :id_limit;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT array_agg(cost) FROM agg_http.hits WHERE cost < :id_limit;
 SELECT array_agg(cost) FROM agg_http.hits WHERE id < :id_limit;
 
--- \echo -- min(UInt64)
--- EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_bin.hits;
--- SELECT min(id) FROM agg_bin.hits;
--- EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_http.hits;
--- SELECT min(id) FROM agg_http.hits;
+-- min()
+\echo -- min(UInt64)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_bin.hits;
+SELECT min(id) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_http.hits;
+SELECT min(id) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT min(id) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(id) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT min(id) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- min(DateTime64)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(timestamp) FROM agg_bin.hits;
+SELECT min(timestamp) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(timestamp) FROM agg_http.hits;
+SELECT min(timestamp) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(timestamp) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT min(timestamp) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(timestamp) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT min(timestamp) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- min(Date)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(datestamp) FROM agg_bin.hits;
+SELECT min(datestamp) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(datestamp) FROM agg_http.hits;
+SELECT min(datestamp) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(datestamp) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT min(datestamp) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(datestamp) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT min(datestamp) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- min(String)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(path) FROM agg_bin.hits;
+SELECT min(path) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(path) FROM agg_http.hits;
+SELECT min(path) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(path) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT min(path) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(path) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT min(path) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- min(UInt32)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(duration) FROM agg_bin.hits;
+SELECT min(duration) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(duration) FROM agg_http.hits;
+SELECT min(duration) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(duration) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT min(duration) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(duration) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT min(duration) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- min(Decimal)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(cost) FROM agg_bin.hits;
+SELECT min(cost) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(cost) FROM agg_http.hits;
+SELECT min(cost) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(cost) FROM agg_bin.hits WHERE cost < :id_limit;
+SELECT min(cost) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT min(cost) FROM agg_http.hits WHERE cost < :id_limit;
+SELECT min(cost) FROM agg_http.hits WHERE id < :id_limit;
+
+-- max()
+\echo -- max(UInt64)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(id) FROM agg_bin.hits;
+SELECT max(id) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(id) FROM agg_http.hits;
+SELECT max(id) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(id) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT max(id) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(id) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT max(id) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- max(DateTime64)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(timestamp) FROM agg_bin.hits;
+SELECT max(timestamp) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(timestamp) FROM agg_http.hits;
+SELECT max(timestamp) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(timestamp) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT max(timestamp) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(timestamp) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT max(timestamp) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- max(Date)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(datestamp) FROM agg_bin.hits;
+SELECT max(datestamp) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(datestamp) FROM agg_http.hits;
+SELECT max(datestamp) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(datestamp) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT max(datestamp) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(datestamp) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT max(datestamp) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- max(String)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(path) FROM agg_bin.hits;
+SELECT max(path) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(path) FROM agg_http.hits;
+SELECT max(path) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(path) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT max(path) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(path) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT max(path) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- max(UInt32)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(duration) FROM agg_bin.hits;
+SELECT max(duration) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(duration) FROM agg_http.hits;
+SELECT max(duration) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(duration) FROM agg_bin.hits WHERE duration < :id_limit;
+SELECT max(duration) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(duration) FROM agg_http.hits WHERE duration < :id_limit;
+SELECT max(duration) FROM agg_http.hits WHERE id < :id_limit;
+
+\echo -- max(Decimal)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(cost) FROM agg_bin.hits;
+SELECT max(cost) FROM agg_bin.hits;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(cost) FROM agg_http.hits;
+SELECT max(cost) FROM agg_http.hits;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(cost) FROM agg_bin.hits WHERE cost < :id_limit;
+SELECT max(cost) FROM agg_bin.hits WHERE id < :id_limit;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT max(cost) FROM agg_http.hits WHERE cost < :id_limit;
+SELECT max(cost) FROM agg_http.hits WHERE id < :id_limit;
 
 -- Clean up.
 DROP USER MAPPING FOR CURRENT_USER SERVER agg_bin_svr;

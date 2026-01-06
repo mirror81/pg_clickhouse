@@ -44,6 +44,7 @@ All notable changes to this project will be documented in this file. It uses the
 
 *   Removed unused code designed to support custom PostgreSQL extensions:
     [ajbool], ajtime, [country], and [istore].
+*   Tweaked cost estimation to encourage pushdown of `min()` and `max()`.
 
 ### 📚 Documentation
 

@@ -1382,7 +1382,7 @@ estimate_path_cost_size(double *p_rows, int *p_width,
 	*p_rows = 1000;
 	*p_width = 32;
 	*p_startup_cost = 1.0;
-	*p_total_cost = 5.0 + coef;
+	*p_total_cost = 0.1 + coef;
 }
 
 /*

@@ -920,6 +920,8 @@ These PostgreSQL aggregate functions pushdown to ClickHouse.
 *   [array_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparray)
 *   [avg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/avg)
 *   [count](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/count)
+*   [min](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/min)
+*   [max](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/max)
 
 ### Custom Aggregates
 
