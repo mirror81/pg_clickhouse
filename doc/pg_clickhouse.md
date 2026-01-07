@@ -67,7 +67,7 @@ from `v0.1.0` to `v0.1.1`, benefits all databases that have loaded `v0.1` and
 do not need to run `ALTER EXTENSION` to benefit from the upgrade.
 
 A release that increments the minor or major versions, on the other hand, will
-be accompanied by SQL upgrade scrips, and all existing database that contain
+be accompanied by SQL upgrade scripts, and all existing database that contain
 the extension must run `ALTER EXTENSION pg_clickhouse UPDATE` to benefit from
 the upgrade.
 
@@ -394,7 +394,7 @@ try=# EXPLAIN (VERBOSE)
        SELECT resource, avg(duration) AS average_duration
          FROM logs
         GROUP BY resource;
-                                     QUERY PLAN                                     
+                                     QUERY PLAN
 ------------------------------------------------------------------------------------
  Foreign Scan  (cost=1.00..5.10 rows=1000 width=64)
    Output: resource, (avg(duration))
@@ -413,7 +413,7 @@ like any other tables:
 
 ```pgsql
 try=# SELECT start_at, duration, resource FROM logs WHERE req_id = 4117909262;
-          start_at          | duration |    resource    
+          start_at          | duration |    resource
 ----------------------------+----------+----------------
  2025-12-05 15:07:32.944188 |      175 | /widgets/totam
 (1 row)
@@ -427,7 +427,7 @@ down to ClickHouse
 ```pgsql
 try=# EXPLAIN (VERBOSE, COSTS OFF)
        SELECT start_at, duration, resource FROM logs WHERE req_id = 4117909262;
-                                             QUERY PLAN                                              
+                                             QUERY PLAN
 -----------------------------------------------------------------------------------------------------
  Foreign Scan on public.logs
    Output: start_at, duration, resource
@@ -444,7 +444,7 @@ try=# EXPLAIN (ANALYZE, VERBOSE)
          FROM logs
          LEFT JOIN nodes on logs.node_id = nodes.node_id
         GROUP BY name;
-                                                                                  QUERY PLAN                                                                                   
+                                                                                  QUERY PLAN
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan  (cost=1.00..5.10 rows=1000 width=72) (actual time=3.201..3.221 rows=8.00 loops=1)
    Output: nodes.name, (count(*)), (round(avg(logs.duration), 0))
@@ -469,7 +469,7 @@ try=# EXPLAIN (ANALYZE, VERBOSE)
          FROM logs
          LEFT JOIN local_nodes on logs.node_id = local_nodes.node_id
         GROUP BY name;
-                                                             QUERY PLAN                                                              
+                                                             QUERY PLAN
 -------------------------------------------------------------------------------------------------------------------------------------
  HashAggregate  (cost=147.65..150.65 rows=200 width=72) (actual time=6.215..6.235 rows=8.00 loops=1)
    Output: local_nodes.name, count(*), round(avg(logs.duration), 0)
@@ -513,7 +513,7 @@ try=# EXPLAIN (ANALYZE, VERBOSE)
          JOIN local_nodes
            ON remote.node_id = local_nodes.node_id
         ORDER BY name;
-                                                          QUERY PLAN                                                           
+                                                          QUERY PLAN
 -------------------------------------------------------------------------------------------------------------------------------
  Sort  (cost=65.68..66.91 rows=490 width=72) (actual time=4.480..4.484 rows=8.00 loops=1)
    Output: local_nodes.name, remote.count, remote.round
@@ -567,7 +567,7 @@ Use [EXECUTE] as usual to execute a prepared statement:
 
 ```pgsql
 try=# EXECUTE avg_durations_between_dates('2025-12-09', '2025-12-13');
-    date    | average_duration 
+    date    | average_duration
 ------------+------------------
  2025-12-09 |              190
  2025-12-10 |              194
@@ -582,7 +582,7 @@ pg_clickhouse pushes down the aggregations, as usual, as seen in the
 
 ```pgsql
 try=# EXPLAIN (VERBOSE) EXECUTE avg_durations_between_dates('2025-12-09', '2025-12-13');
-                                                                                                            QUERY PLAN                                                                                                             
+                                                                                                            QUERY PLAN
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan  (cost=1.00..5.10 rows=1000 width=36)
    Output: (date(start_at)), (round(avg(duration), 0))
@@ -598,7 +598,7 @@ This holds for the first five requests, as described in the PostgreSQL
 parameters:
 
 ```pgsql
-                                                                                                         QUERY PLAN                                                                                                          
+                                                                                                         QUERY PLAN
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan  (cost=1.00..5.10 rows=1000 width=36)
    Output: (date(start_at)), (round(avg(duration), 0))
@@ -784,28 +784,28 @@ pg_clickhouse maps the following ClickHouse data types to PostgreSQL data
 types:
 
 ```
- ClickHouse |    PostgreSQL    |             Notes             
+ ClickHouse |    PostgreSQL    |             Notes
 ------------+------------------+-------------------------------
- Bool       | boolean          | 
- Date       | date             | 
- Date32     | date             | 
- DateTime   | timestamp        | 
- Decimal    | numeric          | 
- Float32    | real             | 
- Float64    | double precision | 
- IPv4       | inet             | 
- IPv6       | inet             | 
- Int16      | smallint         | 
- Int32      | integer          | 
- Int64      | bigint           | 
- Int8       | smallint         | 
+ Bool       | boolean          |
+ Date       | date             |
+ Date32     | date             |
+ DateTime   | timestamp        |
+ Decimal    | numeric          |
+ Float32    | real             |
+ Float64    | double precision |
+ IPv4       | inet             |
+ IPv6       | inet             |
+ Int16      | smallint         |
+ Int32      | integer          |
+ Int64      | bigint           |
+ Int8       | smallint         |
  JSON       | jsonb            | HTTP engine only
- String     | text             | 
- UInt16     | integer          | 
- UInt32     | bigint           | 
+ String     | text             |
+ UInt16     | integer          |
+ UInt32     | bigint           |
  UInt64     | bigint           | Errors on values > BIGINT max
- UInt8      | smallint         | 
- UUID       | uuid             | 
+ UInt8      | smallint         |
+ UUID       | uuid             |
 ```
 
 ### Functions
@@ -843,14 +843,14 @@ SELECT clickhouse_raw_query(
 );
 ```
 ```sql
-      clickhouse_raw_query       
+      clickhouse_raw_query
 ---------------------------------
  INFORMATION_SCHEMA      default+
  default default                +
  git     default                +
  information_schema      default+
  system  default                +
- 
+
 (1 row)
 ```
 

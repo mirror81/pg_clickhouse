@@ -83,7 +83,7 @@ include $(PGXS)
 # We'll need the clickhouse-cpp library and rpath so it can be found.
 SHLIB_LINK += -Wl,-rpath,$(pkglibdir)/
 
-# PostgresSQL 15 and earlier violate a C++ v17 storage specifier error.
+# PostgreSQL 15 and earlier violate a C++ v17 storage specifier error.
 ifeq ($(shell test $(MAJORVERSION) -lt 16; echo $$?),0)
 	PG_CXXFLAGS += -Wno-register
 endif
@@ -182,11 +182,25 @@ bake-vars:
 	@echo "revision=$(REVISION)"
 	@echo "pg_versions=$(PG_VERSIONS)"
 
-# Format the .c and .h files according to the PostgreSQL indentation standard.
-# Requires `pg_bsd_indent` to be in the path.
-indent:
-	@for fn in $(wildcard src/*.c.in src/*.c src/*/*.hh src/*/*.cpp); do printf "%s\n" "$$fn"; pg_bsd_indent -bad -bap -bbb -bc -bl -cli1 -cp33 -cdb -nce -d0 -di12 -nfc1 -i4 -l79 -lp -lpl -nip -npro -sac -tpg -ts4 "$$fn"; done
-	@rm *.BAK
+# Format the .c, .h, and .hh files according to the PostgreSQL indentation
+# standard. Requires `pg_bsd_indent` to be in the path.
+indent: dev/indent.sh
+	@$<
+
+# Linting.
+.PHONY: lint # Lint the project
+lint: .pre-commit-config.yaml
+	@pre-commit run --show-diff-on-failure --color=always --all-files
+
+## .git/hooks/pre-commit: Install the pre-commit hook
+.git/hooks/pre-commit:
+	@printf "#!/bin/sh\nmake lint\n" > $@
+	@chmod +x $@
+
+debian-install-lint:
+	@curl -SsLo /tmp/pre-commit.pyz https://github.com/pre-commit/pre-commit/releases/download/v4.5.1/pre-commit-4.5.1.pyz
+	@printf "#!/bin/sh\npython3 /tmp/pre-commit.pyz \"\$$@\"\n" > /usr/local/bin/pre-commit
+	@chmod +x /usr/local/bin/pre-commit
 
 .PHONY: lsp # Generate compile_commands.json for IDE/clangd support.
 lsp: compile_commands.json
@@ -197,8 +211,8 @@ compile_commands.json:
 	bear -- $(MAKE) all
 
 # ClickHouse Docker Containers
-start-containers:
-	docker compose -f dev/docker-compose.yml up -d --remove-orphans
+start-containers: dev/Makefile dev/docker-compose.yml
+	@$(MAKE) -C dev start
 
-stop-containers:
-	docker compose -f dev/docker-compose.yml down --remove-orphans --volumes
+stop-containers: dev/Makefile dev/docker-compose.yml
+	@$(MAKE) -C dev stop

@@ -91,7 +91,7 @@ convert_record(ch_convert_state * state, Datum val)
 
 		if (state->cdef && state->cdef->rowfunc != InvalidOid)
 		{
-			/* there is convertor from row to outtype */
+			/* there is converter from row to outtype */
 			val = OidFunctionCall1(state->cdef->rowfunc, val);
 		}
 		else if (state->outtype == TEXTOID)

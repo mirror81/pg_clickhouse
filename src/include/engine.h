@@ -20,11 +20,11 @@ typedef struct
  */
 typedef struct
 {
-   const char     *sql;
-   const int num_params;
-   const char **param_values;
-   const kv_list    *settings;
-}          ch_query;
+	const char *sql;
+	const int	num_params;
+	const char **param_values;
+	const		kv_list *settings;
+}			ch_query;
 
 #define new_query(sql, num, vals) {sql, num, vals, chfdw_get_session_settings()}
 

@@ -1,50 +1,50 @@
 {
-   "name": "pg_clickhouse",
-   "abstract": "Query ClickHouse databases from PostgreSQL",
-   "description": "Provides a Foreign Data Wrapper and other interfaces for easy and efficient access to ClickHouse databases, including pushdown of WHERE, JOIN, and aggregates expressions as well as comprehensive EXPLAIN and ANALYZE support.",
-   "version": "0.1.2",
-   "maintainer": "David E. Wheeler <david@justatheory.com>",
-   "license": "apache_2_0",
-   "provides": {
-      "pg_clickhouse": {
-         "abstract": "Interfaces to query ClickHouse databases from Postgres",
-         "file": "pg_clickhouse.control",
-         "docfile": "doc/pg_clickhouse.md",
-         "version": "0.1.2"
+  "abstract": "Query ClickHouse databases from PostgreSQL",
+  "description": "Provides a Foreign Data Wrapper and other interfaces for easy and efficient access to ClickHouse databases, including pushdown of WHERE, JOIN, and aggregates expressions as well as comprehensive EXPLAIN and ANALYZE support.",
+  "generated_by": "David E. Wheeler",
+  "license": "apache_2_0",
+  "maintainer": "David E. Wheeler <david@justatheory.com>",
+  "meta-spec": {
+    "url": "http://pgxn.org/meta/spec.txt",
+    "version": "1.0.0"
+  },
+  "name": "pg_clickhouse",
+  "no_index": {
+    "directory": ["vendor", "test"]
+  },
+  "prereqs": {
+    "runtime": {
+      "requires": {
+        "PostgreSQL": "13.0.0"
       }
-   },
-   "prereqs": {
-      "runtime": {
-         "requires": {
-            "PostgreSQL": "13.0.0"
-         }
-      }
-   },
-   "no_index": {
-      "directory": ["vendor", "test"]
-   },
-   "resources": {
-      "bugtracker": {
-         "web": "http://github.com/clickhouse/pg_clickhouse/issues/"
-      },
-      "repository": {
-        "url":  "git://github.com/clickhouse/pg_clickhouse.git",
-        "web":  "http://github.com/clickhouse/pg_clickhouse/",
-        "type": "git"
-      }
-   },
-   "generated_by": "David E. Wheeler",
-   "meta-spec": {
-      "version": "1.0.0",
-      "url": "http://pgxn.org/meta/spec.txt"
-   },
-   "tags": [
-      "foreign data wrapper",
-      "fdw",
-      "clickhouse",
-      "analytics",
-      "external data",
-      "pushdown",
-      "aggregate"
-   ]
+    }
+  },
+  "provides": {
+    "pg_clickhouse": {
+      "abstract": "Interfaces to query ClickHouse databases from Postgres",
+      "docfile": "doc/pg_clickhouse.md",
+      "file": "pg_clickhouse.control",
+      "version": "0.1.2"
+    }
+  },
+  "resources": {
+    "bugtracker": {
+      "web": "http://github.com/clickhouse/pg_clickhouse/issues/"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/clickhouse/pg_clickhouse.git",
+      "web": "http://github.com/clickhouse/pg_clickhouse/"
+    }
+  },
+  "tags": [
+    "foreign data wrapper",
+    "fdw",
+    "clickhouse",
+    "analytics",
+    "external data",
+    "pushdown",
+    "aggregate"
+  ],
+  "version": "0.1.2"
 }

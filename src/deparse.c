@@ -2139,7 +2139,7 @@ deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 	else if (typoutput == F_INTERVAL_OUT)
 	{
 		/*
-		 * basicly we can't convert month part since we should know about
+		 * basically we can't convert month part since we should know about
 		 * related timestamp first.
 		 *
 		 * for other types we just convert to seconds.
@@ -3205,7 +3205,7 @@ deparseAggref(Aggref * node, deparse_expr_cxt * context)
 
 		/* Close parameter args and start regular args. */
 		appendStringInfoString(buf, ")(");
-		/* Emit `WITHIN GROUP (ORDER BY ..)` args with no cloding paren. */
+		/* Emit `WITHIN GROUP (ORDER BY ..)` args with no closing paren. */
 		context->no_sort_parens = true;
 		appendAggOrderBy(node->aggorder, node->args, context);
 		context->no_sort_parens = false;
@@ -3222,7 +3222,7 @@ deparseAggref(Aggref * node, deparse_expr_cxt * context)
 			/*
 			 * Omit * for COUNT(*) but not COUNT(DISTINCT *)
 			 * https://github.com/ClickHouse/pg_clickhouse/issues/25 To be
-			 * fixed in ClickHouse 25.11, so can be omitted once relased.
+			 * fixed in ClickHouse 25.11, so can be omitted once released.
 			 * https://github.com/ClickHouse/ClickHouse/pull/89373
 			 *
 			 * XXX Once ClickHouse has made a release fixing this issue,

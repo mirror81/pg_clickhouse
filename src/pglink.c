@@ -661,7 +661,7 @@ binary_fetch_row(ch_cursor * cursor, List * attrs, TupleDesc tupdesc,
 							MemoryContextSwitchTo(old_mcxt);
 
 							if (s == NULL)
-								/* no conversion but state is initalized */
+								/* no conversion but state is initialized */
 								cursor->conversion_states[j] = 1;
 							else
 								cursor->conversion_states[j] = (uintptr_t) s;

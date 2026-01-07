@@ -20,15 +20,6 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
     `{param:type}`-style parameters.
 *   Added support for inserting arrays to the http engine.
 
-### 📚 Documentation
-
-*   Documented `IMPORT FOREIGN SCHEMA` identifier case preservation behavior.
-*   Fixed the Postgres Docker start and connect info in the
-    [tutorial](doc/tutorial.md).
-*   Added complete DML documentation to the [reference
-    docs](doc/pg_clickhouse.md), including the new `PREPARE`/`EXECUTE` support
-    and `INSERT`, `SET`, `COPY`, as well as shared library preloading.
-
 ### 🪲 Bug Fixes
 
 *   Fixed the http engine's parsing of UUID arrays selected from ClickHouse.
@@ -53,12 +44,14 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 
 ### 📚 Documentation
 
-*   Added a note to the `IMPORT FOREIGN SCHEMA` documentation explaining how
-    table and column names imported from ClickHouse will have their letter
-    casing and blank spaces preserved if they have uppercase characters or
-    blank spaces.
+*   Documented `IMPORT FOREIGN SCHEMA` identifier case preservation behavior.
+*   Fixed the Postgres Docker start and connect info in the
+    [tutorial](doc/tutorial.md).
 *   Fixed the commands to start and connect to the pg_clickhouse Docker image
     in the [tutorial].
+*   Added complete DML documentation to the [reference
+    docs](doc/pg_clickhouse.md), including the new `PREPARE`/`EXECUTE` support
+    and `INSERT`, `SET`, `COPY`, as well as shared library preloading.
 *   Documented the Postgres aggregate functions known (via new tests) to push
     down to ClickHouse.
 
@@ -130,7 +123,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Mapped PostgreSQL `extract()` to push down to equivalent ClickHouse
     DateTime extraction functions (already mapped to `date_part()`)
 *   Mapped PostgreSQL `percentile_cont()` ordered set aggregate function to
-    push down to ClickHouse `quantile()` parametrized 
+    push down to ClickHouse `quantile()` parametrized
 *   Mapped the `COUNT()` return value to `bigint`
 *   Added the query text and, for the http engine, the status code to error
     messages

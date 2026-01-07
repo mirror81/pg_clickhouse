@@ -3,7 +3,7 @@ on:
   push:
   pull_request:
   schedule:
-    - cron:  '0 12 10 * *' # Monthly at noon on the tenth
+    - cron: "0 12 10 * *" # Monthly at noon on the tenth
 jobs:
   build:
     strategy:
