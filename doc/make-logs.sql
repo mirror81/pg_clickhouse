@@ -1,3 +1,14 @@
+/*
+ * clickhouse client --queries-file doc/make-logs.sql
+ *
+ * psql:
+ * CREATE SERVER ch_svr FOREIGN DATA WRAPPER clickhouse_fdw
+ *     OPTIONS(dbname 'default', driver 'binary');
+ * CREATE USER MAPPING FOR CURRENT_USER SERVER ch_svr;
+ * CREATE SCHEMA docs;
+ * IMPORT FOREIGN SCHEMA "default" FROM SERVER ch_svr INTO docs;
+ */
+
 CREATE TABLE logs (
     req_id    Int64 NOT NULL,
     start_at   DateTime64(6, 'UTC') NOT NULL,

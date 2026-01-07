@@ -359,8 +359,7 @@ DROP FOREIGN TABLE uact CASCADE;
 ## DML SQL Reference
 
 The SQL [DML] expressions below may use pg_clickhouse. Examples depend on
-these ClickHouse tables, created by [make-logs.sql](make-logs.sql): these
-tables in ClickHouse:
+these ClickHouse tables, created by [make-logs.sql](make-logs.sql):
 
 ```sql
 CREATE TABLE logs (
@@ -633,10 +632,10 @@ Use the [COPY] command to insert a batch of rows into a remote ClickHouse
 table:
 
 ```pgsql
-try=# COPY logs FROM stdin;
-4285871863	2025-12-05 11:13:58.360760	206	/widgets	POST	8	401
-4020882978	2025-12-05 11:33:48.248450	199	/users/1321945	HEAD	3	200
-3231273177	2025-12-05 12:20:42.158575	220	/search	GET	2	201
+try=# COPY logs FROM stdin CSV;
+4285871863,2025-12-05 11:13:58.360760,206,/widgets,POST,8,401
+4020882978,2025-12-05 11:33:48.248450,199,/users/1321945,HEAD,3,200
+3231273177,2025-12-05 12:20:42.158575,220,/search,GET,2,201
 \.
 >> COPY 3
 ```
