@@ -9,7 +9,7 @@ function run_queries {
     for i in {1..22}; do
         printf "$name Query %s:" "$i"
         for j in {1..3}; do
-            psql -d tpch -qAXtf "queries/$i.sql" -o "result/$engine$i.$j"
+            psql -d tpch -qAXtf "queries/$i.sql" > "result/$engine$i.$j" 2>&1
             printf " %s" "$j"
         done
         printf '\n'

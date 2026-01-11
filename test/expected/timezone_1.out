@@ -1,0 +1,244 @@
+SET datestyle = 'ISO';
+-- Create servers for each engine.
+CREATE SERVER tz_bin_svr FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(driver 'binary');
+CREATE USER MAPPING FOR CURRENT_USER SERVER tz_bin_svr;
+CREATE SERVER tz_http_svr FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(driver 'http');
+CREATE USER MAPPING FOR CURRENT_USER SERVER tz_http_svr;
+SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS tz_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query('CREATE DATABASE tz_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    CREATE TABLE tz_test.ts (
+        id        Int,
+        server_ts DateTime,
+        utc_ts    DateTime('UTC'),
+        nyc_ts    DateTime('America/New_York'),
+        lax_ts    DateTime('America/Los_Angeles')
+    ) ENGINE = MergeTree ORDER BY id
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+-- Insert some records, all times set to 10:00:00 UTC.
+SELECT clickhouse_raw_query($$
+    INSERT INTO tz_test.ts
+    SELECT number,
+           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3)
+    FROM numbers(0, 4)
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    SELECT * FROM tz_test.ts ORDER BY id
+$$);
+                                         clickhouse_raw_query                                         
+------------------------------------------------------------------------------------------------------
+ 0       2020-01-01T10:00:00Z    2020-01-01T10:00:00Z    2020-01-01T10:00:00Z    2020-01-01T10:00:00Z+
+ 1       2020-04-01T10:00:00Z    2020-04-01T10:00:00Z    2020-04-01T10:00:00Z    2020-04-01T10:00:00Z+
+ 2       2020-07-01T10:00:00Z    2020-07-01T10:00:00Z    2020-07-01T10:00:00Z    2020-07-01T10:00:00Z+
+ 3       2020-10-01T10:00:00Z    2020-10-01T10:00:00Z    2020-10-01T10:00:00Z    2020-10-01T10:00:00Z+
+ 
+(1 row)
+
+CREATE SCHEMA tz_bin;
+IMPORT FOREIGN SCHEMA tz_test FROM SERVER tz_bin_svr INTO tz_bin;
+\d tz_bin.ts
+                               Foreign table "tz_bin.ts"
+  Column   |            Type             | Collation | Nullable | Default | FDW options 
+-----------+-----------------------------+-----------+----------+---------+-------------
+ id        | integer                     |           | not null |         | 
+ server_ts | timestamp without time zone |           | not null |         | 
+ utc_ts    | timestamp without time zone |           | not null |         | 
+ nyc_ts    | timestamp without time zone |           | not null |         | 
+ lax_ts    | timestamp without time zone |           | not null |         | 
+Server: tz_bin_svr
+FDW options: (database 'tz_test', table_name 'ts', engine 'MergeTree')
+
+CREATE SCHEMA tz_http;
+IMPORT FOREIGN SCHEMA tz_test FROM SERVER tz_http_svr INTO tz_http;
+\d tz_http.ts
+                               Foreign table "tz_http.ts"
+  Column   |            Type             | Collation | Nullable | Default | FDW options 
+-----------+-----------------------------+-----------+----------+---------+-------------
+ id        | integer                     |           | not null |         | 
+ server_ts | timestamp without time zone |           | not null |         | 
+ utc_ts    | timestamp without time zone |           | not null |         | 
+ nyc_ts    | timestamp without time zone |           | not null |         | 
+ lax_ts    | timestamp without time zone |           | not null |         | 
+Server: tz_http_svr
+FDW options: (database 'tz_test', table_name 'ts', engine 'MergeTree')
+
+SET timezone = 'UTC';
+SELECT * FROM tz_bin.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+SELECT * FROM tz_http.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+SET timezone = 'America/New_York';
+SELECT * FROM tz_bin.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+SELECT * FROM tz_http.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+SET timezone = 'America/Los_Angeles';
+SELECT * FROM tz_bin.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+SELECT * FROM tz_http.ts ORDER BY id;
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  0 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00
+  1 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00 | 2020-04-01 10:00:00
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(4 rows)
+
+-- With parameters. Execute 6 times to get parameter passing to kick in.
+SET timezone = 'UTC';
+PREPARE prep_bin(int) AS SELECT * FROM tz_bin.ts WHERE id > $1;
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_bin(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+DEALLOCATE prep_bin;
+PREPARE prep_http(int) AS SELECT * FROM tz_http.ts WHERE id > $1;
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00
+(2 rows)
+
+-- Diff results < 28.8, due to https://github.com/ClickHouse/ClickHouse/issues/85847
+EXECUTE prep_http(1);
+ id |      server_ts      |       utc_ts        |       nyc_ts        |       lax_ts        
+----+---------------------+---------------------+---------------------+---------------------
+  2 | 2020-07-01 10:00:00 | 2020-07-01 10:00:00 | 2020-07-01 06:00:00 | 2020-07-01 03:00:00
+  3 | 2020-10-01 10:00:00 | 2020-10-01 10:00:00 | 2020-10-01 06:00:00 | 2020-10-01 03:00:00
+(2 rows)
+
+DEALLOCATE prep_http;
+-- Clean up.
+DROP USER MAPPING FOR CURRENT_USER SERVER tz_bin_svr;
+DROP SERVER tz_bin_svr CASCADE;
+NOTICE:  drop cascades to foreign table tz_bin.ts
+DROP USER MAPPING FOR CURRENT_USER SERVER tz_http_svr;
+DROP SERVER tz_http_svr CASCADE;
+NOTICE:  drop cascades to foreign table tz_http.ts

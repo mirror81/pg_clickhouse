@@ -152,6 +152,18 @@ subquery_pushdown.sql
 ------------|-----------------------
  22-25      | subquery_pushdown.out
 
+timezone.sql
+------------
+
+ Postgres | File
+----------|--------------
+ 13-18    | timezone.out
+
+ ClickHouse | File
+------------|----------------
+ 25.8+      | timezone.out
+ 23-25.7    | timezone_1.out
+
 where_sub.sql
 -------------
 

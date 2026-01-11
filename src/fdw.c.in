@@ -928,6 +928,14 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 				if ((pos = strstr(valstr, "\\0")) != NULL)
 					pos[0] = '\0';
 			}
+			else if (valstr && (pgtype == TIMEOID || pgtype == TIMETZOID)
+					 && valstr[strlen(valstr) - 1] == 'Z')
+
+				/*
+				 * date_time_output_format=iso forces times to be ISO
+				 * timestamps. Remove the leading `YYYY-mm-ddT`.
+				 */
+				valstr += strlen("1970-01-01T");
 
 			/* Apply the input function even to nulls, to support domains */
 			nulls[i - 1] = (valstr == NULL);

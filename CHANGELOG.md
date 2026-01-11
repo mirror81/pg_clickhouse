@@ -7,6 +7,19 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.3] — Unreleased
+
+### 🪲 Bug Fixes
+
+*   Fixed time zone conversion in the http engine so that for ClickHouse v25
+    and later. Earlier versions must ensure that the time zone configuration
+    for both ClickHouse and Postgres is the same. Does not work with
+    parameterized execution on ClickHouse versions prior to 25.8 due to
+    [ClickHouse Issue 88088].
+
+  [v0.1.3]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.2...v0.1.3
+  [ClickHouse Issue 88088]: https://github.com/ClickHouse/ClickHouse/pull/88088
+
 ## [v0.1.2] — 2026-01-07
 
 This release makes binary-only changes. Once installed, any existing use of

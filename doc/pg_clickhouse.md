@@ -576,6 +576,15 @@ try=# EXECUTE avg_durations_between_dates('2025-12-09', '2025-12-13');
 (5 rows)
 ```
 
+> [!WARNING]
+> Parameterized execution prevents the [http driver](#create-server) from
+> properly converting DateTime time zones on ClickHouse versions prior to
+> 25.8, when the [underlying bug] was [fixed]. Note that sometimes PostgreSQL
+> will use a parameterized query plan even without using `PREPARE`. For any
+> queries on that require accurate time zone conversion, and where upgrading
+> to 25.8 or later is not an option, use the [binary driver](#create-server),
+> instead.
+
 pg_clickhouse pushes down the aggregations, as usual, as seen in the
 [EXPLAIN](#explain) verbose output:
 
@@ -1048,3 +1057,7 @@ Copyright (c) 2025, ClickHouse.
     "PostgreSQL Docs: PREPARE notes"
   [query parameters]: https://clickhouse.com/docs/guides/developer/stored-procedures-and-prepared-statements#alternatives-to-prepared-statements-in-clickhouse
     "ClickHouse Docs: Alternatives to prepared statements in ClickHouse"
+  [underlying bug]: https://github.com/ClickHouse/ClickHouse/issues/85847
+    "ClickHouse/ClickHouse#85847 Some queries in a multipart forms don't read settings"
+  [fixed]: https://github.com/ClickHouse/ClickHouse/pull/85570
+    "ClickHouse/ClickHouse#85570 fix HTTP with multipart"
