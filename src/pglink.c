@@ -767,8 +767,9 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 /*
  * Query to generate table for doc/pg_clickhouse.md. Keep in sync with
  * str_types_map below. On change, re-run and paste the output into
- * doc/pg_clickhouse.md.
+ * doc/pg_clickhouse.md. Perl: https://stackoverflow.com/a/58443028/79202
 
+	psql --no-psqlrc --pset border=2 --pset footer=off -c "
 	SELECT * FROM ( VALUES
 		('Bool',     'boolean',          ''),
 		('Int8',     'smallint',         ''),
@@ -790,8 +791,9 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 		('IPv4',     'inet',             ''),
 		('IPv6',     'inet',             ''),
 		('JSON',     'jsonb',            'HTTP engine only')
-	) AS v("ClickHouse", "PostgreSQL", "Notes")
-	ORDER BY "ClickHouse";
+	) AS v(\"ClickHouse\", \"PostgreSQL\", \"Notes\")
+	ORDER BY \"ClickHouse\";
+	" | perl -ne 'my $m = $.%2; print $buf[$m] if defined $buf[$m]; $buf[$m] = s/\+/|/gr if $.>1' | pbcopy
 
 */
 

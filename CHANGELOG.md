@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.3] — Unreleased
 
+
+### ⚡ Improvements
+
+*   Changed the default mapping for `DateTime` and `DateTime64` values from
+    `TIMESTAMP` to `TIMESTAMPTZ`, because ClickHouse stores `DateTime`s as a
+    Unix timestamp, always normalized to UTC, even if it displays as a
+    different time zone. As of the first bug fix listed below, pg_clickhouse
+    (almost) always fetches these values in UTC, so can store them as
+    `TIMESTAMPTZ` values.
+
 ### 🪲 Bug Fixes
 
 *   Fixed time zone conversion in the http engine so that for ClickHouse v25

@@ -791,30 +791,28 @@ cluster to be restart when the library is updated.
 pg_clickhouse maps the following ClickHouse data types to PostgreSQL data
 types:
 
-```
- ClickHouse |    PostgreSQL    |             Notes
-------------+------------------+-------------------------------
- Bool       | boolean          |
- Date       | date             |
- Date32     | date             |
- DateTime   | timestamp        |
- Decimal    | numeric          |
- Float32    | real             |
- Float64    | double precision |
- IPv4       | inet             |
- IPv6       | inet             |
- Int16      | smallint         |
- Int32      | integer          |
- Int64      | bigint           |
- Int8       | smallint         |
- JSON       | jsonb            | HTTP engine only
- String     | text             |
- UInt16     | integer          |
- UInt32     | bigint           |
- UInt64     | bigint           | Errors on values > BIGINT max
- UInt8      | smallint         |
- UUID       | uuid             |
-```
+| ClickHouse |    PostgreSQL    |             Notes             |
+|------------|------------------|-------------------------------|
+| Bool       | boolean          |                               |
+| Date       | date             |                               |
+| Date32     | date             |                               |
+| DateTime   | timestamptz      |                               |
+| Decimal    | numeric          |                               |
+| Float32    | real             |                               |
+| Float64    | double precision |                               |
+| IPv4       | inet             |                               |
+| IPv6       | inet             |                               |
+| Int16      | smallint         |                               |
+| Int32      | integer          |                               |
+| Int64      | bigint           |                               |
+| Int8       | smallint         |                               |
+| JSON       | jsonb            | HTTP engine only              |
+| String     | text             |                               |
+| UInt16     | integer          |                               |
+| UInt32     | bigint           |                               |
+| UInt64     | bigint           | Errors on values > BIGINT max |
+| UInt8      | smallint         |                               |
+| UUID       | uuid             |                               |
 
 ### Functions
 
