@@ -1,6 +1,7 @@
 \unset ECHO
 SET client_min_messages = notice;
 SET datestyle = 'ISO';
+SET session timezone = 'UTC';
 
 -- Create servers for each engine.
 CREATE SERVER agg_bin_svr FOREIGN DATA WRAPPER clickhouse_fdw
@@ -101,7 +102,6 @@ SELECT clickhouse_raw_query($$
     (3814959307,'70525fca-b870-4976-9377-fc959353302a','2025-12-18 22:57:20.264686','2025-12-18','/widgets/omnis',148,8.09),
     (1538392900,'7e3f2fe1-5312-4257-ba3e-54662ba14b56','2025-12-19 07:24:50.960198','2025-12-19','/users/802683',216,5.9)
 $$);
-
 
 CREATE SCHEMA agg_bin;
 CREATE SCHEMA agg_http;

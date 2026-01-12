@@ -70,7 +70,7 @@ SELECT clickhouse_raw_query('CREATE TABLE import_test.types (
 
 SELECT clickhouse_raw_query('INSERT INTO import_test.types SELECT
     addDays(toDate(''1990-01-01''), number),
-    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00''), number), number), number),
+    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00'', ''UTC''), number), number), number),
     format(''number {0}'', toString(number)),
     format(''num {0}'', toString(number)),
     format(''f4bf890f-f9dc-4332-ad5c-0c18e73f28e{0}'', toString(number)),
@@ -227,18 +227,18 @@ Server: import_loopback
 FDW options: (database 'import_test', table_name 'ints', engine 'MergeTree')
 
 \d+ clickhouse.types;
-                                              Foreign table "clickhouse.types"
- Column |            Type             | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
---------+-----------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
- c1     | date                        |           | not null |         |             | plain    |              | 
- c2     | timestamp without time zone |           | not null |         |             | plain    |              | 
- c3     | text                        |           | not null |         |             | extended |              | 
- c4     | character varying(5)        |           | not null |         |             | extended |              | 
- c5     | uuid                        |           | not null |         |             | plain    |              | 
- c6     | text                        |           | not null |         |             | extended |              | 
- c7     | text                        |           | not null |         |             | extended |              | 
- c9     | character varying(50)       |           |          |         |             | extended |              | 
- c8     | text                        |           | not null |         |             | extended |              | 
+                                             Foreign table "clickhouse.types"
+ Column |           Type           | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
+--------+--------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
+ c1     | date                     |           | not null |         |             | plain    |              | 
+ c2     | timestamp with time zone |           | not null |         |             | plain    |              | 
+ c3     | text                     |           | not null |         |             | extended |              | 
+ c4     | character varying(5)     |           | not null |         |             | extended |              | 
+ c5     | uuid                     |           | not null |         |             | plain    |              | 
+ c6     | text                     |           | not null |         |             | extended |              | 
+ c7     | text                     |           | not null |         |             | extended |              | 
+ c9     | character varying(50)    |           |          |         |             | extended |              | 
+ c8     | text                     |           | not null |         |             | extended |              | 
 Server: import_loopback
 FDW options: (database 'import_test', table_name 'types', engine 'MergeTree')
 
@@ -272,13 +272,13 @@ Server: import_loopback
 FDW options: (database 'import_test', table_name 'tuples', engine 'MergeTree')
 
 \d+ clickhouse.timezones;
-                                            Foreign table "clickhouse.timezones"
- Column |            Type             | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
---------+-----------------------------+-----------+----------+---------+-------------+---------+--------------+-------------
- t1     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t2     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t4     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t5     | timestamp without time zone |           | not null |         |             | plain   |              | 
+                                          Foreign table "clickhouse.timezones"
+ Column |           Type           | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
+--------+--------------------------+-----------+----------+---------+-------------+---------+--------------+-------------
+ t1     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t2     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t4     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t5     | timestamp with time zone |           | not null |         |             | plain   |              | 
 Server: import_loopback
 FDW options: (database 'import_test', table_name 'timezones', engine 'MergeTree')
 
@@ -301,10 +301,10 @@ SELECT * FROM clickhouse.ints ORDER BY c1 DESC LIMIT 4;
 (4 rows)
 
 SELECT * FROM clickhouse.types ORDER BY c1 LIMIT 2;
-     c1     |         c2          |    c3    |  c4   |                  c5                  | c6  |  c7   | c9 |     c8     
-------------+---------------------+----------+-------+--------------------------------------+-----+-------+----+------------
- 1990-01-01 | 1990-01-01 10:00:00 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three | 0  | cardinal 0
- 1990-01-02 | 1990-01-02 10:01:01 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three | 1  | cardinal 1
+     c1     |           c2           |    c3    |  c4   |                  c5                  | c6  |  c7   | c9 |     c8     
+------------+------------------------+----------+-------+--------------------------------------+-----+-------+----+------------
+ 1990-01-01 | 1990-01-01 02:00:00-08 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three | 0  | cardinal 0
+ 1990-01-02 | 1990-01-02 02:01:01-08 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three | 1  | cardinal 1
 (2 rows)
 
 SELECT * FROM clickhouse.types2 ORDER BY c1 LIMIT 2;
@@ -329,10 +329,10 @@ SELECT * FROM clickhouse.tuples ORDER BY c1 LIMIT 2;
 (2 rows)
 
 SELECT * FROM clickhouse.timezones ORDER BY t1 LIMIT 2;
-         t1          |         t2          |         t4          |         t5          
----------------------+---------------------+---------------------+---------------------
- 2020-01-01 11:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 11:00:00
- 2020-01-01 12:00:00 | 2020-01-01 11:00:00 | 2020-01-01 11:00:00 | 2020-01-01 12:00:00
+           t1           |           t2           |           t4           |           t5           
+------------------------+------------------------+------------------------+------------------------
+ 2020-01-01 03:00:00-08 | 2020-01-01 02:00:00-08 | 2020-01-01 02:00:00-08 | 2020-01-01 03:00:00-08
+ 2020-01-01 04:00:00-08 | 2020-01-01 03:00:00-08 | 2020-01-01 03:00:00-08 | 2020-01-01 04:00:00-08
 (2 rows)
 
 SELECT * FROM clickhouse.ip ORDER BY c1;
@@ -363,18 +363,18 @@ Server: import_loopback_bin
 FDW options: (database 'import_test', table_name 'ints', engine 'MergeTree')
 
 \d+ clickhouse_bin.types;
-                                            Foreign table "clickhouse_bin.types"
- Column |            Type             | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
---------+-----------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
- c1     | date                        |           | not null |         |             | plain    |              | 
- c2     | timestamp without time zone |           | not null |         |             | plain    |              | 
- c3     | text                        |           | not null |         |             | extended |              | 
- c4     | character varying(5)        |           | not null |         |             | extended |              | 
- c5     | uuid                        |           | not null |         |             | plain    |              | 
- c6     | text                        |           | not null |         |             | extended |              | 
- c7     | text                        |           | not null |         |             | extended |              | 
- c9     | character varying(50)       |           |          |         |             | extended |              | 
- c8     | text                        |           | not null |         |             | extended |              | 
+                                           Foreign table "clickhouse_bin.types"
+ Column |           Type           | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
+--------+--------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
+ c1     | date                     |           | not null |         |             | plain    |              | 
+ c2     | timestamp with time zone |           | not null |         |             | plain    |              | 
+ c3     | text                     |           | not null |         |             | extended |              | 
+ c4     | character varying(5)     |           | not null |         |             | extended |              | 
+ c5     | uuid                     |           | not null |         |             | plain    |              | 
+ c6     | text                     |           | not null |         |             | extended |              | 
+ c7     | text                     |           | not null |         |             | extended |              | 
+ c9     | character varying(50)    |           |          |         |             | extended |              | 
+ c8     | text                     |           | not null |         |             | extended |              | 
 Server: import_loopback_bin
 FDW options: (database 'import_test', table_name 'types', engine 'MergeTree')
 
@@ -408,13 +408,13 @@ Server: import_loopback_bin
 FDW options: (database 'import_test', table_name 'tuples', engine 'MergeTree')
 
 \d+ clickhouse_bin.timezones;
-                                          Foreign table "clickhouse_bin.timezones"
- Column |            Type             | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
---------+-----------------------------+-----------+----------+---------+-------------+---------+--------------+-------------
- t1     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t2     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t4     | timestamp without time zone |           | not null |         |             | plain   |              | 
- t5     | timestamp without time zone |           | not null |         |             | plain   |              | 
+                                        Foreign table "clickhouse_bin.timezones"
+ Column |           Type           | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
+--------+--------------------------+-----------+----------+---------+-------------+---------+--------------+-------------
+ t1     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t2     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t4     | timestamp with time zone |           | not null |         |             | plain   |              | 
+ t5     | timestamp with time zone |           | not null |         |             | plain   |              | 
 Server: import_loopback_bin
 FDW options: (database 'import_test', table_name 'timezones', engine 'MergeTree')
 
@@ -437,10 +437,10 @@ SELECT * FROM clickhouse_bin.ints ORDER BY c1 DESC LIMIT 4;
 (4 rows)
 
 SELECT * FROM clickhouse_bin.types ORDER BY c1 LIMIT 2;
-     c1     |         c2          |    c3    |  c4   |                  c5                  | c6  |  c7   | c9 |     c8     
-------------+---------------------+----------+-------+--------------------------------------+-----+-------+----+------------
- 1990-01-01 | 1990-01-01 10:00:00 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three | 0  | cardinal 0
- 1990-01-02 | 1990-01-02 10:01:01 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three | 1  | cardinal 1
+     c1     |           c2           |    c3    |  c4   |                  c5                  | c6  |  c7   | c9 |     c8     
+------------+------------------------+----------+-------+--------------------------------------+-----+-------+----+------------
+ 1990-01-01 | 1990-01-01 02:00:00-08 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three | 0  | cardinal 0
+ 1990-01-02 | 1990-01-02 02:01:01-08 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three | 1  | cardinal 1
 (2 rows)
 
 SELECT * FROM clickhouse_bin.types2 ORDER BY c1 LIMIT 2;
@@ -465,10 +465,10 @@ SELECT * FROM clickhouse_bin.tuples ORDER BY c1 LIMIT 2;
 (2 rows)
 
 SELECT * FROM clickhouse_bin.timezones ORDER BY t1 LIMIT 2;
-         t1          |         t2          |         t4          |         t5          
----------------------+---------------------+---------------------+---------------------
- 2020-01-01 11:00:00 | 2020-01-01 10:00:00 | 2020-01-01 10:00:00 | 2020-01-01 11:00:00
- 2020-01-01 12:00:00 | 2020-01-01 11:00:00 | 2020-01-01 11:00:00 | 2020-01-01 12:00:00
+           t1           |           t2           |           t4           |           t5           
+------------------------+------------------------+------------------------+------------------------
+ 2020-01-01 03:00:00-08 | 2020-01-01 02:00:00-08 | 2020-01-01 02:00:00-08 | 2020-01-01 03:00:00-08
+ 2020-01-01 04:00:00-08 | 2020-01-01 03:00:00-08 | 2020-01-01 03:00:00-08 | 2020-01-01 04:00:00-08
 (2 rows)
 
 SELECT * FROM clickhouse.ip ORDER BY c1;
@@ -498,18 +498,18 @@ Server: import_loopback
 FDW options: (database 'import_test', table_name 'ints', engine 'MergeTree')
 
 \d+ clickhouse_limit.types;
-                                           Foreign table "clickhouse_limit.types"
- Column |            Type             | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
---------+-----------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
- c1     | date                        |           | not null |         |             | plain    |              | 
- c2     | timestamp without time zone |           | not null |         |             | plain    |              | 
- c3     | text                        |           | not null |         |             | extended |              | 
- c4     | character varying(5)        |           | not null |         |             | extended |              | 
- c5     | uuid                        |           | not null |         |             | plain    |              | 
- c6     | text                        |           | not null |         |             | extended |              | 
- c7     | text                        |           | not null |         |             | extended |              | 
- c9     | character varying(50)       |           |          |         |             | extended |              | 
- c8     | text                        |           | not null |         |             | extended |              | 
+                                          Foreign table "clickhouse_limit.types"
+ Column |           Type           | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
+--------+--------------------------+-----------+----------+---------+-------------+----------+--------------+-------------
+ c1     | date                     |           | not null |         |             | plain    |              | 
+ c2     | timestamp with time zone |           | not null |         |             | plain    |              | 
+ c3     | text                     |           | not null |         |             | extended |              | 
+ c4     | character varying(5)     |           | not null |         |             | extended |              | 
+ c5     | uuid                     |           | not null |         |             | plain    |              | 
+ c6     | text                     |           | not null |         |             | extended |              | 
+ c7     | text                     |           | not null |         |             | extended |              | 
+ c9     | character varying(50)    |           |          |         |             | extended |              | 
+ c8     | text                     |           | not null |         |             | extended |              | 
 Server: import_loopback
 FDW options: (database 'import_test', table_name 'types', engine 'MergeTree')
 

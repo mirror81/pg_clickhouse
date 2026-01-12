@@ -38,7 +38,7 @@ SELECT clickhouse_raw_query('CREATE TABLE import_test.types (
 ');
 SELECT clickhouse_raw_query('INSERT INTO import_test.types SELECT
     addDays(toDate(''1990-01-01''), number),
-    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00''), number), number), number),
+    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00'', ''UTC''), number), number), number),
     format(''number {0}'', toString(number)),
     format(''num {0}'', toString(number)),
     format(''f4bf890f-f9dc-4332-ad5c-0c18e73f28e{0}'', toString(number)),

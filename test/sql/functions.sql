@@ -1,4 +1,5 @@
 SET datestyle = 'ISO';
+
 CREATE SERVER functions_loopback FOREIGN DATA WRAPPER clickhouse_fdw
     OPTIONS(dbname 'functions_test', driver 'binary');
 CREATE USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
@@ -195,7 +196,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT a, dictGet('functions_test.t3_dict', 'val', 
 SELECT a, dictGet('functions_test.t3_dict', 'val', (1, 'key' || a::text)) as val, sum(b) FROM t3 GROUP BY a, val ORDER BY a LIMIT 3;
 
 -- Check date_part mappings.
-EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_part('year', ts) = '2023';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_part('year', ts) = '2027';
 SELECT ts FROM t5 WHERE date_part('year', ts) = '2027';
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_part('month', ts) = '11';
 SELECT ts FROM t5 WHERE date_part('month', ts) = '11';

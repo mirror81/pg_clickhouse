@@ -302,9 +302,9 @@ static Oid get_corr_postgres_type(const TypeRef & type)
 		case Type::Code::Date32:
 			return DATEOID;
 		case Type::Code::DateTime:
-			return TIMESTAMPOID;
+			return TIMESTAMPTZOID;
 		case Type::Code::DateTime64:
-			return TIMESTAMPOID;
+			return TIMESTAMPTZOID;
 		case Type::Code::UUID:
 			return UUIDOID;
 		case Type::Code::Array: {
@@ -555,7 +555,8 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			}
 			break;
 		}
-		case TIMESTAMPOID: {
+		case TIMESTAMPOID:
+		case TIMESTAMPTZOID: {
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::DateTime: {
@@ -879,16 +880,16 @@ nested_col:
 		break;
 		case Type::Code::DateTime: {
 			auto val = static_cast<pg_time_t>(col->As<ColumnDateTime>()->At(row));
-			*valtype = TIMESTAMPOID;
-			ret = TimestampGetDatum(time_t_to_timestamptz(val));
+			*valtype = TIMESTAMPTZOID;
+			ret = TimestampTzGetDatum(time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::DateTime64: {
 			auto dt_col = col->As<ColumnDateTime64>();
 			auto val = dt_col->At(row);
 			int64 power = pow(10, dt_col->GetPrecision());
-			*valtype = TIMESTAMPOID;
-			ret = TimestampGetDatum(time_t_to_timestamptz(val / power))
+			*valtype = TIMESTAMPTZOID;
+			ret = TimestampTzGetDatum(time_t_to_timestamptz(val / power))
 				+ (val % power) * (USECS_PER_SEC / power);
 		}
 		break;

@@ -24,10 +24,10 @@ $$);
 SELECT clickhouse_raw_query($$
     INSERT INTO tz_test.ts
     SELECT number,
-           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
-           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
-           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3),
-           addMonths(toDateTime('2020-01-01 10:00:00'), number * 3)
+           addMonths(toDateTime('2020-01-01 10:00:00', 'UTC'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00', 'UTC'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00', 'UTC'), number * 3),
+           addMonths(toDateTime('2020-01-01 10:00:00', 'UTC'), number * 3)
     FROM numbers(0, 4)
 $$);
 
@@ -42,20 +42,20 @@ CREATE SCHEMA tz_http;
 IMPORT FOREIGN SCHEMA tz_test FROM SERVER tz_http_svr INTO tz_http;
 \d tz_http.ts
 
-SET timezone = 'UTC';
+SET session timezone = 'UTC';
 SELECT * FROM tz_bin.ts ORDER BY id;
 SELECT * FROM tz_http.ts ORDER BY id;
 
-SET timezone = 'America/New_York';
+SET session timezone = 'America/New_York';
 SELECT * FROM tz_bin.ts ORDER BY id;
 SELECT * FROM tz_http.ts ORDER BY id;
 
-SET timezone = 'America/Los_Angeles';
+SET session timezone = 'America/Los_Angeles';
 SELECT * FROM tz_bin.ts ORDER BY id;
 SELECT * FROM tz_http.ts ORDER BY id;
 
 -- With parameters. Execute 6 times to get parameter passing to kick in.
-SET timezone = 'UTC';
+SET session timezone = 'UTC';
 PREPARE prep_bin(int) AS SELECT * FROM tz_bin.ts WHERE id > $1;
 EXECUTE prep_bin(1);
 EXECUTE prep_bin(1);

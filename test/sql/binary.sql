@@ -27,7 +27,7 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.types (
 ');
 SELECT clickhouse_raw_query('INSERT INTO binary_test.types SELECT
     addDays(toDate(''1990-01-01''), number),
-    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00''), number), number), number),
+    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00'', ''UTC''), number), number), number),
     format(''number {0}'', toString(number)),
     format(''num {0}'', toString(number)),
     format(''f4bf890f-f9dc-4332-ad5c-0c18e73f28e{0}'', toString(number)),
@@ -73,7 +73,7 @@ CREATE FOREIGN TABLE fints (
 
 CREATE FOREIGN TABLE ftypes (
 	c1 date,
-	c2 timestamp without time zone,
+	c2 timestamp with time zone,
     c3 text,
     c4 text,
     c5 uuid,

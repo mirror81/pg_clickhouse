@@ -49,7 +49,7 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.types (
 
 SELECT clickhouse_raw_query('INSERT INTO binary_test.types SELECT
     addDays(toDate(''1990-01-01''), number),
-    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00''), number), number), number),
+    addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00'', ''UTC''), number), number), number),
     format(''number {0}'', toString(number)),
     format(''num {0}'', toString(number)),
     format(''f4bf890f-f9dc-4332-ad5c-0c18e73f28e{0}'', toString(number)),
@@ -116,7 +116,7 @@ CREATE FOREIGN TABLE fints (
 ) SERVER binary_loopback OPTIONS (table_name 'ints');
 CREATE FOREIGN TABLE ftypes (
 	c1 date,
-	c2 timestamp without time zone,
+	c2 timestamp with time zone,
     c3 text,
     c4 text,
     c5 uuid,
@@ -192,33 +192,33 @@ SELECT c2, NULL, c1, NULL FROM fints ORDER BY c2 LIMIT 2;
 
 -- types
 SELECT * FROM ftypes ORDER BY c1;
-     c1     |         c2          |    c3    |  c4   |                  c5                  | c6  |  c7   
-------------+---------------------+----------+-------+--------------------------------------+-----+-------
- 1990-01-01 | 1990-01-01 10:00:00 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three
- 1990-01-02 | 1990-01-02 10:01:01 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three
- 1990-01-03 | 1990-01-03 10:02:02 | number 2 | num 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | two | three
- 1990-01-04 | 1990-01-04 10:03:03 | number 3 | num 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | two | three
- 1990-01-05 | 1990-01-05 10:04:04 | number 4 | num 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | two | three
- 1990-01-06 | 1990-01-06 10:05:05 | number 5 | num 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | two | three
- 1990-01-07 | 1990-01-07 10:06:06 | number 6 | num 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | two | three
- 1990-01-08 | 1990-01-08 10:07:07 | number 7 | num 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | two | three
- 1990-01-09 | 1990-01-09 10:08:08 | number 8 | num 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | two | three
- 1990-01-10 | 1990-01-10 10:09:09 | number 9 | num 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | two | three
+     c1     |           c2           |    c3    |  c4   |                  c5                  | c6  |  c7   
+------------+------------------------+----------+-------+--------------------------------------+-----+-------
+ 1990-01-01 | 1990-01-01 02:00:00-08 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three
+ 1990-01-02 | 1990-01-02 02:01:01-08 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three
+ 1990-01-03 | 1990-01-03 02:02:02-08 | number 2 | num 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | two | three
+ 1990-01-04 | 1990-01-04 02:03:03-08 | number 3 | num 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | two | three
+ 1990-01-05 | 1990-01-05 02:04:04-08 | number 4 | num 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | two | three
+ 1990-01-06 | 1990-01-06 02:05:05-08 | number 5 | num 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | two | three
+ 1990-01-07 | 1990-01-07 02:06:06-08 | number 6 | num 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | two | three
+ 1990-01-08 | 1990-01-08 02:07:07-08 | number 7 | num 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | two | three
+ 1990-01-09 | 1990-01-09 02:08:08-08 | number 8 | num 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | two | three
+ 1990-01-10 | 1990-01-10 02:09:09-08 | number 9 | num 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | two | three
 (10 rows)
 
 SELECT c2, c1, c4, c3, c5, c7, c6 FROM ftypes ORDER BY c1;
-         c2          |     c1     |  c4   |    c3    |                  c5                  |  c7   | c6  
----------------------+------------+-------+----------+--------------------------------------+-------+-----
- 1990-01-01 10:00:00 | 1990-01-01 | num 0 | number 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | three | two
- 1990-01-02 10:01:01 | 1990-01-02 | num 1 | number 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | three | two
- 1990-01-03 10:02:02 | 1990-01-03 | num 2 | number 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | three | two
- 1990-01-04 10:03:03 | 1990-01-04 | num 3 | number 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | three | two
- 1990-01-05 10:04:04 | 1990-01-05 | num 4 | number 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | three | two
- 1990-01-06 10:05:05 | 1990-01-06 | num 5 | number 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | three | two
- 1990-01-07 10:06:06 | 1990-01-07 | num 6 | number 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | three | two
- 1990-01-08 10:07:07 | 1990-01-08 | num 7 | number 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | three | two
- 1990-01-09 10:08:08 | 1990-01-09 | num 8 | number 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | three | two
- 1990-01-10 10:09:09 | 1990-01-10 | num 9 | number 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | three | two
+           c2           |     c1     |  c4   |    c3    |                  c5                  |  c7   | c6  
+------------------------+------------+-------+----------+--------------------------------------+-------+-----
+ 1990-01-01 02:00:00-08 | 1990-01-01 | num 0 | number 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | three | two
+ 1990-01-02 02:01:01-08 | 1990-01-02 | num 1 | number 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | three | two
+ 1990-01-03 02:02:02-08 | 1990-01-03 | num 2 | number 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | three | two
+ 1990-01-04 02:03:03-08 | 1990-01-04 | num 3 | number 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | three | two
+ 1990-01-05 02:04:04-08 | 1990-01-05 | num 4 | number 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | three | two
+ 1990-01-06 02:05:05-08 | 1990-01-06 | num 5 | number 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | three | two
+ 1990-01-07 02:06:06-08 | 1990-01-07 | num 6 | number 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | three | two
+ 1990-01-08 02:07:07-08 | 1990-01-08 | num 7 | number 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | three | two
+ 1990-01-09 02:08:08-08 | 1990-01-09 | num 8 | number 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | three | two
+ 1990-01-10 02:09:09-08 | 1990-01-10 | num 9 | number 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | three | two
 (10 rows)
 
 -- arrays

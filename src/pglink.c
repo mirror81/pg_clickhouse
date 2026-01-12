@@ -783,7 +783,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 		('Float64',  'double precision', ''),
 		('Decimal',  'numeric',          ''),
 		('String',   'text',             ''),
-		('DateTime', 'timestamp',        ''),
+		('DateTime', 'timestamptz',      ''),
 		('Date',     'date',             ''),
 		('Date32',   'date',             ''),
 		('UUID',     'uuid',             ''),
@@ -809,7 +809,7 @@ static char *str_types_map[][2] = {
 	{"Float64", "DOUBLE PRECISION"},
 	{"Decimal", "NUMERIC"},
 	{"String", "TEXT"},
-	{"DateTime", "TIMESTAMP"},
+	{"DateTime", "TIMESTAMPTZ"},
 	{"Date", "DATE"},			/* must come after other Date types */
 	{"Date32", "DATE"},
 	{"UUID", "UUID"},
@@ -852,9 +852,9 @@ parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, L
 		else if (strncmp(typepart, "Enum16", strlen("Enum16")) == 0)
 			return "TEXT";
 		else if (strncmp(typepart, "DateTime64", strlen("DateTime64")) == 0)
-			return "TIMESTAMP";
+			return "TIMESTAMPTZ";
 		else if (strncmp(typepart, "DateTime", strlen("DateTime")) == 0)
-			return "TIMESTAMP";
+			return "TIMESTAMPTZ";
 		else if (strncmp(typepart, "Tuple", strlen("Tuple")) == 0)
 		{
 			elog(NOTICE, "pg_clickhouse: ClickHouse <Tuple> type was "
