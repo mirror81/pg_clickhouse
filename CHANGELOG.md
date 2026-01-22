@@ -30,6 +30,10 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed a server crash when attempting to insert types not yet supported by
     the binary engine.
 
+### 🚀 Distribution
+
+*   Added the [security policy](SECURITY.md).
+
 ### 📔 Notes
 
 *   Cleaned up some comments and old references to postgres_fdw left from the
