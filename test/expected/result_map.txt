@@ -140,6 +140,18 @@ param.sql
 ------------|-----------
  23-25      | param.out
 
+subquery_eq.sql
+---------------------
+
+ Postgres | File
+----------|-------------------
+ 16-18    | subquery_eq.out
+ 13-15    | subquery_eq_1.out
+
+ ClickHouse | File
+------------|-----------------
+ 23-25      | subquery_eq.out
+
 subquery_pushdown.sql
 ---------------------
 

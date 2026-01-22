@@ -27,6 +27,13 @@ All notable changes to this project will be documented in this file. It uses the
     parameterized execution on ClickHouse versions prior to 25.8 due to
     [ClickHouse Issue 88088].
 
+### 📔 Notes
+
+*   Cleaned up some comments and old references to postgres_fdw left from the
+    original fork in 2019.
+*   Added tests demonstrating subqueries that pg_clickhouse does not yet push
+    down, to be improved in future releases.
+
   [v0.1.3]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.2...v0.1.3
   [ClickHouse Issue 88088]: https://github.com/ClickHouse/ClickHouse/pull/88088
 

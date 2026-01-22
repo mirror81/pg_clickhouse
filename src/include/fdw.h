@@ -89,10 +89,10 @@ typedef enum
 
 /*
  * FDW-specific planner information kept in RelOptInfo.fdw_private for a
- * postgres_fdw foreign table. For a baserel, this struct is created by
- * postgresGetForeignRelSize, although some fields are not filled till later.
- * postgresGetForeignJoinPaths creates it for a joinrel, and
- * postgresGetForeignUpperPaths creates it for an upperrel.
+ * pg_clickhouse foreign table. For a baserel, this struct is created by
+ * clickhouseGetForeignRelSize, although some fields are not filled till
+ * later. clickhouseGetForeignJoinPaths creates it for a joinrel, and
+ * clickhouseGetForeignUpperPaths creates it for an upperrel.
  */
 typedef struct CHFdwRelationInfo
 {
@@ -131,6 +131,7 @@ typedef struct CHFdwRelationInfo
 	int			width;
 	Cost		startup_cost;
 	Cost		total_cost;
+
 	/* Costs excluding costs for transferring data from the foreign server */
 	Cost		rel_startup_cost;
 	Cost		rel_total_cost;
@@ -159,6 +160,7 @@ typedef struct CHFdwRelationInfo
 	RelOptInfo *outerrel;
 	RelOptInfo *innerrel;
 	JoinType	jointype;
+
 	/* joinclauses contains only JOIN/ON conditions for an outer join */
 	List	   *joinclauses;	/* List of RestrictInfo */
 

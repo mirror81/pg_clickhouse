@@ -80,7 +80,7 @@ enum FdwScanPrivateIndex
 
 /*
  * Similarly, this enum describes what's kept in the fdw_private list for
- * a ModifyTable node referencing a postgres_fdw foreign table. We store:
+ * a ModifyTable node referencing a pg_clickhouse foreign table. We store:
  *
  * 0) INSERT statement text to be sent to the remote server
  * 1) Integer list of target attribute numbers for INSERT
@@ -98,7 +98,7 @@ enum FdwModifyPrivateIndex
 
 
 /*
- * Execution state of a foreign scan using postgres_fdw.
+ * Execution state of a foreign scan using pg_clickhouse.
  */
 typedef struct ChFdwScanState
 {
@@ -498,7 +498,7 @@ get_useful_pathkeys_for_relation(PlannerInfo * root, RelOptInfo * rel)
 }
 
 /*
- * postgresGetForeignPaths
+* clickhouseGetForeignPaths
  *		Create possible scan paths for a scan on the foreign table
  */
 static void
@@ -586,7 +586,7 @@ clickhouseGetForeignPlan(PlannerInfo * root,
 		 * to check for remote-safety.
 		 *
 		 * Note: the join clauses we see here should be the exact same ones
-		 * previously examined by postgresGetForeignPaths. Possibly it'd be
+		 * previously examined by clickhouseGetForeignPaths. Possibly it'd be
 		 * worth passing forward the classification work done then, rather
 		 * than repeating it here.
 		 *
@@ -658,8 +658,8 @@ clickhouseGetForeignPlan(PlannerInfo * root,
 		 * matches our scan tuple slot. This is safe because all scans and
 		 * joins support projection, so we never need to insert a Result node.
 		 * Also, remove the local conditions from outer plan's quals, lest
-		 * they will be evaluated twice, once by the local plan and once by
-		 * the scan.
+		 * they be evaluated twice, once by the local plan and once by the
+		 * scan.
 		 */
 		if (outer_plan)
 		{
@@ -702,7 +702,7 @@ clickhouseGetForeignPlan(PlannerInfo * root,
 									  has_final_sort, has_limit, false,
 									  &retrieved_attrs, &params_list);
 
-	/* Remember remote_exprs for possible use by postgresPlanDirectModify */
+	/* Remember remote_exprs for possible use by clickhousePlanDirectModify */
 	fpinfo->final_remote_exprs = remote_exprs;
 
 	/*
@@ -915,7 +915,7 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 			{
 				/*
 				 * clickhouse supports such values which are invalid in
-				 * postgres, so we just set set as NULL
+				 * postgres, so we just set set as NULL.
 				 */
 				if (strcmp(valstr, "0000-00-00 00:00:00") == 0)
 					valstr = NULL;
@@ -1330,7 +1330,6 @@ clickhouseRecheckForeignScan(ForeignScanState * node, TupleTableSlot * slot)
 	/* Store result in the given slot */
 	ExecCopySlot(slot, result);
 
-
 	return true;
 }
 
@@ -1496,7 +1495,7 @@ prepare_query_params(PlanState * node,
 	 * practice, we expect that all these expressions will be just Params, so
 	 * we could possibly do something more efficient than using the full
 	 * expression-eval machinery for this. But probably there would be little
-	 * benefit, and it'd require postgres_fdw to know more than is desirable
+	 * benefit, and it'd require pg_clickhouse to know more than is desirable
 	 * about Param evaluation.)
 	 */
 	*param_exprs = ExecInitExprList(fdw_exprs, node);
@@ -1554,20 +1553,8 @@ clickhouseAnalyzeForeignTable(Relation relation,
 }
 
 /*
- * Acquire a random sample of rows from foreign table managed by postgres_fdw.
- *
- * We fetch the whole table from the remote side and pick out some sample rows.
- *
- * Selected rows are returned in the caller-allocated array rows[],
- * which must have at least targrows entries.
- * The actual number of rows selected is returned as the function result.
- * We also count the total number of rows in the table and return it into
- * *totalrows. Note that *totaldeadrows is always set to 0.
- *
- * Note that the returned list of rows is not always in order by physical
- * position in the table. Therefore, correlation estimates derived later
- * may be meaningless, but it's OK because we don't use the estimates
- * currently (the planner only pays attention to correlation for indexscans).
+ * Acquire a random sample of rows from foreign table managed by pg_clickhouse.
+ * Currently a no-op.
  */
 static int
 clickhouseAcquireSampleRowsFunc(Relation relation, int elevel,
@@ -1686,7 +1673,7 @@ foreign_join_ok(PlannerInfo * root, RelOptInfo * joinrel, JoinType jointype,
 
 	/*
 	 * If either of the joining relations is marked as unsafe to pushdown, the
-	 * join can not be pushed down.
+	 * join cannot be pushed down.
 	 */
 	fpinfo = (CHFdwRelationInfo *) joinrel->fdw_private;
 	fpinfo_o = (CHFdwRelationInfo *) outerrel->fdw_private;
@@ -1812,11 +1799,11 @@ foreign_join_ok(PlannerInfo * root, RelOptInfo * joinrel, JoinType jointype,
 	 * the joinclauses, since they need to be evaluated while constructing the
 	 * join.
 	 *
-	 * For a FULL OUTER JOIN, the other clauses from either relation can not
-	 * be added to the joinclauses or remote_conds, since each relation acts
-	 * as an outer relation for the other.
+	 * For a FULL OUTER JOIN, the other clauses from either relation cannot be
+	 * added to the joinclauses or remote_conds, since each relation acts as
+	 * an outer relation for the other.
 	 *
-	 * The joining sides can not have local conditions, thus no need to test
+	 * The joining sides cannot have local conditions, thus no need to test
 	 * shippability of the clauses being pulled up.
 	 */
 	switch (jointype)
@@ -2695,8 +2682,9 @@ add_foreign_ordered_paths(PlannerInfo * root, RelOptInfo * input_rel,
 	estimate_path_cost_size(&rows, &width, &startup_cost, &total_cost, 0.1);
 
 	/*
-	 * Build the fdw_private list that will be used by postgresGetForeignPlan.
-	 * Items in the list must match order in enum FdwPathPrivateIndex.
+	 * Build the fdw_private list that will be used by
+	 * clickhouseGetForeignPlan. Items in the list must match order in enum
+	 * FdwPathPrivateIndex.
 	 */
 	fdw_private = list_make2(makeInteger(true), makeInteger(false));
 
@@ -2852,8 +2840,9 @@ add_foreign_final_paths(PlannerInfo * root, RelOptInfo * input_rel,
 	ifpinfo->use_remote_estimate = false;
 
 	/*
-	 * Build the fdw_private list that will be used by postgresGetForeignPlan.
-	 * Items in the list must match order in enum FdwPathPrivateIndex.
+	 * Build the fdw_private list that will be used by
+	 * clickhouseGetForeignPlan. Items in the list must match order in enum
+	 * FdwPathPrivateIndex.
 	 */
 	fdw_private = list_make2(makeInteger(has_final_sort),
 							 makeInteger(extra->limit_needed));
