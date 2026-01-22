@@ -18,7 +18,9 @@ SELECT clickhouse_raw_query($$
 	  FROM numbers(10);
 $$);
 
-IMPORT FOREIGN SCHEMA casts_test FROM SERVER casts_loopback INTO public;
+CREATE SCHEMA casts_test;
+IMPORT FOREIGN SCHEMA casts_test FROM SERVER casts_loopback INTO casts_test;
+SET search_path = casts_test, public;
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT num FROM things WHERE toUInt8(num) IN (8, 3, 5);
 SELECT num FROM things WHERE toUInt8(num) IN (8, 3, 5);

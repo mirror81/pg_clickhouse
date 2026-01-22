@@ -39,7 +39,9 @@ SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.addr (
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
 
-IMPORT FOREIGN SCHEMA http_inserts_test FROM SERVER http_inserts_loopback INTO public;
+CREATE SCHEMA http_inserts_test;
+IMPORT FOREIGN SCHEMA http_inserts_test FROM SERVER http_inserts_loopback INTO http_inserts_test;
+SET search_path = http_inserts_test, public;
 
 /* ints */
 INSERT INTO ints

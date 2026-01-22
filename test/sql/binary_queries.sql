@@ -18,6 +18,9 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_queries_test.t3 (c1 Int, c3 Str
 SELECT clickhouse_raw_query('CREATE TABLE binary_queries_test.t4 (c1 Int, c2 Int, c3 String)
 	ENGINE = MergeTree PARTITION BY c1 % 10000 ORDER BY (c1);');
 
+CREATE SCHEMA binary_queries_test;
+SET search_path = binary_queries_test, public;
+
 CREATE FOREIGN TABLE ft1 (
 	c0 int,
 	c1 int NOT NULL,

@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file. It uses the
     (almost) always fetches these values in UTC, so can store them as
     `TIMESTAMPTZ` values.
 *   Implemented `INSERT` support for the UUID and INET (IPv4 and IPv6) types.
-    Thanks to Rahul Mehta for the report (#127)!
+    Thanks to Rahul Mehta for the report ([#127])!
 
 ### 🪲 Bug Fixes
 
@@ -37,8 +37,16 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added tests demonstrating subqueries that pg_clickhouse does not yet push
     down, to be improved in future releases.
 
-  [v0.1.3]: https://github.com/clickhouse/pg_clickhouse/compare/v0.1.2...v0.1.3
+### 🏗️ Build Setup
+
+*   Configured `make installcheck` to run the tests in parallel, resulting in
+    far faster test execution on multi-core systems. Adjusted the schemas in
+    which some of the tests work to ensure they don't stomp on each other.
+
+  [v0.1.3]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.2...v0.1.3
   [ClickHouse Issue 88088]: https://github.com/ClickHouse/ClickHouse/pull/88088
+  [#127]: https://github.com/ClickHouse/pg_clickhouse/issues/127
+    "ClickHouse/pg_clickhouse#127 INSERT into ClickHouse table with UUID column fails: unexpected column type for 2950: UUID"
 
 ## [v0.1.2] — 2026-01-07
 

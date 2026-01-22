@@ -28,9 +28,11 @@ SELECT clickhouse_raw_query('
  
 (1 row)
 
-IMPORT FOREIGN SCHEMA "deparse_test" FROM SERVER deparse_lookback INTO public;
+CREATE SCHEMA deparse_test;
+IMPORT FOREIGN SCHEMA deparse_test FROM SERVER deparse_lookback INTO deparse_test;
+SET search_path = deparse_test, public;
 \d+ t1
-                                        Foreign table "public.t1"
+                                     Foreign table "deparse_test.t1"
  Column |   Type   | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
 --------+----------+-----------+----------+---------+-------------+---------+--------------+-------------
  a      | integer  |           | not null |         |             | plain   |              | 
@@ -60,7 +62,7 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t1 ORDER BY a NULLS FIRST, b LIMIT 3;
                                              QUERY PLAN                                              
 -----------------------------------------------------------------------------------------------------
- Foreign Scan on public.t1
+ Foreign Scan on deparse_test.t1
    Output: a, b
    Remote SQL: SELECT a, b FROM deparse_test.t1 ORDER BY a ASC NULLS FIRST, b ASC NULLS LAST LIMIT 3
 (3 rows)

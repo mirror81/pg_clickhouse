@@ -8,7 +8,7 @@ DISTVERSION  = $(shell grep -m 1 '[[:space:]]\{3\}"version":' META.json | \
 DATA         = $(sort $(wildcard sql/$(EXTENSION)--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql)
 DOCS         = $(wildcard doc/*.md)
 TESTS        = $(wildcard test/sql/*.sql)
-REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
+REGRESS      = --schedule test/schedule
 REGRESS_OPTS = --inputdir=test --load-extension=$(EXTENSION)
 PG_CONFIG   ?= pg_config
 MODULE_big   = $(EXTENSION)
@@ -71,7 +71,7 @@ ifneq ($(OS),darwin)
 endif
 
 # Clean up the clickhouse-cpp build directory and generated files.
-EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c compile_commands.json $(EXTENSION)-$(DISTVERSION).zip
+EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c compile_commands.json test/schedule $(EXTENSION)-$(DISTVERSION).zip
 ifndef NO_VENDOR_CLEAN
 	EXTRA_CLEAN += $(CH_CPP_BUILD_DIR)
 endif
@@ -136,6 +136,11 @@ dist: $(EXTENSION)-$(DISTVERSION).zip
 
 $(EXTENSION)-$(DISTVERSION).zip:
 	git archive-all -v --prefix "$(EXTENSION)-$(DISTVERSION)/" --force-submodules $(EXTENSION)-$(DISTVERSION).zip
+
+test/schedule:
+	@echo "test: $(patsubst test/sql/%.sql,%,$(TESTS))" > $@
+
+installcheck: test/schedule
 
 # Test the PGXN distribution.
 dist-test: $(EXTENSION)-$(DISTVERSION).zip

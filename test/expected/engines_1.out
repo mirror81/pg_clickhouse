@@ -93,9 +93,11 @@ SELECT clickhouse_raw_query('
  
 (1 row)
 
-IMPORT FOREIGN SCHEMA "engines_test" FROM SERVER engines_loopback INTO public;
+CREATE SCHEMA engines_test;
+IMPORT FOREIGN SCHEMA engines_test FROM SERVER engines_loopback INTO engines_test;
+SET search_path = engines_test, public;
 \d+ t1
-                                       Foreign table "public.t1"
+                                    Foreign table "engines_test.t1"
  Column |  Type   | Collation | Nullable | Default | FDW options | Storage | Stats target | Description 
 --------+---------+-----------+----------+---------+-------------+---------+--------------+-------------
  a      | integer |           | not null |         |             | plain   |              | 
@@ -104,7 +106,7 @@ Server: engines_loopback
 FDW options: (database 'engines_test', table_name 't1', engine 'MergeTree')
 
 \d+ t1_aggr
-                                            Foreign table "public.t1_aggr"
+                                         Foreign table "engines_test.t1_aggr"
  Column |  Type   | Collation | Nullable | Default |        FDW options        | Storage | Stats target | Description 
 --------+---------+-----------+----------+---------+---------------------------+---------+--------------+-------------
  a      | integer |           | not null |         |                           | plain   |              | 
@@ -113,7 +115,7 @@ Server: engines_loopback
 FDW options: (database 'engines_test', table_name 't1_aggr', engine 'MaterializedView')
 
 \d+ t2
-                                              Foreign table "public.t2"
+                                           Foreign table "engines_test.t2"
  Column |  Type   | Collation | Nullable | Default |        FDW options        | Storage | Stats target | Description 
 --------+---------+-----------+----------+---------+---------------------------+---------+--------------+-------------
  a      | integer |           | not null |         |                           | plain   |              | 
@@ -122,7 +124,7 @@ Server: engines_loopback
 FDW options: (database 'engines_test', table_name 't2', engine 'AggregatingMergeTree')
 
 \d+ t3
-                                         Foreign table "public.t3"
+                                      Foreign table "engines_test.t3"
  Column |   Type    | Collation | Nullable | Default | FDW options | Storage  | Stats target | Description 
 --------+-----------+-----------+----------+---------+-------------+----------+--------------+-------------
  a      | integer   |           | not null |         |             | plain    |              | 
@@ -132,7 +134,7 @@ Server: engines_loopback
 FDW options: (database 'engines_test', table_name 't3', engine 'MergeTree')
 
 \d+ t3_aggr
-                                           Foreign table "public.t3_aggr"
+                                        Foreign table "engines_test.t3_aggr"
  Column |  Type   | Collation | Nullable | Default |       FDW options       | Storage | Stats target | Description 
 --------+---------+-----------+----------+---------+-------------------------+---------+--------------+-------------
  a      | integer |           | not null |         |                         | plain   |              | 
@@ -141,7 +143,7 @@ Server: engines_loopback
 FDW options: (database 'engines_test', table_name 't3_aggr', engine 'MaterializedView')
 
 \d+ t4
-                                                 Foreign table "public.t4"
+                                              Foreign table "engines_test.t4"
  Column |  Type   | Collation | Nullable | Default |           FDW options           | Storage | Stats target | Description 
 --------+---------+-----------+----------+---------+---------------------------------+---------+--------------+-------------
  a      | integer |           | not null |         |                                 | plain   |              | 

@@ -48,7 +48,9 @@ SELECT clickhouse_raw_query('
 	engine = AggregatingMergeTree()
 	order by a');
 
-IMPORT FOREIGN SCHEMA "engines_test" FROM SERVER engines_loopback INTO public;
+CREATE SCHEMA engines_test;
+IMPORT FOREIGN SCHEMA engines_test FROM SERVER engines_loopback INTO engines_test;
+SET search_path = engines_test, public;
 
 \d+ t1
 \d+ t1_aggr

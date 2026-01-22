@@ -11,7 +11,9 @@ SELECT clickhouse_raw_query('
 SELECT clickhouse_raw_query('
 	insert into deparse_test.t1 select number % 10, number % 10 > 5 from numbers(1, 100);');
 
-IMPORT FOREIGN SCHEMA "deparse_test" FROM SERVER deparse_lookback INTO public;
+CREATE SCHEMA deparse_test;
+IMPORT FOREIGN SCHEMA deparse_test FROM SERVER deparse_lookback INTO deparse_test;
+SET search_path = deparse_test, public;
 \d+ t1
 ALTER TABLE t1 ALTER COLUMN b SET DATA TYPE bool;
 
