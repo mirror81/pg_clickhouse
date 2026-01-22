@@ -34,7 +34,12 @@ SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.arrays (
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
 
-IMPORT FOREIGN SCHEMA "http_inserts_test" FROM SERVER http_inserts_loopback INTO public;
+SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.addr (
+    c1 UUID, c2 IPv4, c3 IPv6
+) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
+');
+
+IMPORT FOREIGN SCHEMA http_inserts_test FROM SERVER http_inserts_loopback INTO public;
 
 /* ints */
 INSERT INTO ints
@@ -88,6 +93,15 @@ INSERT INTO arrays VALUES
 	(2, ARRAY[3,4,5]),
 	(3, ARRAY[6,4]);
 SELECT * FROM arrays ORDER BY c1;
+
+/* Check UUIDs and IPs */
+\d addr
+INSERT INTO addr VALUES
+	('61f0c404-5cb3-11e7-907b-a6006ad3dba0', '116.106.34.242', '2001:44c8:129:2632:33:0:252:2'),
+	('00000000-0000-0000-0000-000000000000', '127.0.0.1',      '::ffff:127.0.0.1'),
+	('C62848ED-7316-4D15-92F3-9BB71EB69640', '183.247.232.58', '2a02:e980:1e::1')
+;
+SELECT * FROM addr ORDER BY c1;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER http_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_inserts_test');

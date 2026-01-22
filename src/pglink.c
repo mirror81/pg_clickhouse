@@ -371,6 +371,8 @@ chfdw_datum_to_ch_literal(Datum value, Oid type)
 		case NAMEOID:
 		case BITOID:
 		case BYTEAOID:
+		case UUIDOID:
+		case INETOID:
 			{
 				char	   *text,
 						   *result;

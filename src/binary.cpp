@@ -29,6 +29,7 @@ extern "C" {
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/elog.h"
+#include "utils/inet.h"
 #include "utils/lsyscache.h"
 #include "utils/memdebug.h"
 #include "utils/palloc.h"
@@ -43,9 +44,11 @@ using namespace clickhouse;
 #include <machine/endian.h>
 #include <libkern/OSByteOrder.h>
 #define HOST_TO_BIG_ENDIAN_64(x) OSSwapHostToBigInt64(x)
+#define BIG_ENDIAN_64_TO_HOST(x) OSSwapBigToHostInt64(x)
 #else
 #include <endian.h>
 #define HOST_TO_BIG_ENDIAN_64(x) htobe64(x)
+#define BIG_ENDIAN_64_TO_HOST(x) be64toh(x)
 #endif
 
 #define THROW_UNEXPECTED_COLUMN(exp_type, col) \
@@ -322,6 +325,9 @@ static Oid get_corr_postgres_type(const TypeRef & type)
 			return RECORDOID;
 		case Type::Code::Nullable:
 			return get_corr_postgres_type(type->As<NullableType>()->GetNestedType());
+		case Type::Code::IPv4:
+		case Type::Code::IPv6:
+			return INETOID;
 		default:
 			throw std::runtime_error("pg_clickhouse: unsupported column type " + type->GetName());
 	}
@@ -384,10 +390,18 @@ void ch_binary_prepare_insert(void * conn, const ch_query * query, ch_binary_ins
 	AttrNumber i = 0;
 	for (Block::Iterator bi(*block); bi.IsValid(); bi.Next())
 	{
-		/* Determine the Postgres column type. */
-		Oid pg_type = get_corr_postgres_type(bi.Type());
-		const char * colname = bi.Name().c_str();
-
+		Oid pg_type;
+		const char * colname;
+		try
+		{
+			/* Determine the Postgres column type. */
+			pg_type = get_corr_postgres_type(bi.Type());
+			colname = bi.Name().c_str();
+		}
+		catch (const std::exception & e)
+		{
+			elog(ERROR, "pg_clickhouse: could not prepare insert - %s", e.what());
+		}
 		PG_TRY();
 		{
 			TupleDescInitEntry(state->outdesc, ++i, colname, pg_type, -1, 0);
@@ -599,6 +613,33 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			}
 			break;
 		}
+		case UUIDOID:
+		{
+			auto uuid_val = DatumGetUUIDP(val)->data;
+			auto ch_uuid = UUID{};
+			memcpy(&ch_uuid.first, uuid_val, 8);
+			memcpy(&ch_uuid.second, uuid_val+8, 8);
+			ch_uuid.first = BIG_ENDIAN_64_TO_HOST(ch_uuid.first);
+			ch_uuid.second = BIG_ENDIAN_64_TO_HOST(ch_uuid.second);
+			col->As<ColumnUUID>()->Append(ch_uuid);
+		}
+		break;
+		case INETOID:
+		{
+			char *s = DatumGetCString(DirectFunctionCall1(inet_out, val));
+			switch (col->Type()->GetCode())
+			{
+				case Type::Code::IPv4:
+					col->As<ColumnIPv4>()->Append(s);
+					break;
+				case Type::Code::IPv6:
+					col->As<ColumnIPv6>()->Append(s);
+					break;
+				default:
+					THROW_UNEXPECTED_COLUMN("INET", col);
+			}
+		}
+		break;
 		default: {
 			THROW_UNEXPECTED_COLUMN(std::to_string(valtype), col);
 		}

@@ -1562,6 +1562,10 @@ clickhouseAcquireSampleRowsFunc(Relation relation, int elevel,
 								double *totalrows,
 								double *totaldeadrows)
 {
+	/*
+	 * TODO: Consider using the SAMPLE clause:
+	 * https://clickhouse.com/docs/sql-reference/statements/select/sample
+	 */
 	return 0;
 }
 

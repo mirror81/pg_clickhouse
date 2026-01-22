@@ -9,7 +9,6 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.3] — Unreleased
 
-
 ### ⚡ Improvements
 
 *   Changed the default mapping for `DateTime` and `DateTime64` values from
@@ -18,6 +17,8 @@ All notable changes to this project will be documented in this file. It uses the
     different time zone. As of the first bug fix listed below, pg_clickhouse
     (almost) always fetches these values in UTC, so can store them as
     `TIMESTAMPTZ` values.
+*   Implemented `INSERT` support for the UUID and INET (IPv4 and IPv6) types.
+    Thanks to Rahul Mehta for the report (#127)!
 
 ### 🪲 Bug Fixes
 
@@ -26,6 +27,8 @@ All notable changes to this project will be documented in this file. It uses the
     for both ClickHouse and Postgres is the same. Does not work with
     parameterized execution on ClickHouse versions prior to 25.8 due to
     [ClickHouse Issue 88088].
+*   Fixed a server crash when attempting to insert types not yet supported by
+    the binary engine.
 
 ### 📔 Notes
 
