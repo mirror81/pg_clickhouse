@@ -12,7 +12,7 @@ jobs:
       - name: Install Postgres
         run: NO_CLUSTER=1 pg-start ${{ env.pg }} libcurl4-openssl-dev
       - name: Checkout the Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install pre-commit
         run: make debian-install-lint
       - name: Add Postgres to Path

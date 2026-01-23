@@ -9,7 +9,7 @@ jobs:
     container: pgxn/pgxn-tools
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Start Postgres
         run: pg-start 18 libcurl4-openssl-dev uuid-dev
       - name: Start ClickHouse

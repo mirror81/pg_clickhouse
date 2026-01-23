@@ -23,20 +23,22 @@ OBJS = $(sort \
     $(subst .c,.o, $(wildcard src/*.c src/*/*.c)) \
 )
 
-# clickhouse-cpp source and build directories.
-CH_CPP_DIR = vendor/clickhouse-cpp
-CH_CPP_BUILD_DIR = vendor/_build/$(OS)-$(ARCH)
-
-# List the clickhouse-cpp libraries we require.
-CH_CPP_LIB = $(CH_CPP_BUILD_DIR)/clickhouse/libclickhouse-cpp-lib$(DLSUFFIX)
-CH_CPP_FLAGS = -D CMAKE_BUILD_TYPE=Release -D WITH_OPENSSL=ON
-
 # Build static on Darwin by default.
 ifndef CH_BUILD
 # ifeq ($(OS),darwin)
 	CH_BUILD = static
+# else
+# 	CH_BUILD = dynamic
 # endif
 endif
+
+# clickhouse-cpp source and build directories.
+CH_CPP_DIR = vendor/clickhouse-cpp
+CH_CPP_BUILD_DIR = vendor/_build/$(OS)-$(ARCH)-$(CH_BUILD)-$(shell git submodule status $(CH_CPP_DIR) | awk '{print substr($$1, 0, 7)}')
+
+# List the clickhouse-cpp libraries we require.
+CH_CPP_LIB = $(CH_CPP_BUILD_DIR)/clickhouse/libclickhouse-cpp-lib$(DLSUFFIX)
+CH_CPP_FLAGS = -D CMAKE_BUILD_TYPE=Release -D WITH_OPENSSL=ON
 
 # Are we statically compiling clickhouse-cpp into the extension or no?
 ifeq ($(CH_BUILD), static)
@@ -107,7 +109,7 @@ $(CH_CPP_LIB): export CXXFLAGS=-fPIC
 $(CH_CPP_LIB): export CFLAGS=-fPIC
 $(CH_CPP_LIB): $(CH_CPP_DIR)/CMakeLists.txt
 	cmake -B $(CH_CPP_BUILD_DIR) -S $(CH_CPP_DIR) $(CH_CPP_FLAGS) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	cmake --build $(CH_CPP_BUILD_DIR) --parallel $(nproc) --target all
+	cmake --build $(CH_CPP_BUILD_DIR) --parallel $$(nproc) --target all
 
 # Require the versioned C source and SQL script.
 all: sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c

@@ -19,7 +19,7 @@ jobs:
         pgv: [18, 17, 16, 15, 14, 13]
     steps:
       - name: Checkout the Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with: { submodules: true }
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
