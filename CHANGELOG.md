@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.3] — Unreleased
+## [v0.1.3] — 2026-01-23
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
@@ -22,11 +26,10 @@ All notable changes to this project will be documented in this file. It uses the
 
 ### 🪲 Bug Fixes
 
-*   Fixed time zone conversion in the http engine so that for ClickHouse v25
-    and later. Earlier versions must ensure that the time zone configuration
-    for both ClickHouse and Postgres is the same. Does not work with
+*   Fixed time zone conversion in the http engine. Does not work with
     parameterized execution on ClickHouse versions prior to 25.8 due to
-    [ClickHouse Issue 88088].
+    [ClickHouse Issue 88088]; recommend using the binary engine for tables
+    with timestamp values on earlier ClickHouse versions to avoid the issue.
 *   Fixed a server crash when attempting to insert types not yet supported by
     the binary engine.
 
@@ -36,6 +39,8 @@ All notable changes to this project will be documented in this file. It uses the
 
 ### 📔 Notes
 
+*   [Scripted] the generation of the TPC-H results table and updated it in the
+    [README](README.md).
 *   Cleaned up some comments and old references to postgres_fdw left from the
     original fork in 2019.
 *   Added tests demonstrating subqueries that pg_clickhouse does not yet push
@@ -43,6 +48,10 @@ All notable changes to this project will be documented in this file. It uses the
 
 ### 🏗️ Build Setup
 
+*   Added pre-commit hooks to lint the code, including for indentation
+    enforced by `pg_bsd_indent`. A new workflow ensures consistency for these
+    quality checks. Relatedly, a number of issues found by the linters have
+    been corrected.
 *   Configured `make installcheck` to run the tests in parallel, resulting in
     far faster test execution on multi-core systems. Adjusted the schemas in
     which some of the tests work to ensure they don't stomp on each other.
@@ -51,6 +60,8 @@ All notable changes to this project will be documented in this file. It uses the
   [ClickHouse Issue 88088]: https://github.com/ClickHouse/ClickHouse/pull/88088
   [#127]: https://github.com/ClickHouse/pg_clickhouse/issues/127
     "ClickHouse/pg_clickhouse#127 INSERT into ClickHouse table with UUID column fails: unexpected column type for 2950: UUID"
+  [Scripted]: https://github.com/ClickHouse/pg_clickhouse/tree/main/dev/tpch
+    "pg_clickhouse: TPC-H Benchmark"
 
 ## [v0.1.2] — 2026-01-07
 
