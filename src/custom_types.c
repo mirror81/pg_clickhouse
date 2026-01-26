@@ -197,6 +197,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
 			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
 			case F_ARRAY_AGG_ANYNONARRAY:
+			case F_MD5_BYTEA:
+			case F_MD5_TEXT:
 				special_builtin = true;
 				break;
 			default:
@@ -274,6 +276,14 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_ARRAY_AGG_ANYNONARRAY:
 				{
 					strcpy(entry->custom_name, "groupArray");
+					break;
+				}
+			case F_MD5_BYTEA:
+			case F_MD5_TEXT:
+				{
+					/* Special hashing function returns lowercase hex. */
+					entry->cf_type = CF_MD5;
+					entry->custom_name[0] = '\1';
 					break;
 				}
 		}

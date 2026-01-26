@@ -894,6 +894,7 @@ maps the following functions:
 *   `btrim`: [trimBoth](https://clickhouse.com/docs/sql-reference/functions/string-functions#trimboth)
 *   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
 
 ### Custom Functions
 
@@ -976,7 +977,7 @@ are not supported and will raise an error.
 
 ## Copyright
 
-Copyright (c) 2025, ClickHouse.
+Copyright (c) 2025-2026, ClickHouse.
 
   [foreign data wrapper]: https://www.postgresql.org/docs/current/fdwhandler.html
     "PostgreSQL Docs: Writing a Foreign Data Wrapper"

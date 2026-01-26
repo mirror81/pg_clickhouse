@@ -5,7 +5,7 @@
  *
  * Portions Copyright (c) 2012-2019, PostgreSQL Global Development Group
  * Portions Copyright (c) 2019-2022, Adjust GmbH
- * Copyright (c) 2025, ClickHouse, Inc.
+ * Copyright (c) 2025-2026, ClickHouse, Inc.
  *
  * IDENTIFICATION
  *		  github.com/clickhouse/pg_clickhouse/src/connection.c

@@ -7,7 +7,7 @@ DISTVERSION  = $(shell grep -m 1 '[[:space:]]\{3\}"version":' META.json | \
 
 DATA         = $(sort $(wildcard sql/$(EXTENSION)--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql)
 DOCS         = $(wildcard doc/*.md)
-TESTS        = $(wildcard test/sql/*.sql)
+TESTS        ?= $(wildcard test/sql/*.sql)
 REGRESS      = --schedule test/schedule
 REGRESS_OPTS = --inputdir=test --load-extension=$(EXTENSION)
 PG_CONFIG   ?= pg_config
@@ -107,7 +107,7 @@ $(OBJS): $(CH_CPP_DIR)/CMakeLists.txt
 # Build clickhouse-cpp.
 $(CH_CPP_LIB): export CXXFLAGS=-fPIC
 $(CH_CPP_LIB): export CFLAGS=-fPIC
-$(CH_CPP_LIB): $(CH_CPP_DIR)/CMakeLists.txt
+$(CH_CPP_LIB): $(CH_CPP_DIR)/CMakeLists.txt # Sync with "Reset Vendor Timestamp" steps in workflows.
 	cmake -B $(CH_CPP_BUILD_DIR) -S $(CH_CPP_DIR) $(CH_CPP_FLAGS) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 	cmake --build $(CH_CPP_BUILD_DIR) --parallel $$(nproc) --target all
 
@@ -139,6 +139,7 @@ dist: $(EXTENSION)-$(DISTVERSION).zip
 $(EXTENSION)-$(DISTVERSION).zip:
 	git archive-all -v --prefix "$(EXTENSION)-$(DISTVERSION)/" --force-submodules $(EXTENSION)-$(DISTVERSION).zip
 
+.PHONY: test/schedule # Depends on $(TESTS), so always rebuild.
 test/schedule:
 	@echo "test: $(patsubst test/sql/%.sql,%,$(TESTS))" > $@
 

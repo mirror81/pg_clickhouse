@@ -263,7 +263,6 @@ SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
 SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
 
-
 -- Check date_trunc mappings.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_trunc('year', ts) = '2026-01-01'::date;
 SELECT ts FROM t5 WHERE date_trunc('year', ts) = '2026-01-01'::date;
@@ -285,6 +284,10 @@ SELECT ts FROM t5 WHERE date_trunc('quarter', ts) = '2027-10-01'::date;
 -- check regexp_like.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like('^val\d', val);
 SELECT val FROM t4 WHERE regexp_like('^val\d', val);
+
+-- Check hashing functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
+SELECT key1 FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');

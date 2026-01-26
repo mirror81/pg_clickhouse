@@ -5,7 +5,7 @@
  *
  * Portions Copyright (c) 2012-2019, PostgreSQL Global Development Group
  * Portions Copyright (c) 2019-2022, Adjust GmbH
- * Copyright (c) 2025, ClickHouse, Inc.
+ * Copyright (c) 2025-2026, ClickHouse, Inc.
  *
  * IDENTIFICATION
  *		  github.com/clickhouse/pg_clickhouse/src/include/fdw.h
@@ -271,6 +271,7 @@ typedef enum
 	CF_INTARRAY_IDX,
 	CF_CH_FUNCTION,				/* adapted clickhouse function */
 	CF_MATCH,					/* regexp_match function */
+	CF_MD5,						/* md5() function */
 }			custom_object_type;
 
 typedef enum

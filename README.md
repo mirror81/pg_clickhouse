@@ -269,7 +269,7 @@ adding DML features. Our road map:
 
 ## Copyright
 
-*   Copyright (c) 2025, ClickHouse
+*   Copyright (c) 2025-2026, ClickHouse
 *   Portions Copyright (c) 2023-2025, Ildus Kurbangaliev
 *   Portions Copyright (c) 2019-2023, Adjust GmbH
 *   Portions Copyright (c) 2012-2019, PostgreSQL Global Development Group

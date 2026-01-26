@@ -5,7 +5,7 @@
  *
  * Portions Copyright (c) 2012-2019, PostgreSQL Global Development Group
  * Portions Copyright (c) 2019-2022, Adjust GmbH
- * Copyright (c) 2025, ClickHouse, Inc.
+ * Copyright (c) 2025-2026, ClickHouse, Inc.
  *
  * IDENTIFICATION
  *		  github.com/clickhouse/pg_clickhouse/src/deparse.c
@@ -2488,6 +2488,9 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 		appendStringInfoChar(buf, ')');
 		return;
 	}
+	else if (cdef && cdef->cf_type == CF_MD5)
+		/* Postgres MD5 returns a lowecase hex string. */
+		appendStringInfoString(buf, "lower(hex(MD5");
 
 	appendStringInfoChar(buf, '(');
 	if (cdef && (cdef->cf_type == CF_TIMEZONE || cdef->cf_type == CF_MATCH))
@@ -2514,6 +2517,8 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 
 	context->func = old_cdef;
 	appendStringInfoChar(buf, ')');
+	if (cdef && cdef->cf_type == CF_MD5)
+		appendStringInfoString(buf, "))");
 }
 
 static void

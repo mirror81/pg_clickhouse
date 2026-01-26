@@ -1343,6 +1343,22 @@ ERROR:  function regexp_like(unknown, text) does not exist
 LINE 1: SELECT val FROM t4 WHERE regexp_like('^val\d', val);
                                  ^
 HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+-- Check hashing functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, val
+   Remote SQL: SELECT key1, val FROM functions_test.t3_map WHERE ((lower(hex(MD5(val))) LIKE 'a%')) ORDER BY key1 ASC NULLS LAST
+(3 rows)
+
+SELECT key1 FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
+ key1 
+------
+    4
+    9
+(2 rows)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 
