@@ -33,6 +33,7 @@ static void http_cursor_free(void *);
 static void **http_fetch_row(ChFdwScanRowContext * ctx);
 static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
+static char *char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
 
 static libclickhouse_methods http_methods =
 {
@@ -311,7 +312,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		if (state->val[0] == '\\' && state->val[1] == 'N')
 			values[i] = NULL;
 		else if (state->val[0] != '\0')
-			values[i] = pstrdup(state->val);
+			values[i] = pstrdup(char_to_datum(ctx, i, state->val, state->len));
 		else
 			values[i] = "";
 	}
@@ -325,7 +326,79 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 						   "expected column count (%lu).", attcount)));
 	}
 
+	if (ctx->tupdesc)
+	{
+		Assert(ctx->values && ctx->nulls);
+		ListCell   *lc;
+		int			j = 0;
+
+		foreach(lc, ctx->retrieved_attrs)
+		{
+			int			i = lfirst_int(lc);
+
+			/* Apply the input function even to nulls, to support domains */
+			ctx->nulls[i - 1] = (values[j] == NULL);
+			ctx->values[i - 1] = InputFunctionCall(&ctx->attinmeta->attinfuncs[i - 1],
+												   values[j],
+												   ctx->attinmeta->attioparams[i - 1],
+												   ctx->attinmeta->atttypmods[i - 1]);
+			j++;
+		}
+	}
+
 	return (void **) values;
+}
+
+/*
+ * Convert the raw data of length len to a Datum identified by attnum.
+ * Determines the Postgres type and input function from the attnum values in
+ * ctx->tupdesc and ctx->attinmeta.
+ */
+static char *
+char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
+{
+	if (!ctx->tupdesc)
+		return data;
+	//return PointerGetDatum(cstring_to_text(data));
+
+	Oid			pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
+	bool		is_array = type_is_array_domain(pgtype);
+
+	/* Easy check array for, else must use get_element_type on pgtype. */
+	if (data && is_array && data[0] == '[')
+	{
+		size_t		pos = 0;
+
+		while (data[pos] != '\0')
+		{
+			if (data[pos] == '[')
+				data[pos] = '{';
+			if (data[pos] == ']')
+				data[pos] = '}';
+			if (data[pos] == '\'' && pgtype == UUIDARRAYOID)
+				/* Remove ClickHouse's single quotes around UUIDs */
+				data[pos] = ' ';
+			pos++;
+		}
+	}
+	else if (data && pgtype == VARCHAROID
+			 && TupleDescAttr(ctx->tupdesc, attidx)->atttypmod != 0)
+	{
+		char	   *pos;
+
+		if ((pos = strstr(data, "\\0")) != NULL)
+			pos[0] = '\0';
+	}
+	else if (data && (pgtype == TIMEOID || pgtype == TIMETZOID)
+			 && data[strlen(data) - 1] == 'Z')
+
+		/*
+		 * date_time_output_format=iso formats times as ISO timestamps. Remove
+		 * the leading `YYYY-mm-ddT`.
+		 */
+		data += strlen("1970-01-01T");
+
+	return data;
 }
 
 text	   *

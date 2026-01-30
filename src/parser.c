@@ -32,6 +32,7 @@ ch_http_read_next(ch_http_read_state * state)
 	char	   *data = state->data;
 
 	state->val[0] = '\0';
+	state->len = 0;
 	if (state->done)
 		return CH_EOF;
 
@@ -85,6 +86,7 @@ ch_http_read_next(ch_http_read_state * state)
 	}
 
 	state->val[len] = '\0';
+	state->len = len;
 	state->curpos = pos + 1;
 
 	if (data[pos] == '\t')
