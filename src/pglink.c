@@ -30,7 +30,7 @@ static void http_disconnect(void *conn);
 static ch_cursor * http_simple_query(void *conn, const ch_query * query);
 static void http_simple_insert(void *conn, const ch_query * query);
 static void http_cursor_free(void *);
-static void **http_fetch_row(ch_cursor *, List *, TupleDesc, Datum *, bool *);
+static void **http_fetch_row(ChFdwScanRowContext * ctx);
 static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
 
@@ -48,8 +48,7 @@ static ch_cursor * binary_simple_query(void *conn, const ch_query * query);
 static void binary_cursor_free(void *cursor);
 
 /* static void binary_simple_insert(void *conn, const char *query); */
-static void **binary_fetch_row(ch_cursor * cursor, List * attrs, TupleDesc tupdesc,
-							   Datum * values, bool *nulls);
+static void **binary_fetch_row(ChFdwScanRowContext * ctx);
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
 static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 								   const ch_query * query, char *table_name);
@@ -288,10 +287,11 @@ http_cursor_free(void *c)
 }
 
 static void **
-http_fetch_row(ch_cursor * cursor, List * attrs, TupleDesc tupdesc, Datum * v, bool *n)
+http_fetch_row(ChFdwScanRowContext * ctx)
 {
 	int			rc = CH_CONT;
-	size_t		attcount = list_length(attrs);
+	ch_cursor  *cursor = ctx->cursor;
+	size_t		attcount = list_length(ctx->retrieved_attrs);
 
 	if (attcount == 0)
 		/* SELECT NULL */
@@ -586,10 +586,14 @@ binary_simple_query(void *conn, const ch_query * query)
 }
 
 static void **
-binary_fetch_row(ch_cursor * cursor, List * attrs, TupleDesc tupdesc,
-				 Datum * values, bool *nulls)
+binary_fetch_row(ChFdwScanRowContext * ctx)
 {
 	ListCell   *lc;
+	ch_cursor  *cursor = ctx->cursor;
+	List	   *attrs = ctx->retrieved_attrs;
+	TupleDesc	tupdesc = ctx->tupdesc;
+	Datum	   *values = ctx->values;
+	bool	   *nulls = ctx->nulls;
 	ch_binary_read_state_t *state = cursor->read_state;
 	bool		have_data = ch_binary_read_row(state);
 	size_t		attcount = list_length(attrs);
@@ -933,8 +937,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	ch_connection conn = chfdw_get_connection(user);
 	ch_cursor  *cursor;
 	ch_query	query = new_query(NULL, 0, NULL);
-	List	   *result = NIL,
-			   *datts = NIL;
+	List	   *result = NIL;
 	char	  **row_values;
 
 	query.sql = psprintf("SELECT name, engine, engine_full "
@@ -945,13 +948,27 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 
 	cursor = conn.methods->simple_query(conn.conn, &query);
 
-	datts = list_make2_int(1, 2);
+	ChFdwScanRowContext cols_ctx = {
+		NULL,
+		list_make2_int(1, 2),
+		NULL,
+		NULL,
+		NULL,
+		NULL
+	};
 
-	while ((row_values = (char **) conn.methods->fetch_row(cursor,
-														   list_make3_int(1, 2, 3), NULL, NULL, NULL)) != NULL)
+	ChFdwScanRowContext tables_ctx = {
+		NULL,
+		list_make3_int(1, 2, 3),
+		NULL,
+		cursor,
+		NULL,
+		NULL
+	};
+
+	while ((row_values = (char **) conn.methods->fetch_row(&tables_ctx)) != NULL)
 	{
 		StringInfoData buf;
-		ch_cursor  *table_def;
 		char	   *table_name = readstr(conn, row_values[0]);
 		char	   *engine = readstr(conn, row_values[1]);
 		char	   *engine_full = readstr(conn, row_values[2]);
@@ -991,10 +1008,9 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 							 "AND table = %s",
 							 ch_quote_literal(stmt->remote_schema),
 							 ch_quote_literal(table_name));
-		table_def = conn.methods->simple_query(conn.conn, &query);
 
-		while ((dvalues = (char **) conn.methods->fetch_row(table_def,
-															datts, NULL, NULL, NULL)) != NULL)
+		cols_ctx.cursor = conn.methods->simple_query(conn.conn, &query);
+		while ((dvalues = (char **) conn.methods->fetch_row(&cols_ctx)) != NULL)
 		{
 			List	   *options = NIL;
 			bool		is_nullable = false;
@@ -1075,7 +1091,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 
 		appendStringInfoString(&buf, ");\n");
 		result = lappend(result, buf.data);
-		MemoryContextDelete(table_def->memcxt);
+		MemoryContextDelete(cols_ctx.cursor->memcxt);
 	}
 
 	MemoryContextDelete(cursor->memcxt);

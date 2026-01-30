@@ -25,6 +25,7 @@
 #include "nodes/pathnodes.h"
 #include "access/heapam.h"
 #include "engine.h"
+#include "funcapi.h"
 
 #if PG_VERSION_NUM < 150000
 #define FirstUnpinnedObjectId FirstBootstrapObjectId
@@ -46,12 +47,21 @@ typedef struct ch_cursor
 	uintptr_t  *conversion_states;	/* for binary */
 }			ch_cursor;
 
+typedef struct ChFdwScanRowContext
+{
+	TupleDesc	tupdesc;		/* tuple descriptor for row */
+	List	   *retrieved_attrs;	/* list of retrieved attribute numbers */
+	AttInMetadata *attinmeta;	/* list of incoming attributes */
+	ch_cursor  *cursor;			/* result of query from clickhouse */
+	Datum	   *values;			/* collected values for each column */
+	bool	   *nulls;			/* indicates null columns */
+}			ChFdwScanRowContext;
+
 typedef void (*disconnect_method) (void *conn);
 typedef void (*check_conn_method) (const char *password, UserMapping * user);
 typedef ch_cursor * (*simple_query_method) (void *conn, const ch_query * query);
 typedef void (*simple_insert_method) (void *conn, const ch_query * query);
-typedef void **(*cursor_fetch_row_method) (ch_cursor * cursor, List * attrs,
-										   TupleDesc tupdesc, Datum * values, bool *nulls);
+typedef void **(*cursor_fetch_row_method) (ChFdwScanRowContext * fetch_context);
 typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *,
 										const ch_query *, char *);
 typedef void (*insert_tuple_method) (void *state, TupleTableSlot * slot);

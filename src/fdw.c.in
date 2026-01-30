@@ -867,9 +867,16 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 
 	/* Initialize to nulls for any columns not present in result */
 	memset(nulls, true, tupdesc->natts * sizeof(bool));
+	ChFdwScanRowContext ctx = {
+		tupdesc,
+		fsstate->retrieved_attrs,
+		fsstate->attinmeta,
+		fsstate->ch_cursor,
+		values,
+		nulls
+	};
 
-	row_values = fsstate->conn.methods->fetch_row(fsstate->ch_cursor,
-												  fsstate->retrieved_attrs, tupdesc, values, nulls);
+	row_values = fsstate->conn.methods->fetch_row(&ctx);
 
 	/* in both cases (binary and non binary), NULL means end of tuples */
 	if (row_values == NULL)
