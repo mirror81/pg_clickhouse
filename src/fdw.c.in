@@ -855,10 +855,15 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 	ItemPointer ctid = NULL;
 	MemoryContext oldcontext;
 	bool	   *nulls;
-	void	  **row_values;
 
 	oldcontext = MemoryContextSwitchTo(fsstate->temp_cxt);
 
+	/*
+	 * Create enough slots for every attribute in the tuple definition
+	 * (tupdesc->natts), without regard to how many we'll actually fetch
+	 * (fsstate->retrieved_attrs), because we need all the slots to create the
+	 * Tuple. Those we don't fetch will simply be zeros.
+	 */
 	values = (Datum *) palloc0(tupdesc->natts * sizeof(Datum));
 	nulls = (bool *) palloc(tupdesc->natts * sizeof(bool));
 
@@ -873,10 +878,8 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 		nulls
 	};
 
-	row_values = fsstate->conn.methods->fetch_row(&ctx);
-
 	/* in both cases (binary and non binary), NULL means end of tuples */
-	if (row_values == NULL)
+	if (fsstate->conn.methods->fetch_row(&ctx) == NULL)
 		goto cleanup;
 
 	MemoryContextSwitchTo(oldcontext);

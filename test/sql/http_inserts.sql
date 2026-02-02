@@ -93,7 +93,8 @@ SELECT * FROM complex ORDER BY c1;
 INSERT INTO arrays VALUES
 	(1, ARRAY[1,2]),
 	(2, ARRAY[3,4,5]),
-	(3, ARRAY[6,4]);
+	(3, ARRAY[6,4]),
+	(4, '{}'::int[]);
 SELECT * FROM arrays ORDER BY c1;
 
 /* Check UUIDs and IPs */

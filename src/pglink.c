@@ -30,10 +30,10 @@ static void http_disconnect(void *conn);
 static ch_cursor * http_simple_query(void *conn, const ch_query * query);
 static void http_simple_insert(void *conn, const ch_query * query);
 static void http_cursor_free(void *);
-static void **http_fetch_row(ChFdwScanRowContext * ctx);
+static Datum * http_fetch_row(ChFdwScanRowContext * ctx);
 static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
-static char *char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
+static void char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
 
 static libclickhouse_methods http_methods =
 {
@@ -49,7 +49,7 @@ static ch_cursor * binary_simple_query(void *conn, const ch_query * query);
 static void binary_cursor_free(void *cursor);
 
 /* static void binary_simple_insert(void *conn, const char *query); */
-static void **binary_fetch_row(ChFdwScanRowContext * ctx);
+static Datum * binary_fetch_row(ChFdwScanRowContext * ctx);
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
 static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 								   const ch_query * query, char *table_name);
@@ -287,34 +287,80 @@ http_cursor_free(void *c)
 	ch_http_response_free(cursor->query_response);
 }
 
-static void **
+/*
+ * Fetch a row from the http response and return its values.
+ *
+ * If ctx->tupdesc is set, ctx->attinmeta must also be set, and ctx->values
+ * and ctx->nulls must already be palloc'd with space for ctx->tupdesc->natts
+ * values.
+ *
+ * Use ctx->tupdesc and ctx->attinmeta to convert the values to the
+ * appropriate Datums, and store them and the indication of their NULLness in
+ * ctx->values and ctx->nulls, respectively, then return ctx->values.
+ *
+ * If ctx->tupdesc is not set, treat all values as text and return them as
+ * text `Datum`s. This is the use case for `chfdw_construct_create_tables()`,
+ * which only cares about text.
+ */
+static Datum *
 http_fetch_row(ChFdwScanRowContext * ctx)
 {
 	int			rc = CH_CONT;
 	ch_cursor  *cursor = ctx->cursor;
 	size_t		attcount = list_length(ctx->retrieved_attrs);
-
-	if (attcount == 0)
-		/* SELECT NULL */
-		attcount = 1;
-
+	Datum	   *values;
 	ch_http_read_state *state = cursor->read_state;
 
-	/* all rows or empty table */
+	/* All rows or empty table. */
 	if (state->done || state->data == NULL)
 		return NULL;
 
-	char	  **values = palloc(attcount * sizeof(char *));
-
-	for (int i = 0; i < attcount; i++)
+	/* Special case: SELECT NULL. */
+	if (attcount == 0)
 	{
+		Assert(ctx->values && ctx->nulls);
 		rc = ch_http_read_next(state);
-		if (state->val[0] == '\\' && state->val[1] == 'N')
-			values[i] = NULL;
-		else if (state->val[0] != '\0')
-			values[i] = pstrdup(char_to_datum(ctx, i, state->val, state->len));
-		else
-			values[i] = "";
+		if (rc != CH_CONT && state->val[0] == '\\' && state->val[1] == 'N')
+		{
+			ctx->nulls[0] = true;
+			ctx->values[0] = (Datum) 0;
+			return ctx->values;
+		}
+		elog(ERROR, "pg_clickhouse: unexpected state: attributes "
+			 "count == 0 and haven't got NULL in the response");
+	}
+
+	/*
+	 * Create Datums based on the retrieved_attrs for the TupleDesc.
+	 * ctx->values and ctx->nulls must already be initialized with memory for
+	 * ctx->tupdesc->natts Datums.
+	 */
+	if (ctx->tupdesc)
+	{
+		values = ctx->values;
+		ListCell   *lc;
+		int			i;
+
+		Assert(ctx->values && ctx->nulls && ctx->attinmeta);
+		foreach(lc, ctx->retrieved_attrs)
+		{
+			i = lfirst_int(lc) - 1;
+			rc = ch_http_read_next(state);
+			char_to_datum(ctx, i, state->val, state->len);
+		}
+	}
+	/* No TupleDesc, everything is text. */
+	else
+	{
+		values = palloc(attcount * sizeof(Datum));
+		for (int idx = 0; idx < attcount; idx++)
+		{
+			rc = ch_http_read_next(state);
+			if (state->val[0] == '\\' && state->val[1] == 'N')
+				values[idx] = (Datum) 0;
+			else
+				values[idx] = PointerGetDatum(cstring_to_text(state->val));
+		}
 	}
 
 	if (attcount > 0 && rc != CH_EOL && rc != CH_EOF)
@@ -326,46 +372,25 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 						   "expected column count (%lu).", attcount)));
 	}
 
-	if (ctx->tupdesc)
-	{
-		Assert(ctx->values && ctx->nulls);
-		ListCell   *lc;
-		int			j = 0;
 
-		foreach(lc, ctx->retrieved_attrs)
-		{
-			int			i = lfirst_int(lc);
-
-			/* Apply the input function even to nulls, to support domains */
-			ctx->nulls[i - 1] = (values[j] == NULL);
-			ctx->values[i - 1] = InputFunctionCall(&ctx->attinmeta->attinfuncs[i - 1],
-												   values[j],
-												   ctx->attinmeta->attioparams[i - 1],
-												   ctx->attinmeta->atttypmods[i - 1]);
-			j++;
-		}
-	}
-
-	return (void **) values;
+	return values;
 }
 
 /*
- * Convert the raw data of length len to a Datum identified by attnum.
- * Determines the Postgres type and input function from the attnum values in
+ * Convert the raw data of length len to a Datum identified by attidx.
+ * Determines the Postgres type and input function from the attidx values in
  * ctx->tupdesc and ctx->attinmeta.
  */
-static char *
+static void
 char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
 {
-	if (!ctx->tupdesc)
-		return data;
-	//return PointerGetDatum(cstring_to_text(data));
-
 	Oid			pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
 	bool		is_array = type_is_array_domain(pgtype);
 
 	/* Easy check array for, else must use get_element_type on pgtype. */
-	if (data && is_array && data[0] == '[')
+	if (data[0] == '\\' && data[1] == 'N')
+		data = NULL;
+	else if (data && is_array && data[0] == '[')
 	{
 		size_t		pos = 0;
 
@@ -391,14 +416,20 @@ char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
 	}
 	else if (data && (pgtype == TIMEOID || pgtype == TIMETZOID)
 			 && data[strlen(data) - 1] == 'Z')
-
+	{
 		/*
 		 * date_time_output_format=iso formats times as ISO timestamps. Remove
 		 * the leading `YYYY-mm-ddT`.
 		 */
 		data += strlen("1970-01-01T");
+	}
 
-	return data;
+	/* Apply the input function even to nulls, to support domains */
+	ctx->nulls[attidx] = data == NULL;
+	ctx->values[attidx] = InputFunctionCall(&ctx->attinmeta->attinfuncs[attidx],
+											data,
+											ctx->attinmeta->attioparams[attidx],
+											ctx->attinmeta->atttypmods[attidx]);
 }
 
 text	   *
@@ -658,7 +689,22 @@ binary_simple_query(void *conn, const ch_query * query)
 	return cursor;
 }
 
-static void **
+/*
+ * Fetch a row from the binary cursor and return its values.
+ *
+ * If ctx->tupdesc is set, ctx->attinmeta must also be set, and ctx->values
+ * and ctx->nulls must already be palloc'd with space for ctx->tupdesc->natts
+ * values.
+ *
+ * Use ctx->tupdesc and ctx->attinmeta to convert the values to the
+ * appropriate Datums, and store them and the indication of their NULLness in
+ * ctx->values and ctx->nulls, respectively, then return ctx->values.
+ *
+ * If ctx->tupdesc is not set, treat all values as text and return them as
+ * text `Datum`s. This is the use case for `chfdw_construct_create_tables()`,
+ * which only cares about text.
+ */
+static Datum *
 binary_fetch_row(ChFdwScanRowContext * ctx)
 {
 	ListCell   *lc;
@@ -762,7 +808,7 @@ binary_fetch_row(ChFdwScanRowContext * ctx)
 	}
 
 ok:
-	return (void **) state->values;
+	return state->values;
 }
 
 static void
@@ -901,15 +947,6 @@ static char *str_types_map[][2] = {
 };
 
 static char *
-readstr(ch_connection conn, char *val)
-{
-	if (conn.is_binary)
-		return TextDatumGetCString(PointerGetDatum(val));
-	else
-		return val;
-}
-
-static char *
 parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, List * *options)
 {
 	char	   *pos = strstr(typepart, "(");
@@ -1011,7 +1048,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	ch_cursor  *cursor;
 	ch_query	query = new_query(NULL, 0, NULL);
 	List	   *result = NIL;
-	char	  **row_values;
+	Datum	   *row_values;
 
 	query.sql = psprintf("SELECT name, engine, engine_full "
 						 "FROM system.tables "
@@ -1039,13 +1076,13 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 		NULL
 	};
 
-	while ((row_values = (char **) conn.methods->fetch_row(&tables_ctx)) != NULL)
+	while ((row_values = conn.methods->fetch_row(&tables_ctx)) != NULL)
 	{
 		StringInfoData buf;
-		char	   *table_name = readstr(conn, row_values[0]);
-		char	   *engine = readstr(conn, row_values[1]);
-		char	   *engine_full = readstr(conn, row_values[2]);
-		char	  **dvalues;
+		char	   *table_name = TextDatumGetCString(row_values[0]);
+		char	   *engine = TextDatumGetCString(row_values[1]);
+		char	   *engine_full = TextDatumGetCString(row_values[2]);
+		Datum	   *dvalues;
 		bool		first = true;
 
 		if (table_name == NULL)
@@ -1083,12 +1120,12 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 							 ch_quote_literal(table_name));
 
 		cols_ctx.cursor = conn.methods->simple_query(conn.conn, &query);
-		while ((dvalues = (char **) conn.methods->fetch_row(&cols_ctx)) != NULL)
+		while ((dvalues = conn.methods->fetch_row(&cols_ctx)) != NULL)
 		{
 			List	   *options = NIL;
 			bool		is_nullable = false;
-			char	   *colname = readstr(conn, dvalues[0]);
-			char	   *remote_type = parse_type(table_name, colname, readstr(conn, dvalues[1]), &is_nullable, &options);
+			char	   *colname = TextDatumGetCString(dvalues[0]);
+			char	   *remote_type = parse_type(table_name, colname, TextDatumGetCString(dvalues[1]), &is_nullable, &options);
 
 			if (!first)
 				appendStringInfoString(&buf, ",\n");
