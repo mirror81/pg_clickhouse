@@ -681,8 +681,8 @@ queries. Example:
 SET pg_clickhouse.session_settings = 'join_use_nulls 1, final 1';
 ```
 
-The default is `join_use_nulls 1`. Set it to an empty string to fall back on
-the ClickHouse server's settings.
+The default is `join_use_nulls 1, group_by_use_nulls 1, final 1`. Set it to an
+empty string to fall back on the ClickHouse server's settings.
 
 ```sql
 SET pg_clickhouse.session_settings = '';
@@ -725,8 +725,16 @@ SET pg_clickhouse.session_settings TO $$
 $$;
 ```
 
-pg_clickhouse does not validate the settings, but passes them on to ClickHouse
-for every query. It thus supports all settings for each ClickHouse version.
+Some settings will be ignored in cases where they would interfere with the
+operation of pg_clickhouse itself. These include:
+
+*   `date_time_output_format`: the http driver requires it to be "iso"
+*   `format_tsv_null_representation`: the http driver requires the default
+*   `output_format_tsv_crlf_end_of_line` the http driver requires the default
+
+Otherwise, pg_clickhouse does not validate the settings, but passes them on to
+ClickHouse for every query. It thus supports all settings for each ClickHouse
+version.
 
 Note that pg_clickhouse must be loaded before setting
 `pg_clickhouse.session_settings`; either use [shared library preloading] or

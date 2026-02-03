@@ -23,88 +23,103 @@ NOTICE:  ERR 42601 - pg_clickhouse: missing comma after "join_use_nulls" value i
  join_use_nulls     | 1
 (3 rows)
 
-       pg_clickhouse.session_settings       
---------------------------------------------
-                                           +
-     connect_timeout 2,                    +
-     count_distinct_implementation uniq,   +
-     join_algorithm 'prefer_partial_merge',+
-     join_use_nulls 0,                     +
-     join_use_nulls 1,                     +
-     log_queries_min_type QUERY_FINISH,    +
-     max_block_size 32768,                 +
-     max_execution_time 45,                +
-     max_result_rows 1024,                 +
-     metrics_perf_events_list 'this,that', +
-     network_compression_method ZSTD,      +
-     poll_interval 5,                      +
-     totals_mode after_having_auto         +
+       pg_clickhouse.session_settings        
+---------------------------------------------
+                                            +
+     connect_timeout 2,                     +
+     count_distinct_implementation uniq,    +
+     date_time_output_format unix_timestamp,+
+     format_tsv_null_representation NOPE,   +
+     join_algorithm 'prefer_partial_merge', +
+     join_use_nulls 0,                      +
+     join_use_nulls 1,                      +
+     log_queries_min_type QUERY_FINISH,     +
+     max_block_size 32768,                  +
+     max_execution_time 45,                 +
+     max_result_rows 1024,                  +
+     metrics_perf_events_list 'this,that',  +
+     network_compression_method ZSTD,       +
+     output_format_tsv_crlf_end_of_line 1,  +
+     poll_interval 5,                       +
+     totals_mode after_having_auto          +
  
 (1 row)
 
-             name              |        value         
--------------------------------+----------------------
- connect_timeout               | 2
- count_distinct_implementation | uniq
- join_algorithm                | prefer_partial_merge
- join_use_nulls                | 1
- log_queries_min_type          | QUERY_FINISH
- max_block_size                | 32768
- max_execution_time            | 45
- max_result_rows               | 1024
- metrics_perf_events_list      | this,that
- network_compression_method    | ZSTD
- poll_interval                 | 5
- totals_mode                   | after_having_auto
-(12 rows)
+                name                |        value         
+------------------------------------+----------------------
+ connect_timeout                    | 2
+ count_distinct_implementation      | uniq
+ date_time_output_format            | unix_timestamp
+ format_tsv_null_representation     | NOPE
+ join_algorithm                     | prefer_partial_merge
+ join_use_nulls                     | 1
+ log_queries_min_type               | QUERY_FINISH
+ max_block_size                     | 32768
+ max_execution_time                 | 45
+ max_result_rows                    | 1024
+ metrics_perf_events_list           | this,that
+ network_compression_method         | ZSTD
+ output_format_tsv_crlf_end_of_line | 1
+ poll_interval                      | 5
+ totals_mode                        | after_having_auto
+(15 rows)
 
-             name              |        value         
--------------------------------+----------------------
- connect_timeout               | 2
- count_distinct_implementation | uniq
- join_algorithm                | prefer_partial_merge
- join_use_nulls                | 1
- log_queries_min_type          | QUERY_FINISH
- max_block_size                | 32768
- max_execution_time            | 45
- max_result_rows               | 1024
- metrics_perf_events_list      | this,that
- network_compression_method    | ZSTD
- poll_interval                 | 5
- totals_mode                   | after_having_auto
-(12 rows)
+                name                |        value         
+------------------------------------+----------------------
+ connect_timeout                    | 2
+ count_distinct_implementation      | uniq
+ date_time_output_format            | iso
+ format_tsv_null_representation     | 
+ join_algorithm                     | prefer_partial_merge
+ join_use_nulls                     | 1
+ log_queries_min_type               | QUERY_FINISH
+ max_block_size                     | 32768
+ max_execution_time                 | 45
+ max_result_rows                    | 1024
+ metrics_perf_events_list           | this,that
+ network_compression_method         | ZSTD
+ output_format_tsv_crlf_end_of_line | 0
+ poll_interval                      | 5
+ totals_mode                        | after_having_auto
+(15 rows)
 
-             name              | ?column? 
--------------------------------+----------
- connect_timeout               | t
- count_distinct_implementation | t
- join_algorithm                | t
- join_use_nulls                | t
- log_queries_min_type          | t
- max_block_size                | t
- max_execution_time            | t
- max_result_rows               | t
- metrics_perf_events_list      | t
- network_compression_method    | t
- poll_interval                 | t
- totals_mode                   | t
-(12 rows)
+                name                | ?column? 
+------------------------------------+----------
+ connect_timeout                    | t
+ count_distinct_implementation      | t
+ date_time_output_format            | t
+ format_tsv_null_representation     | t
+ join_algorithm                     | t
+ join_use_nulls                     | t
+ log_queries_min_type               | t
+ max_block_size                     | t
+ max_execution_time                 | t
+ max_result_rows                    | t
+ metrics_perf_events_list           | t
+ network_compression_method         | t
+ output_format_tsv_crlf_end_of_line | t
+ poll_interval                      | t
+ totals_mode                        | t
+(15 rows)
 
-             name              | ?column? 
--------------------------------+----------
- connect_timeout               | t
- count_distinct_implementation | t
- join_algorithm                | t
- join_use_nulls                | t
- log_queries_min_type          | t
- max_block_size                | t
- max_execution_time            | t
- max_result_rows               | t
- metrics_perf_events_list      | t
- network_compression_method    | t
- poll_interval                 | t
- totals_mode                   | t
-(12 rows)
+                name                | ?column? 
+------------------------------------+----------
+ connect_timeout                    | t
+ count_distinct_implementation      | t
+ date_time_output_format            | f
+ format_tsv_null_representation     | f
+ join_algorithm                     | t
+ join_use_nulls                     | t
+ log_queries_min_type               | t
+ max_block_size                     | t
+ max_execution_time                 | t
+ max_result_rows                    | t
+ metrics_perf_events_list           | t
+ network_compression_method         | t
+ output_format_tsv_crlf_end_of_line | t
+ poll_interval                      | t
+ totals_mode                        | t
+(15 rows)
 
 NOTICE:  drop cascades to foreign table bin_remote_settings
 NOTICE:  drop cascades to foreign table http_remote_settings

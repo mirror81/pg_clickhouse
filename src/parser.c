@@ -13,26 +13,25 @@ ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen)
 {
 	state->data = datalen > 0 ? data : NULL;
 	state->maxpos = datalen - 1;
-	state->buflen = 1024;
-	state->val = malloc(state->buflen);
+	state->val = makeStringInfo();
 	state->done = false;
 }
 
 void
 ch_http_read_state_free(ch_http_read_state * state)
 {
-	free(state->val);
+	/* destroyStringInfo not added till Postgres 17 */
+	pfree(state->val->data);
+	pfree(state->val);
 }
 
 int
 ch_http_read_next(ch_http_read_state * state)
 {
-	size_t		pos = state->curpos,
-				len = 0;
+	size_t		pos = state->curpos;
 	char	   *data = state->data;
 
-	state->val[0] = '\0';
-	state->len = 0;
+	resetStringInfo(state->val);
 	if (state->done)
 		return CH_EOF;
 
@@ -40,59 +39,47 @@ ch_http_read_next(ch_http_read_state * state)
 	{
 		if (data[pos] == '\\')
 		{
+			pos++;
 			/* unescape some sequences */
-			switch (data[pos + 1])
+			switch (data[pos])
 			{
-				case '\\':
-					state->val[len] = '\\';
-					break;
-				case '\'':
-					state->val[len] = '\'';
-					break;
 				case 'n':
-					state->val[len] = '\n';
+					appendStringInfoChar(state->val, '\n');
 					break;
 				case 't':
-					state->val[len] = '\t';
+					appendStringInfoChar(state->val, '\t');
 					break;
 				case '0':
-					state->val[len] = '\0';
+					appendStringInfoChar(state->val, '\0');
 					break;
 				case 'r':
-					state->val[len] = '\r';
+					appendStringInfoChar(state->val, '\r');
 					break;
 				case 'b':
-					state->val[len] = '\b';
+					appendStringInfoChar(state->val, '\b');
 					break;
 				case 'f':
-					state->val[len] = '\f';
+					appendStringInfoChar(state->val, '\f');
+					break;
+				case 'N':
+					/* NULL (format_tsv_null_representation) */
+					appendStringInfoString(state->val, "\\N");
 					break;
 				default:
-					goto copy;
+					appendStringInfoChar(state->val, data[pos]);
 			}
-			len++;
-			pos += 2;
+			pos++;
 		}
 		else
-	copy:
-			state->val[len++] = data[pos++];
-
-		/* extend the value size if needed */
-		if (len == state->buflen)
-		{
-			state->buflen *= 2;
-			state->val = realloc(state->val, state->buflen);
-		}
+			appendStringInfoChar(state->val, data[pos++]);
 	}
 
-	state->val[len] = '\0';
-	state->len = len;
 	state->curpos = pos + 1;
 
 	if (data[pos] == '\t')
 		return CH_CONT;
 
-	assert(data[pos] == '\n');
+	Assert(data[pos] == '\n');
 	int			res = pos < state->maxpos ? CH_EOL : CH_EOF;
 
 	state->done = (res == CH_EOF);

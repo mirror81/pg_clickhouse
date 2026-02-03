@@ -181,13 +181,22 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 	/* Append each of the settings as a query param. */
 	for (iter = new_kv_iter(query->settings); !kv_iter_done(&iter); kv_iter_next(&iter))
 	{
+		/* Skip settings that would break parsing and type conversion. */
+		if (
+			strcmp(iter.name, "date_time_output_format") == 0 ||
+			strcmp(iter.name, "format_tsv_null_representation") == 0 ||
+			strcmp(iter.name, "output_format_tsv_crlf_end_of_line") == 0
+			)
+			continue;
 		buf = psprintf("%s=%s", iter.name, iter.value);
 		curl_url_set(cu, CURLUPART_QUERY, buf, CURLU_APPENDQUERY | CURLU_URLENCODE);
 		pfree(buf);
 	}
 
-	/* Always use ISO date format */
+	/* Always use ISO date format, \N for NULL, \n for EOL. */
 	curl_url_set(cu, CURLUPART_QUERY, "date_time_output_format=iso", CURLU_APPENDQUERY | CURLU_URLENCODE);
+	curl_url_set(cu, CURLUPART_QUERY, "format_tsv_null_representation=\\N", CURLU_APPENDQUERY | CURLU_URLENCODE);
+	curl_url_set(cu, CURLUPART_QUERY, "output_format_tsv_crlf_end_of_line=0", CURLU_APPENDQUERY | CURLU_URLENCODE);
 	curl_url_get(cu, CURLUPART_URL, &url, 0);
 	curl_url_cleanup(cu);
 

@@ -30,8 +30,7 @@ typedef struct
 	size_t		buflen;
 	size_t		curpos;
 	size_t		maxpos;
-	size_t		len;
-	char	   *val;
+	StringInfo	val;
 	bool		done;
 }			ch_http_read_state;
 

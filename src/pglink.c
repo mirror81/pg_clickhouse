@@ -320,7 +320,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 	{
 		Assert(ctx->values && ctx->nulls);
 		rc = ch_http_read_next(state);
-		if (rc != CH_CONT && state->val[0] == '\\' && state->val[1] == 'N')
+		if (rc != CH_CONT && state->val->data[0] == '\\' && state->val->data[1] == 'N')
 		{
 			ctx->nulls[0] = true;
 			ctx->values[0] = (Datum) 0;
@@ -346,7 +346,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		{
 			i = lfirst_int(lc) - 1;
 			rc = ch_http_read_next(state);
-			char_to_datum(ctx, i, state->val, state->len);
+			char_to_datum(ctx, i, state->val->data, state->val->len);
 		}
 	}
 	/* No TupleDesc, everything is text. */
@@ -356,10 +356,10 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		for (int idx = 0; idx < attcount; idx++)
 		{
 			rc = ch_http_read_next(state);
-			if (state->val[0] == '\\' && state->val[1] == 'N')
+			if (state->val->data[0] == '\\' && state->val->data[1] == 'N')
 				values[idx] = (Datum) 0;
 			else
-				values[idx] = PointerGetDatum(cstring_to_text(state->val));
+				values[idx] = PointerGetDatum(cstring_to_text(state->val->data));
 		}
 	}
 

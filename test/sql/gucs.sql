@@ -67,10 +67,12 @@ SELECT name, value FROM http_remote_settings
  WHERE name IN ('join_use_nulls', 'group_by_use_nulls', 'final')
  ORDER BY name;
 
--- List of seeings changed below.
+-- List of settings changed below.
 select '{
     connect_timeout,
     count_distinct_implementation,
+    date_time_output_format,
+    format_tsv_null_representation,
     join_algorithm,
     join_use_nulls,
     log_queries_min_type,
@@ -79,6 +81,7 @@ select '{
     max_result_rows,
     metrics_perf_events_list,
     network_compression_method,
+    output_format_tsv_crlf_end_of_line,
     poll_interval,
     totals_mode
 }' set_list \gset
@@ -95,6 +98,8 @@ SELECT name, value
 SET pg_clickhouse.session_settings TO $$
     connect_timeout 2,
     count_distinct_implementation uniq,
+    date_time_output_format unix_timestamp,
+    format_tsv_null_representation NOPE,
     join_algorithm 'prefer_partial_merge',
     join_use_nulls 0,
     join_use_nulls 1,
@@ -104,6 +109,7 @@ SET pg_clickhouse.session_settings TO $$
     max_result_rows 1024,
     metrics_perf_events_list 'this,that',
     network_compression_method ZSTD,
+    output_format_tsv_crlf_end_of_line 1,
     poll_interval 5,
     totals_mode after_having_auto
 $$;
@@ -130,6 +136,7 @@ SELECT remote.name, remote.value IS NOT DISTINCT FROM def.value
 WHERE remote.name = ANY(:'set_list')
 ORDER BY remote.name;
 
+-- date_time_output_format and format_tsv_null_representation are distinct.
 SELECT remote.name, remote.value IS NOT DISTINCT FROM def.value
  FROM http_remote_settings remote
  JOIN default_settings def ON remote.name = def.name

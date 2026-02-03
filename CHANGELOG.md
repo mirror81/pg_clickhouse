@@ -15,12 +15,19 @@ All notable changes to this project will be documented in this file. It uses the
     `lower(hex(MD5()))` in ClickHouse.
 *   Added support for mapping PostgreSQL BYTEA columns to ClickHouse String
     columns.
+*   Added explicit setting of `format_tsv_null_representation`, and
+    `output_format_tsv_crlf_end_of_line` to all http requests, as unexpected
+    values will interfere with it operation.
 
 ### 📔 Notes
 
 *   Refactored and improved the http engine's result processing, bringing it
     into closer alignment with the binary engine and removing double
     processing of row values.
+*   The http driver now ignores the following session settings from the
+    `pg_clickhouse.session_settings` to prevent them from interfering with its
+    operation: `date_time_output_format`, `format_tsv_null_representation`,
+    and `output_format_tsv_crlf_end_of_line`.
 
   [v0.1.4]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.3...v0.1.4
 
