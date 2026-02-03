@@ -13,6 +13,14 @@ All notable changes to this project will be documented in this file. It uses the
 
 *   Added support for the PostgreSQL `md5()` function, mapped to
     `lower(hex(MD5()))` in ClickHouse.
+*   Added support for mapping PostgreSQL BYTEA columns to ClickHouse String
+    columns.
+
+### 📔 Notes
+
+*   Refactored and improved the http engine's result processing, bringing it
+    into closer alignment with the binary engine and removing double
+    processing of row values.
 
   [v0.1.4]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.3...v0.1.4
 

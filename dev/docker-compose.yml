@@ -20,7 +20,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 25.12.1.649-stable
     working_dir: /work
     volumes:
@@ -39,7 +38,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 25.8.12.129-lts
     working_dir: /work
     volumes:
@@ -59,7 +57,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 25.3.10.19-lts
     working_dir: /work
     volumes:
@@ -79,7 +76,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 25.3.9.72-lts
     working_dir: /work
     volumes:
@@ -99,7 +95,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 24.3.18.7-lts
     working_dir: /work
     volumes:
@@ -119,7 +114,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 23.8.16.40-lts
     working_dir: /work
     volumes:
@@ -139,7 +133,6 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      PGUSER: postgres
       CH_RELEASE: 23.3.22.3-lts
     working_dir: /work
     volumes:

@@ -39,6 +39,10 @@ SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.addr (
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
 
+SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.bytes (
+	c1 Int8, c2 String, c3 FixedString(16)
+) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);');
+
 CREATE SCHEMA http_inserts_test;
 IMPORT FOREIGN SCHEMA http_inserts_test FROM SERVER http_inserts_loopback INTO http_inserts_test;
 SET search_path = http_inserts_test, public;
@@ -105,6 +109,41 @@ INSERT INTO addr VALUES
 	('C62848ED-7316-4D15-92F3-9BB71EB69640', '183.247.232.58', '2a02:e980:1e::1')
 ;
 SELECT * FROM addr ORDER BY c1;
+
+/* Check BYTEA */
+CREATE FOREIGN TABLE bbytes(
+    c1 int,
+    c2 BYTEA,
+    c3 BYTEA
+) SERVER http_inserts_loopback OPTIONS (table_name 'bytes');
+INSERT INTO bbytes
+SELECT n, sha224(bytea('val'||n)), decode(md5('int'||n), 'hex')
+  FROM generate_series(1, 4) n;
+
+-- Should have full binary values, including nul bytes, from BYTEA columns.
+SELECT * FROM bbytes ORDER BY c1;
+
+-- Nul bytes should truncate TEXT columns.
+SELECT c1, encode(c2::bytea, 'hex'), encode(c3::bytea, 'hex') FROM bytes ORDER BY c1;
+
+SELECT clickhouse_raw_query('TRUNCATE http_inserts_test.bytes');
+
+-- Should fail.
+INSERT INTO bytes
+SELECT n, sha224(bytea('val'||n)), decode(md5('int'||n), 'hex')
+  FROM generate_series(1, 4) n;
+
+-- Remove FixedString length.
+ALTER FOREIGN TABLE bytes ALTER c3 TYPE TEXT;
+SELECT clickhouse_raw_query('ALTER TABLE http_inserts_test.bytes MODIFY COLUMN c3 String');
+
+-- Should succeed.
+INSERT INTO bytes
+SELECT n, sha224(bytea('val'||n)), decode(md5('int'||n), 'hex')
+  FROM generate_series(1, 4) n;
+
+SELECT * FROM bbytes ORDER BY c1;
+SELECT c1, encode(c2::bytea, 'hex'), encode(c3::bytea, 'hex') FROM bytes ORDER BY c1;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER http_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_inserts_test');

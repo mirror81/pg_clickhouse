@@ -526,7 +526,14 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			break;
 		}
 		case TEXTOID: {
-			char * s = TextDatumGetCString(val);
+			/*
+			 * ClickHouse allows nuls in strings, and val can be bytea, so
+			 * don't rely on nul termination but copy the full length of the
+			 * data.
+			 */
+			text	   *string = PG_DETOAST_DATUM(val);
+			std::string s;
+			s.assign(VARDATA(string), VARSIZE_ANY_EXHDR(string));
 
 			switch (col->Type()->GetCode())
 			{
@@ -748,7 +755,7 @@ void ch_binary_read_state_init(ch_binary_read_state_t * state, ch_binary_respons
  * This function calls postgres functions, which can call `palloc` so we can end up
  * with elog(ERROR) and longjmp to upper postgres code with leaking c++ memory.
  *
- * There is no an adequate (without huge overheads) solution, we just consider
+ * There is not an adequate (without huge overheads) solution, we just consider
  * this state unfixable.
  */
 static Datum make_datum(clickhouse::ColumnRef col, size_t row, Oid * valtype, bool * is_null)
@@ -885,13 +892,15 @@ nested_col:
 		break;
 		case Type::Code::FixedString: {
 			auto s = std::string(col->As<ColumnFixedString>()->At(row));
-			ret = CStringGetTextDatum(s.c_str());
+			/* ClickHouse allows nuls in strings, so copy by full length. */
+			ret = PointerGetDatum(cstring_to_text_with_len(s.data(), s.size()));
 			*valtype = TEXTOID;
 		}
 		break;
 		case Type::Code::String: {
 			auto s = std::string(col->As<ColumnString>()->At(row));
-			ret = CStringGetTextDatum(s.c_str());
+			/* ClickHouse allows nuls in strings, so copy by full length. */
+			ret = PointerGetDatum(cstring_to_text_with_len(s.data(), s.size()));
 			*valtype = TEXTOID;
 		}
 		break;
@@ -1008,11 +1017,7 @@ nested_col:
 			slot->len = len;
 
 			for (size_t i = 0; i < len; ++i)
-			{
-				auto tuple_col = (*tuple)[i];
-
-				slot->datums[i] = make_datum(tuple_col, row, &slot->types[i], &slot->nulls[i]);
-			}
+				slot->datums[i] = make_datum((*tuple)[i], row, &slot->types[i], &slot->nulls[i]);
 
 			/* this one will need additional work, since we just return raw slot */
 			ret = PointerGetDatum(slot);

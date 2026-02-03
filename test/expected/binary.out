@@ -101,6 +101,27 @@ SELECT clickhouse_raw_query('INSERT INTO binary_test.tuples SELECT
  
 (1 row)
 
+SELECT clickhouse_raw_query('CREATE TABLE binary_test.bytes (
+    c1 Int8,
+    c2 String,
+    c3 FixedString(16)
+) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
+');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query('INSERT INTO binary_test.bytes SELECT
+    number,
+    SHA1(''val'' || toString(number)),
+    MD5(''val'' || toString(number))
+    FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 CREATE FOREIGN TABLE fints (
 	c1 int2,
 	c2 int2,
@@ -131,12 +152,17 @@ CREATE FOREIGN TABLE farrays2 (
 	c1 int8[],
     c2 text[]
 ) SERVER binary_loopback OPTIONS (table_name 'arrays');
-CREATE TABLE tupformat(a int, b text, c float4);
+CREATE TYPE tupformat AS (a int, b text, c float4);
 CREATE FOREIGN TABLE ftuples (
     c1 int,
     c2 tupformat,
     c3 bool
 ) SERVER binary_loopback OPTIONS (table_name 'tuples');
+CREATE FOREIGN TABLE fbytes(
+    c1 int,
+    c2 BYTEA,
+    c3 BYTEA
+) SERVER binary_loopback OPTIONS (table_name 'bytes');
 COPY fints FROM stdin;
 -- integers
 SELECT * FROM fints ORDER BY c1;
@@ -255,6 +281,22 @@ SELECT * FROM ftuples ORDER BY c1;
   9 | (9,9,10) | t
 (10 rows)
 
+-- Bytes.
+SELECT * FROM fbytes ORDER BY c1;
+ c1 |                     c2                     |                 c3                 
+----+--------------------------------------------+------------------------------------
+  0 | \x24e3800ca47f2504c25917d3b07306a28d0ac6fc | \x8664dccd1d83673d4fa8ef755ae88439
+  1 | \x5e6e4c0fb8ef47b4f1d6eea3e6c51152dbee94ec | \x8de92ce2033cf3ca03fa8cc63e7a703f
+  2 | \x4f47fdcd4e8d3b4802d50f990b401066bbfe0379 | \x38ceaa3b09c5a07d329888ba1ccde9ad
+  3 | \xb6a0af46ee8d92da3f0c176da8d88517a1b21c54 | \x9163c8c66d03c512404cca8549a250e7
+  4 | \xba42461dcb3e24f04e0d236f61d6804a4f4b3bee | \xa8516b0468eb31028c3dd669867c15b1
+  5 | \x483d5aa3a98e3d1d9f3f40c26ac15c9d42c2f6b8 | \x294a6e0d759cdbcf55753c4a58161721
+  6 | \x7d6934814141b108771faa00ba53750372cb413c | \x1b18b7cd2d63787cbe1d97e57a54853c
+  7 | \xd750c9d1e88df77272d3bde4a0ad16ca7ca6f14a | \x7e526a670883f267ce15deff74740a6e
+  8 | \x7673723fea187e3e78522d4b19ea97eb1a3d6787 | \xeafd00c5d025e9d71e9ed588f7f97e4b
+  9 | \xda1a828a08d9d57450ce10a89cb5ee91dc2feed7 | \xa2da4af9e1d8f4d37887f719cda60bda
+(10 rows)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_test');
  clickhouse_raw_query 
@@ -263,9 +305,10 @@ SELECT clickhouse_raw_query('DROP DATABASE binary_test');
 (1 row)
 
 DROP SERVER binary_loopback CASCADE;
-NOTICE:  drop cascades to 5 other objects
+NOTICE:  drop cascades to 6 other objects
 DETAIL:  drop cascades to foreign table fints
 drop cascades to foreign table ftypes
 drop cascades to foreign table farrays
 drop cascades to foreign table farrays2
 drop cascades to foreign table ftuples
+drop cascades to foreign table fbytes

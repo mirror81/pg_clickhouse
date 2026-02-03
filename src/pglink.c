@@ -53,7 +53,7 @@ static Datum * binary_fetch_row(ChFdwScanRowContext * ctx);
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
 static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 								   const ch_query * query, char *table_name);
-static size_t ch_escape_string(char *to, const char *from, size_t length);
+static char *ch_escape_string(const char *s, size_t len);
 static void ch_quote_literal_internal(char *dst, const char *src, size_t len);
 extern char *ch_quote_literal(const char *rawstr);
 
@@ -423,6 +423,13 @@ char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
 		 */
 		data += strlen("1970-01-01T");
 	}
+	else if (pgtype == BYTEAOID)
+	{
+		/* Postgres input function won't work, we have raw data. */
+		ctx->nulls[attidx] = data == NULL;
+		ctx->values[attidx] = PointerGetDatum((bytea *) cstring_to_text_with_len(data, len));
+		return;
+	}
 
 	/* Apply the input function even to nulls, to support domains */
 	ctx->nulls[attidx] = data == NULL;
@@ -474,22 +481,23 @@ chfdw_datum_to_ch_literal(Datum value, Oid type)
 		case JSONBOID:
 		case NAMEOID:
 		case BITOID:
-		case BYTEAOID:
 		case UUIDOID:
 		case INETOID:
 			{
-				char	   *text,
-						   *result;
-				size_t		len;
+				char	   *text;
 				bool		tl = false;
 				Oid			typoutput = InvalidOid;
 
 				getTypeOutputInfo(type, &typoutput, &tl);
 				text = OidOutputFunctionCall(typoutput, value);
-				len = strlen(text);
-				result = palloc(len * 2 + 1);
-				ch_escape_string(result, text, len + 1);
-				return result;
+				return ch_escape_string(text, strlen(text));
+			}
+		case BYTEAOID:
+			{
+				/* Copy all of the bytes into a ClickHouse literal string. */
+				bytea	   *bytes = PG_DETOAST_DATUM(value);
+
+				return ch_escape_string(VARDATA(bytes), VARSIZE_ANY_EXHDR(bytes));
 			}
 		case DATEOID:
 			/* we expect Date on other side */
@@ -908,7 +916,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 		('Float32',  'real',             ''),
 		('Float64',  'double precision', ''),
 		('Decimal',  'numeric',          ''),
-		('String',   'text',             ''),
+		('String',   'text, bytea',      ''),
 		('DateTime', 'timestamptz',      ''),
 		('Date',     'date',             ''),
 		('Date32',   'date',             ''),
@@ -1209,103 +1217,78 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 }
 
 /*
- * Escaping arbitrary strings to get valid ClickHouse SQL literal strings.
+ * Escape len bytes from s as an unquoted ClickHouse literal string. Returns a
+ * pointer to a palloc'd string.
  *
- * length is the length of the source string. (Note: if a terminating NUL is
- * encountered sooner, ch_escape_string stops short of "length"; the behavior
- * is thus rather like strncpy.)
- *
- * For safety the buffer at "to" must be at least 2*length + 1 bytes long. A
- * terminating NUL character is added to the output string, whether the input
- * is NUL-terminated or not.
- *
- * Returns the actual length of the output (not counting the terminating NUL).
+ * Based on ConvertToSQLString() in src/Client/BuzzHouse/AST/SQLProtoStr.cpp
+ * and writeAnyEscapedStringO() in src/IO/WriteHelpers.h in the ClickHouse
+ * source code.
  */
-static size_t
-ch_escape_string(char *to, const char *from, size_t length)
+static char *
+ch_escape_string(const char *from, size_t len)
 {
+	char	   *result;
+	size_t		remaining = len;
 	const char *source = from;
-	char	   *target = to;
-	size_t		remaining = length;
 
-	while (remaining > 0 && *source != '\0')
+	result = palloc(len * 2 + 1);
+	char	   *target = result;
+
+	while (remaining > 0)
 	{
 		char		c = *source;
-		int			len;
-		int			i;
 
-		/* Fast path for plain ASCII */
-		if (!IS_HIGHBIT_SET(c))
+		switch (c)
 		{
-			/* Apply quoting if needed */
-			if (c == '\\')
-			{
-				*target++ = c;
-				*target++ = c;
-			}
-			else if (c == '\'')
-			{
+			case '\'':
 				*target++ = '\\';
 				*target++ = c;
-			}
-			else if (c == '\n')
-			{
-				*target++ = '\\';
-				*target++ = 'n';
-			}
-			else if (c == '\t')
-			{
-				*target++ = '\\';
-				*target++ = 't';
-			}
-			else if (c == '\0')
-			{
-				*target++ = '\\';
-				*target++ = '0';
-			}
-			else if (c == '\r')
-			{
-				*target++ = '\\';
-				*target++ = 'r';
-			}
-			else if (c == '\b')
-			{
+				break;
+			case '\\':
+				*target++ = c;
+				*target++ = c;
+				break;
+			case '\b':
 				*target++ = '\\';
 				*target++ = 'b';
-			}
-			else if (c == '\f')
-			{
+				break;
+			case '\f':
 				*target++ = '\\';
 				*target++ = 'f';
-			}
-			else
-				*target++ = c;
-
-			source++;
-			remaining--;
-			continue;
-		}
-
-		/* Slow path for possible multibyte characters */
-		len = pg_encoding_mblen(PG_SQL_ASCII, source);
-
-		/* Copy the character */
-		for (i = 0; i < len; i++)
-		{
-			if (remaining == 0 || *source == '\0')
 				break;
-			*target++ = *source++;
-			remaining--;
+			case '\r':
+				*target++ = '\\';
+				*target++ = 'r';
+				break;
+			case '\n':
+				*target++ = '\\';
+				*target++ = 'n';
+				break;
+			case '\t':
+				*target++ = '\\';
+				*target++ = 't';
+				break;
+			case '\0':
+				*target++ = '\\';
+				*target++ = '0';
+				break;
+			case '\a':
+				*target++ = '\\';
+				*target++ = 'a';
+				break;
+			case '\v':
+				*target++ = '\\';
+				*target++ = 'v';
+				break;
+			default:
+				*target++ = c;
 		}
-
-		if (i < len)
-			elog(ERROR, "pg_clickhouse: incomplete multibyte character");
+		source++;
+		remaining--;
 	}
 
-	/* Write the terminating NUL character. */
 	*target = '\0';
-
-	return target - to;
+	return result;
 }
 
 /*

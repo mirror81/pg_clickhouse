@@ -57,6 +57,18 @@ SELECT clickhouse_raw_query('INSERT INTO binary_test.tuples SELECT
     number % 2
     FROM numbers(10);');
 
+SELECT clickhouse_raw_query('CREATE TABLE binary_test.bytes (
+    c1 Int8,
+    c2 String,
+    c3 FixedString(16)
+) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
+');
+SELECT clickhouse_raw_query('INSERT INTO binary_test.bytes SELECT
+    number,
+    SHA1(''val'' || toString(number)),
+    MD5(''val'' || toString(number))
+    FROM numbers(10);');
+
 CREATE FOREIGN TABLE fints (
 	c1 int2,
 	c2 int2,
@@ -91,12 +103,18 @@ CREATE FOREIGN TABLE farrays2 (
     c2 text[]
 ) SERVER binary_loopback OPTIONS (table_name 'arrays');
 
-CREATE TABLE tupformat(a int, b text, c float4);
+CREATE TYPE tupformat AS (a int, b text, c float4);
 CREATE FOREIGN TABLE ftuples (
     c1 int,
     c2 tupformat,
     c3 bool
 ) SERVER binary_loopback OPTIONS (table_name 'tuples');
+
+CREATE FOREIGN TABLE fbytes(
+    c1 int,
+    c2 BYTEA,
+    c3 BYTEA
+) SERVER binary_loopback OPTIONS (table_name 'bytes');
 
 COPY fints FROM stdin;
 \.
@@ -118,6 +136,9 @@ SELECT * FROM farrays2 ORDER BY c1;
 
 -- tuples
 SELECT * FROM ftuples ORDER BY c1;
+
+-- Bytes.
+SELECT * FROM fbytes ORDER BY c1;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_test');

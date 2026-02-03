@@ -191,6 +191,10 @@ ch_binary_convert_datum(void *state, Datum val)
 void	   *
 ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 {
+	/* make_datum() binary.cpp copies all bytes, no cast needed. */
+	if (intype == TEXTOID && outtype == BYTEAOID)
+		return NULL;
+
 	ch_convert_state *state = palloc0(sizeof(ch_convert_state));
 
 	state->intype = intype;
@@ -353,6 +357,10 @@ static void
 init_output_convert_state(ch_convert_output_state * state)
 {
 	if (state->outtype == state->intype)
+		return;
+
+	/* column_append() binary.cpp copies all bytes, no cast needed. */
+	if (state->intype == BYTEAOID && state->outtype == TEXTOID)
 		return;
 
 	/* Postgres has no cast from bool to INT16, so provide our own. */
