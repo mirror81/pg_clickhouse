@@ -426,8 +426,21 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 	if (col->Type()->GetCode() == Type::Code::Nullable)
 		nullable = true;
 
+	/*
+	 * Prevent insertion if the column isn't Nullable. This differs from the
+	 * http engine, which isn't aware of Nullable but just sends values off,
+	 * in which case ClickHouse inserts default values (e.g., 0 for numbers,
+	 * "" for strings, etc.).
+	 *
+	 * XXX Do we want to consider rejecting NULL inserts when the Postgres
+	 * `NOT NULL` constraint exits? And when it doesn't exist and the column
+	 * is not nullable, do we want to send the default value instead? Dropping
+	 * this block should do that.
+	 */
 	if (isnull && !nullable)
-		THROW_UNEXPECTED_COLUMN("NULL", col);
+		throw std::runtime_error(
+			"cannot append NULL to NOT NULL " + col->Type()->GetName() + " column"
+		);
 
 	if (nullable)
 	{
@@ -510,19 +523,24 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 		}
 		case NUMERICOID: {
 			/* Convert numeric to string and let ColumnDecimal parse it. */
-			char *s = DatumGetCString(DirectFunctionCall1(numeric_out, val));
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Decimal128:
 				case Type::Code::Decimal64:
 				case Type::Code::Decimal32:
 				case Type::Code::Decimal:
-					col->As<ColumnDecimal>()->Append(std::string(s));
+					if (isnull)
+						col->As<ColumnDecimal>()->Append(Int128{});
+					else
+					{
+						char *s = DatumGetCString(DirectFunctionCall1(numeric_out, val));
+						col->As<ColumnDecimal>()->Append(std::string(s));
+						pfree(s);
+					}
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("NUMERIC", col);
 			}
-			pfree(s);
 			break;
 		}
 		case TEXTOID: {
@@ -531,9 +549,12 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			 * don't rely on nul termination but copy the full length of the
 			 * data.
 			 */
-			text	   *string = PG_DETOAST_DATUM(val);
 			std::string s;
-			s.assign(VARDATA(string), VARSIZE_ANY_EXHDR(string));
+			if (!isnull)
+			{
+				text	*string = PG_DETOAST_DATUM(val);
+				s.assign(VARDATA(string), VARSIZE_ANY_EXHDR(string));
+			}
 
 			switch (col->Type()->GetCode())
 			{
@@ -544,15 +565,23 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 					col->As<ColumnString>()->Append(s);
 					break;
 				case Type::Code::Enum8:
+					/* XXX Handle Nullable(Enum8) */
+					if (isnull)
+						throw std::runtime_error("Enum values cannot be NULL");
 					col->As<ColumnEnum8>()->Append(s);
 					break;
 				case Type::Code::Enum16:
+					/* XXX Handle Nullable(Enum16) */
+					if (isnull)
+						throw std::runtime_error("Enum values cannot be NULL");
 					col->As<ColumnEnum16>()->Append(s);
 					break;
-				case Type::Code::LowCardinality: {
+				case Type::Code::LowCardinality:
+					/* XXX Handle LowCardinality(Nullable(x)) */
+					if (col->As<ColumnLowCardinality>()->GetNestedType()->GetCode() == Type::Nullable)
+						throw std::runtime_error("nested Nullable is not supported");
 					col->AsStrict<ColumnLowCardinalityT<ColumnString>>()->Append(s);
 					break;
-				}
 				default:
 					THROW_UNEXPECTED_COLUMN("TEXT", col);
 			}
@@ -560,8 +589,8 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			break;
 		}
 		case DATEOID: {
-           Timestamp t = date2timestamp_no_overflow(DatumGetDateADT(val));
-           pg_time_t d = timestamptz_to_time_t(t);
+			Timestamp t = date2timestamp_no_overflow(DatumGetDateADT(val));
+			pg_time_t d = timestamptz_to_time_t(t);
 
 			switch (col->Type()->GetCode())
 			{
@@ -624,26 +653,46 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 		{
 			auto uuid_val = DatumGetUUIDP(val)->data;
 			auto ch_uuid = UUID{};
-			memcpy(&ch_uuid.first, uuid_val, 8);
-			memcpy(&ch_uuid.second, uuid_val+8, 8);
-			ch_uuid.first = BIG_ENDIAN_64_TO_HOST(ch_uuid.first);
-			ch_uuid.second = BIG_ENDIAN_64_TO_HOST(ch_uuid.second);
+			if (!isnull)
+			{
+				memcpy(&ch_uuid.first, uuid_val, 8);
+				memcpy(&ch_uuid.second, uuid_val+8, 8);
+				ch_uuid.first = BIG_ENDIAN_64_TO_HOST(ch_uuid.first);
+				ch_uuid.second = BIG_ENDIAN_64_TO_HOST(ch_uuid.second);
+			}
 			col->As<ColumnUUID>()->Append(ch_uuid);
 		}
 		break;
 		case INETOID:
 		{
-			char *s = DatumGetCString(DirectFunctionCall1(inet_out, val));
-			switch (col->Type()->GetCode())
+			if (isnull)
 			{
-				case Type::Code::IPv4:
-					col->As<ColumnIPv4>()->Append(s);
-					break;
-				case Type::Code::IPv6:
-					col->As<ColumnIPv6>()->Append(s);
-					break;
-				default:
-					THROW_UNEXPECTED_COLUMN("INET", col);
+				switch (col->Type()->GetCode())
+				{
+					case Type::Code::IPv4:
+						col->As<ColumnIPv4>()->Append(0);
+						break;
+					case Type::Code::IPv6:
+						col->As<ColumnIPv6>()->Append("::");
+						break;
+					default:
+						THROW_UNEXPECTED_COLUMN("INET", col);
+				}
+			}
+			else
+			{
+				char *s = DatumGetCString(DirectFunctionCall1(inet_out, val));
+				switch (col->Type()->GetCode())
+				{
+					case Type::Code::IPv4:
+						col->As<ColumnIPv4>()->Append(s);
+						break;
+					case Type::Code::IPv6:
+						col->As<ColumnIPv6>()->Append(s);
+						break;
+					default:
+						THROW_UNEXPECTED_COLUMN("INET", col);
+				}
 			}
 		}
 		break;

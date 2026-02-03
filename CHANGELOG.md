@@ -18,6 +18,14 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added explicit setting of `format_tsv_null_representation`, and
     `output_format_tsv_crlf_end_of_line` to all http requests, as unexpected
     values will interfere with it operation.
+*   Improved the error message from the binary driver when attempting to
+    insert a `NULL` into a column that is not `Nullable(T)`.
+
+### 🪲 Bug Fixes
+
+*   Fixed binary driver errors when attempting to insert a `NULL` value into
+    Numeric, Text, `UUID`, and `INET` columns. Thanks to Rahul Mehta for the
+    report (#140).
 
 ### 📔 Notes
 

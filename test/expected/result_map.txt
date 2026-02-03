@@ -98,8 +98,9 @@ http_inserts.sql
  13-17    | http_inserts_1.out
 
  ClickHouse | File
-------------|------------------
- 22-25      | http_inserts.out
+------------|--------------------
+ 24-25      | http_inserts.out
+ 23         | http_inserts_2.out
 
 import_schema.sql
 -----------------

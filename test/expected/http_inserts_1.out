@@ -344,6 +344,106 @@ SELECT c1, encode(c2::bytea, 'hex'), encode(c3::bytea, 'hex') FROM bytes ORDER B
   4 | 4e3c2e4cb7542a45173a8dac939ddc4bc75202e342ebc769b0f5da2f | 8ef30f44c65480d12b650ab6b2b04245
 (4 rows)
 
+-- Test NULL values.
+SELECT clickhouse_raw_query($$
+	CREATE TABLE http_inserts_test.null_vals (
+		c1 UInt8,
+		-- INT2OID
+		c2 Nullable(UInt8), c3 Nullable(Int8), c4 Nullable(Int16),
+		-- INT4OID
+		c5 Nullable(Int32), c6 Nullable(UInt16),
+		-- INT8OID
+		c7 Nullable(Int64), c8 Nullable(UInt32), c9 Nullable(UInt64),
+		-- FLOAT4OID, FLOAT8OID
+		c10 Nullable(Float32), c11 Nullable(Float64),
+		-- NUMERICOID
+		c12 Nullable(Decimal128(1)), c13 Nullable(Decimal64(1)),
+		c14 Nullable(Decimal32(1)), c15 Nullable(Decimal(1, 0)),
+		-- TEXTOID
+		c16 Nullable(String), c17 Nullable(FixedString(1)),
+		c18 Nullable(Enum('x')), c19 Nullable(Enum16('x')),
+		c20 LowCardinality(Nullable(String)),
+		-- DATEOID
+		c21 Nullable(Date), c22 Nullable(Date32),
+		-- TIMESTAMPOID, TIMESTAMPTZOID
+		c23 Nullable(DateTime), c24 Nullable(DateTime64),
+		-- ANYARRAYOID
+		-- c25 Array(Nullable(Int32)), -- pg_clickhouse: nested Nullable is not supported
+		-- UUIDOID
+		c26 Nullable(UUID),
+		-- INETOID
+		c27 Nullable(IPv4), c28 Nullable(IPv6)
+	) ENGINE = MergeTree ORDER BY (c1)
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+IMPORT FOREIGN SCHEMA http_inserts_test LIMIT TO (null_vals)
+FROM SERVER http_inserts_loopback INTO http_inserts_test;
+INSERT INTO null_vals VALUES(
+	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
+	   NULL, NULL, NULL
+);
+SELECT * FROM null_vals;
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c18 | c19 | c20 | c21 | c22 | c23 | c24 | c26 | c27 | c28 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
+  1 |    |    |    |    |    |    |    |    |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     | 
+(1 row)
+
+-- Test default values.
+SELECT clickhouse_raw_query($$
+	CREATE TABLE http_inserts_test.default_vals (
+		c1 UInt8,
+		-- INT2OID
+		c2 UInt8, c3 Int8, c4 Int16,
+		-- INT4OID
+		c5 Int32, c6 UInt16,
+		-- INT8OID
+		c7 Int64, c8 UInt32, c9 UInt64,
+		-- FLOAT4OID, FLOAT8OID
+		c10 Float32, c11 Float64,
+		-- NUMERICOID
+		c12 Decimal128(1), c13 Decimal64(1),
+		c14 Decimal32(1), c15 Decimal(1, 0),
+		-- TEXTOID
+		c16 String, c17 FixedString(1),
+		-- c18 Enum('x'), c19 Enum16('x'), -- Neither the string nor the numeric value in an Enum can be NULL.
+		c20 LowCardinality(String),
+		-- DATEOID
+		c21 Date, c22 Date32,
+		-- TIMESTAMPOID, TIMESTAMPTZOID
+		c23 DateTime, c24 DateTime64,
+		-- ANYARRAYOID
+		c25 Array(Int32),
+		-- UUIDOID
+		c26 UUID,
+		-- INETOID
+		c27 IPv4, c28 IPv6
+	) ENGINE = MergeTree ORDER BY (c1)
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+IMPORT FOREIGN SCHEMA http_inserts_test LIMIT TO (default_vals)
+FROM SERVER http_inserts_loopback INTO http_inserts_test;
+INSERT INTO default_vals VALUES(
+	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, --NULL, NULL,
+	   NULL, NULL, NULL, NULL, ARRAY[NULL]::int[],
+	   NULL, NULL, NULL
+);
+SELECT * FROM default_vals;
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c20 |    c21     |    c22     |          c23           |          c24           | c25 |                 c26                  |   c27   | c28 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+------------+------------+------------------------+------------------------+-----+--------------------------------------+---------+-----
+  1 |  0 |  0 |  0 |  0 |  0 |  0 |  0 |  0 |   0 |   0 | 0.0 | 0.0 | 0.0 |   0 |     |     |     | 1970-01-01 | 1970-01-01 | 1969-12-31 16:00:00-08 | 1969-12-31 16:00:00-08 | {0} | 00000000-0000-0000-0000-000000000000 | 0.0.0.0 | ::
+(1 row)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER http_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_inserts_test');
  clickhouse_raw_query 
@@ -352,7 +452,7 @@ SELECT clickhouse_raw_query('DROP DATABASE http_inserts_test');
 (1 row)
 
 DROP SERVER http_inserts_loopback CASCADE;
-NOTICE:  drop cascades to 9 other objects
+NOTICE:  drop cascades to 11 other objects
 DETAIL:  drop cascades to foreign table addr
 drop cascades to foreign table arrays
 drop cascades to foreign table bytes
@@ -362,3 +462,5 @@ drop cascades to foreign table ints
 drop cascades to foreign table null_ints
 drop cascades to foreign table uints
 drop cascades to foreign table bbytes
+drop cascades to foreign table null_vals
+drop cascades to foreign table default_vals
