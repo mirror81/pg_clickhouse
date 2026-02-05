@@ -44,7 +44,7 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.bytes (
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);');
 
 SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.not_nullable (
-	c1 Int8, c2 Nullable(Enum(''x'')), c3 Nullable(Enum16(''x'')), c4 LowCardinality(Nullable(String))
+	c1 Int8, c2 Nullable(Enum(''x''=1)), c3 Nullable(Enum16(''x''=1)), c4 LowCardinality(Nullable(String))
 ) ENGINE = MergeTree ORDER BY (c1);');
 
 CREATE SCHEMA binary_inserts_test;
@@ -165,7 +165,7 @@ SELECT clickhouse_raw_query($$
 		c14 Nullable(Decimal32(1)), c15 Nullable(Decimal(1, 0)),
 		-- TEXTOID
 		c16 Nullable(String), c17 Nullable(FixedString(1)),
-		-- c18 Nullable(Enum('x')), c19 Nullable(Enum16('x')),
+		c18 Nullable(Enum('x'=1)), c19 Nullable(Enum16('x'=1)),
 		-- c20 LowCardinality(Nullable(String)),
 		-- DATEOID
 		c21 Nullable(Date), c22 Nullable(Date32),
@@ -185,7 +185,7 @@ FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 
 INSERT INTO null_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, -- NULL, NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, -- NULL,
 	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
@@ -209,7 +209,7 @@ SELECT clickhouse_raw_query($$
 		c14 Decimal32(1), c15 Decimal(1, 0),
 		-- TEXTOID
 		c16 String, c17 FixedString(1),
-		-- c18 Enum('x'), c19 Enum16('x'), -- Neither the string nor the numeric value in an Enum can be NULL.
+		c18 Enum('x'=1), c19 Enum16('x'=1),
 		c20 LowCardinality(String),
 		-- DATEOID
 		c21 Date, c22 Date32,
@@ -232,7 +232,7 @@ FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 -- its comment for details.
 INSERT INTO default_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, --NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	   NULL, NULL, NULL, NULL, ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
@@ -240,8 +240,6 @@ INSERT INTO default_vals VALUES(
 SELECT * FROM default_vals;
 
 -- Test unsupported Nullables.
-INSERT INTO not_nullable VALUES (1, NULL, 'x', 'y');
-INSERT INTO not_nullable VALUES (1, 'x', NULL, 'y');
 INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL);
 
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_inserts_loopback;

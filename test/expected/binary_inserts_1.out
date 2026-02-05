@@ -85,7 +85,7 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.bytes (
 (1 row)
 
 SELECT clickhouse_raw_query('CREATE TABLE binary_inserts_test.not_nullable (
-	c1 Int8, c2 Nullable(Enum(''x'')), c3 Nullable(Enum16(''x'')), c4 LowCardinality(Nullable(String))
+	c1 Int8, c2 Nullable(Enum(''x''=1)), c3 Nullable(Enum16(''x''=1)), c4 LowCardinality(Nullable(String))
 ) ENGINE = MergeTree ORDER BY (c1);');
  clickhouse_raw_query 
 ----------------------
@@ -368,7 +368,7 @@ SELECT clickhouse_raw_query($$
 		c14 Nullable(Decimal32(1)), c15 Nullable(Decimal(1, 0)),
 		-- TEXTOID
 		c16 Nullable(String), c17 Nullable(FixedString(1)),
-		-- c18 Nullable(Enum('x')), c19 Nullable(Enum16('x')),
+		c18 Nullable(Enum('x'=1)), c19 Nullable(Enum16('x'=1)),
 		-- c20 LowCardinality(Nullable(String)),
 		-- DATEOID
 		c21 Nullable(Date), c22 Nullable(Date32),
@@ -391,14 +391,14 @@ IMPORT FOREIGN SCHEMA binary_inserts_test LIMIT TO (null_vals)
 FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 INSERT INTO null_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, -- NULL, NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, -- NULL,
 	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
 SELECT * FROM null_vals;
- c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c21 | c22 | c23 | c24 | c26 | c27 | c28 
-----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
-  1 |    |    |    |    |    |    |    |    |     |     |     |     |     |     |     |     |     |     |     |     |     |     | 
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c18 | c19 | c21 | c22 | c23 | c24 | c26 | c27 | c28 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
+  1 |    |    |    |    |    |    |    |    |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     | 
 (1 row)
 
 -- Test default values.
@@ -418,7 +418,7 @@ SELECT clickhouse_raw_query($$
 		c14 Decimal32(1), c15 Decimal(1, 0),
 		-- TEXTOID
 		c16 String, c17 FixedString(1),
-		-- c18 Enum('x'), c19 Enum16('x'), -- Neither the string nor the numeric value in an Enum can be NULL.
+		c18 Enum('x'=1), c19 Enum16('x'=1),
 		c20 LowCardinality(String),
 		-- DATEOID
 		c21 Date, c22 Date32,
@@ -444,21 +444,17 @@ FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 -- its comment for details.
 INSERT INTO default_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, --NULL, NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	   NULL, NULL, NULL, NULL, ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
 ERROR:  pg_clickhouse: could not append data to column - cannot append NULL to NOT NULL UInt8 column
 SELECT * FROM default_vals;
- c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c20 | c21 | c22 | c23 | c24 | c25 | c26 | c27 | c28 
-----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c18 | c19 | c20 | c21 | c22 | c23 | c24 | c25 | c26 | c27 | c28 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
 (0 rows)
 
 -- Test unsupported Nullables.
-INSERT INTO not_nullable VALUES (1, NULL, 'x', 'y');
-ERROR:  pg_clickhouse: could not append data to column - Enum values cannot be NULL
-INSERT INTO not_nullable VALUES (1, 'x', NULL, 'y');
-ERROR:  pg_clickhouse: could not append data to column - Enum values cannot be NULL
 INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL);
 ERROR:  pg_clickhouse: could not append data to column - cannot append NULL to NOT NULL LowCardinality(Nullable(String)) column
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_inserts_loopback;

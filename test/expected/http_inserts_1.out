@@ -361,7 +361,7 @@ SELECT clickhouse_raw_query($$
 		c14 Nullable(Decimal32(1)), c15 Nullable(Decimal(1, 0)),
 		-- TEXTOID
 		c16 Nullable(String), c17 Nullable(FixedString(1)),
-		c18 Nullable(Enum('x')), c19 Nullable(Enum16('x')),
+		c18 Nullable(Enum('x'=1)), c19 Nullable(Enum16('x'=1)),
 		c20 LowCardinality(Nullable(String)),
 		-- DATEOID
 		c21 Nullable(Date), c22 Nullable(Date32),
@@ -411,7 +411,7 @@ SELECT clickhouse_raw_query($$
 		c14 Decimal32(1), c15 Decimal(1, 0),
 		-- TEXTOID
 		c16 String, c17 FixedString(1),
-		-- c18 Enum('x'), c19 Enum16('x'), -- Neither the string nor the numeric value in an Enum can be NULL.
+		-- c18 Enum('x'=1), c19 Enum16('x'=1), -- Neither the string nor the numeric value in an Enum can be NULL.
 		c20 LowCardinality(String),
 		-- DATEOID
 		c21 Date, c22 Date32,

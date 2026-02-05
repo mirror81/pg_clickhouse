@@ -444,7 +444,7 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 
 	if (nullable)
 	{
-		auto nullable = col->As<ColumnNullable>();
+		auto nullable = col->AsStrict<ColumnNullable>();
 		nullable->Append(isnull);
 		col = nullable->Nested();
 	}
@@ -455,13 +455,13 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::UInt8:
-					col->As<ColumnUInt8>()->Append((uint8_t)val);
+					col->AsStrict<ColumnUInt8>()->Append((uint8_t)val);
 					break;
 				case Type::Code::Int8:
-					col->As<ColumnInt8>()->Append((int8_t)val);
+					col->AsStrict<ColumnInt8>()->Append((int8_t)val);
 					break;
 				case Type::Code::Int16:
-					col->As<ColumnInt16>()->Append((int16_t)val);
+					col->AsStrict<ColumnInt16>()->Append((int16_t)val);
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("INT2", col);
@@ -472,10 +472,10 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Int32:
-					col->As<ColumnInt32>()->Append((int32_t)val);
+					col->AsStrict<ColumnInt32>()->Append((int32_t)val);
 					break;
 				case Type::Code::UInt16:
-					col->As<ColumnUInt16>()->Append((uint16_t)val);
+					col->AsStrict<ColumnUInt16>()->Append((uint16_t)val);
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("INT4", col);
@@ -486,13 +486,13 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Int64:
-					col->As<ColumnInt64>()->Append((int64_t)val);
+					col->AsStrict<ColumnInt64>()->Append((int64_t)val);
 					break;
 				case Type::Code::UInt32:
-					col->As<ColumnUInt32>()->Append((uint32_t)val);
+					col->AsStrict<ColumnUInt32>()->Append((uint32_t)val);
 					break;
 				case Type::Code::UInt64:
-					col->As<ColumnUInt64>()->Append((uint64_t)val);
+					col->AsStrict<ColumnUInt64>()->Append((uint64_t)val);
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("INT8", col);
@@ -503,7 +503,7 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Float32:
-					col->As<ColumnFloat32>()->Append(DatumGetFloat4(val));
+					col->AsStrict<ColumnFloat32>()->Append(DatumGetFloat4(val));
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("FLOAT4", col);
@@ -514,7 +514,7 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Float64:
-					col->As<ColumnFloat64>()->Append(DatumGetFloat8(val));
+					col->AsStrict<ColumnFloat64>()->Append(DatumGetFloat8(val));
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("FLOAT8", col);
@@ -530,11 +530,11 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 				case Type::Code::Decimal32:
 				case Type::Code::Decimal:
 					if (isnull)
-						col->As<ColumnDecimal>()->Append(Int128{});
+						col->AsStrict<ColumnDecimal>()->Append(Int128{});
 					else
 					{
 						char *s = DatumGetCString(DirectFunctionCall1(numeric_out, val));
-						col->As<ColumnDecimal>()->Append(std::string(s));
+						col->AsStrict<ColumnDecimal>()->Append(std::string(s));
 						pfree(s);
 					}
 					break;
@@ -559,26 +559,26 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::FixedString:
-					col->As<ColumnFixedString>()->Append(s);
+					col->AsStrict<ColumnFixedString>()->Append(s);
 					break;
 				case Type::Code::String:
-					col->As<ColumnString>()->Append(s);
+					col->AsStrict<ColumnString>()->Append(s);
 					break;
 				case Type::Code::Enum8:
-					/* XXX Handle Nullable(Enum8) */
 					if (isnull)
-						throw std::runtime_error("Enum values cannot be NULL");
-					col->As<ColumnEnum8>()->Append(s);
+						col->AsStrict<ColumnEnum8>()->Append(0, false);
+					else
+						col->AsStrict<ColumnEnum8>()->Append(s);
 					break;
 				case Type::Code::Enum16:
-					/* XXX Handle Nullable(Enum16) */
 					if (isnull)
-						throw std::runtime_error("Enum values cannot be NULL");
-					col->As<ColumnEnum16>()->Append(s);
+						col->AsStrict<ColumnEnum16>()->Append(0, false);
+					else
+						col->AsStrict<ColumnEnum16>()->Append(s);
 					break;
 				case Type::Code::LowCardinality:
 					/* XXX Handle LowCardinality(Nullable(x)) */
-					if (col->As<ColumnLowCardinality>()->GetNestedType()->GetCode() == Type::Nullable)
+					if (col->AsStrict<ColumnLowCardinality>()->GetNestedType()->GetCode() == Type::Nullable)
 						throw std::runtime_error("nested Nullable is not supported");
 					col->AsStrict<ColumnLowCardinalityT<ColumnString>>()->Append(s);
 					break;
@@ -595,10 +595,10 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			switch (col->Type()->GetCode())
 			{
 				case Type::Code::Date:
-					col->As<ColumnDate>()->Append(d);
+					col->AsStrict<ColumnDate>()->Append(d);
 					break;
 				case Type::Code::Date32:
-					col->As<ColumnDate32>()->Append(d);
+					col->AsStrict<ColumnDate32>()->Append(d);
 					break;
 				default:
 					THROW_UNEXPECTED_COLUMN("DATE", col);
@@ -611,11 +611,11 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 			{
 				case Type::Code::DateTime: {
 					pg_time_t d = timestamptz_to_time_t(DatumGetTimestamp(val));
-					col->As<ColumnDateTime>()->Append(d);
+					col->AsStrict<ColumnDateTime>()->Append(d);
 					break;
 				}
 				case Type::Code::DateTime64: {
-					auto dt64_col = col->As<ColumnDateTime64>();
+					auto dt64_col = col->AsStrict<ColumnDateTime64>();
 					Timestamp t = DatumGetTimestamp(val);
 					Int64 dt64 = ((1.0 * t) / USECS_PER_SEC
 								  + ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY))
@@ -660,7 +660,7 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 				ch_uuid.first = BIG_ENDIAN_64_TO_HOST(ch_uuid.first);
 				ch_uuid.second = BIG_ENDIAN_64_TO_HOST(ch_uuid.second);
 			}
-			col->As<ColumnUUID>()->Append(ch_uuid);
+			col->AsStrict<ColumnUUID>()->Append(ch_uuid);
 		}
 		break;
 		case INETOID:
@@ -670,10 +670,10 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 				switch (col->Type()->GetCode())
 				{
 					case Type::Code::IPv4:
-						col->As<ColumnIPv4>()->Append(0);
+						col->AsStrict<ColumnIPv4>()->Append(0);
 						break;
 					case Type::Code::IPv6:
-						col->As<ColumnIPv6>()->Append("::");
+						col->AsStrict<ColumnIPv6>()->Append("::");
 						break;
 					default:
 						THROW_UNEXPECTED_COLUMN("INET", col);
@@ -685,10 +685,10 @@ static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, boo
 				switch (col->Type()->GetCode())
 				{
 					case Type::Code::IPv4:
-						col->As<ColumnIPv4>()->Append(s);
+						col->AsStrict<ColumnIPv4>()->Append(s);
 						break;
 					case Type::Code::IPv6:
-						col->As<ColumnIPv6>()->Append(s);
+						col->AsStrict<ColumnIPv6>()->Append(s);
 						break;
 					default:
 						THROW_UNEXPECTED_COLUMN("INET", col);
@@ -820,25 +820,25 @@ nested_col:
 	switch (type_code)
 	{
 		case Type::Code::UInt8: {
-			int16 val = col->As<ColumnUInt8>()->At(row);
+			int16 val = col->AsStrict<ColumnUInt8>()->At(row);
 			ret = (Datum)val;
 			*valtype = INT2OID;
 		}
 		break;
 		case Type::Code::UInt16: {
-			int16 val = col->As<ColumnUInt16>()->At(row);
+			int16 val = col->AsStrict<ColumnUInt16>()->At(row);
 			ret = (Datum)val;
 			*valtype = INT4OID;
 		}
 		break;
 		case Type::Code::UInt32: {
-			int64 val = col->As<ColumnUInt32>()->At(row);
+			int64 val = col->AsStrict<ColumnUInt32>()->At(row);
 			ret = Int64GetDatum(val);
 			*valtype = INT8OID;
 		}
 		break;
 		case Type::Code::UInt64: {
-			uint64 val = col->As<ColumnUInt64>()->At(row);
+			uint64 val = col->AsStrict<ColumnUInt64>()->At(row);
 			/* XXX Consider using, e.g., https://pgxn.org/dist/uint128. */
 			if (val > LONG_MAX)
 				throw std::overflow_error(
@@ -850,37 +850,37 @@ nested_col:
 		}
 		break;
 		case Type::Code::Int8: {
-			int16 val = col->As<ColumnInt8>()->At(row);
+			int16 val = col->AsStrict<ColumnInt8>()->At(row);
 			ret = (Datum)val;
 			*valtype = INT2OID;
 		}
 		break;
 		case Type::Code::Int16: {
-			int16 val = col->As<ColumnInt16>()->At(row);
+			int16 val = col->AsStrict<ColumnInt16>()->At(row);
 			ret = (Datum)val;
 			*valtype = INT2OID;
 		}
 		break;
 		case Type::Code::Int32: {
-			int val = col->As<ColumnInt32>()->At(row);
+			int val = col->AsStrict<ColumnInt32>()->At(row);
 			ret = (Datum)val;
 			*valtype = INT4OID;
 		}
 		break;
 		case Type::Code::Int64: {
-			int64 val = col->As<ColumnInt64>()->At(row);
+			int64 val = col->AsStrict<ColumnInt64>()->At(row);
 			ret = Int64GetDatum(val);
 			*valtype = INT8OID;
 		}
 		break;
 		case Type::Code::Float32: {
-			float val = col->As<ColumnFloat32>()->At(row);
+			float val = col->AsStrict<ColumnFloat32>()->At(row);
 			ret = Float4GetDatum(val);
 			*valtype = FLOAT4OID;
 		}
 		break;
 		case Type::Code::Float64: {
-			double val = col->As<ColumnFloat64>()->At(row);
+			double val = col->AsStrict<ColumnFloat64>()->At(row);
 			ret = Float8GetDatum(val);
 			*valtype = FLOAT8OID;
 		}
@@ -890,7 +890,7 @@ nested_col:
 		case Type::Code::Decimal32:
 		case Type::Code::Decimal:
 		{
-			auto decCol = col->As<ColumnDecimal>();
+			auto decCol = col->AsStrict<ColumnDecimal>();
 			auto val = decCol->At(row);
 
 			/* Convert the Int128 to a string. */
@@ -940,51 +940,51 @@ nested_col:
 		}
 		break;
 		case Type::Code::FixedString: {
-			auto s = std::string(col->As<ColumnFixedString>()->At(row));
+			auto s = std::string(col->AsStrict<ColumnFixedString>()->At(row));
 			/* ClickHouse allows nuls in strings, so copy by full length. */
 			ret = PointerGetDatum(cstring_to_text_with_len(s.data(), s.size()));
 			*valtype = TEXTOID;
 		}
 		break;
 		case Type::Code::String: {
-			auto s = std::string(col->As<ColumnString>()->At(row));
+			auto s = std::string(col->AsStrict<ColumnString>()->At(row));
 			/* ClickHouse allows nuls in strings, so copy by full length. */
 			ret = PointerGetDatum(cstring_to_text_with_len(s.data(), s.size()));
 			*valtype = TEXTOID;
 		}
 		break;
 		case Type::Code::Enum8: {
-			auto s = std::string(col->As<ColumnEnum8>()->NameAt(row));
+			auto s = std::string(col->AsStrict<ColumnEnum8>()->NameAt(row));
 			ret = CStringGetTextDatum(s.c_str());
 			*valtype = TEXTOID;
 		}
 		break;
 		case Type::Code::Enum16: {
-			auto s = std::string(col->As<ColumnEnum16>()->NameAt(row));
+			auto s = std::string(col->AsStrict<ColumnEnum16>()->NameAt(row));
 			ret = CStringGetTextDatum(s.c_str());
 			*valtype = TEXTOID;
 		}
 		break;
 		case Type::Code::Date: {
-			auto val = static_cast<pg_time_t>(col->As<ColumnDate>()->At(row));
+			auto val = static_cast<pg_time_t>(col->AsStrict<ColumnDate>()->At(row));
 			*valtype = DATEOID;
 			ret = DirectFunctionCall1(timestamp_date, time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::Date32: {
-			auto val = static_cast<pg_time_t>(col->As<ColumnDate32>()->At(row));
+			auto val = static_cast<pg_time_t>(col->AsStrict<ColumnDate32>()->At(row));
 			*valtype = DATEOID;
 			ret = DirectFunctionCall1(timestamp_date, time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::DateTime: {
-			auto val = static_cast<pg_time_t>(col->As<ColumnDateTime>()->At(row));
+			auto val = static_cast<pg_time_t>(col->AsStrict<ColumnDateTime>()->At(row));
 			*valtype = TIMESTAMPTZOID;
 			ret = TimestampTzGetDatum(time_t_to_timestamptz(val));
 		}
 		break;
 		case Type::Code::DateTime64: {
-			auto dt_col = col->As<ColumnDateTime64>();
+			auto dt_col = col->AsStrict<ColumnDateTime64>();
 			auto val = dt_col->At(row);
 			int64 power = pow(10, dt_col->GetPrecision());
 			*valtype = TIMESTAMPTZOID;
@@ -995,7 +995,7 @@ nested_col:
 		case Type::Code::UUID: {
 			/* we form char[16] from two uint64 numbers, and they should
 			 * be big endian */
-			auto val = col->As<ColumnUUID>()->At(row);
+			auto val = col->AsStrict<ColumnUUID>()->At(row);
 			pg_uuid_t * uuid_val = (pg_uuid_t *)exc_palloc(sizeof(pg_uuid_t));
 
 			val.first = HOST_TO_BIG_ENDIAN_64(val.first);
@@ -1008,7 +1008,7 @@ nested_col:
 		}
 		break;
 		case Type::Code::Nullable: {
-			auto nullable = col->As<ColumnNullable>();
+			auto nullable = col->AsStrict<ColumnNullable>();
 			if (nullable->IsNull(row))
 			{
 				*is_null = true;
@@ -1021,7 +1021,7 @@ nested_col:
 		}
 		break;
 		case Type::Code::Array: {
-			auto arr = col->As<ColumnArray>()->GetAsColumn(row);
+			auto arr = col->AsStrict<ColumnArray>()->GetAsColumn(row);
 			size_t len = arr->Size();
 			auto slot = (ch_binary_array_t *)exc_palloc(sizeof(ch_binary_array_t));
 
@@ -1052,7 +1052,7 @@ nested_col:
 		}
 		break;
 		case Type::Code::Tuple: {
-			auto tuple = col->As<ColumnTuple>();
+			auto tuple = col->AsStrict<ColumnTuple>();
 			auto len = tuple->TupleSize();
 
 			if (len == 0)
@@ -1074,20 +1074,20 @@ nested_col:
 		}
 		break;
 		case Type::Code::LowCardinality: {
-			auto item = col->As<ColumnLowCardinality>()->GetItem(row);
+			auto item = col->AsStrict<ColumnLowCardinality>()->GetItem(row);
 			auto data = item.AsBinaryData();
 			ret = PointerGetDatum(cstring_to_text_with_len(data.data(), data.size()));
 			*valtype = TEXTOID;
 		}
 		break;
         case Type::Code::IPv4: {
-			auto item = col->As<ColumnIPv4>()->AsString(row);
+			auto item = col->AsStrict<ColumnIPv4>()->AsString(row);
             ret = DirectFunctionCall1(inet_in, CStringGetDatum(item.c_str()));
             *valtype = INETOID;
         }
         break;
         case Type::Code::IPv6: {
-			auto item = col->As<ColumnIPv6>()->AsString(row);
+			auto item = col->AsStrict<ColumnIPv6>()->AsString(row);
             ret = DirectFunctionCall1(inet_in, CStringGetDatum(item.c_str()));
             *valtype = INETOID;
         }

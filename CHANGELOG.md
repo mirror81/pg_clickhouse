@@ -24,8 +24,8 @@ All notable changes to this project will be documented in this file. It uses the
 ### 🪲 Bug Fixes
 
 *   Fixed binary driver errors when attempting to insert a `NULL` value into
-    Numeric, Text, `UUID`, and `INET` columns. Thanks to Rahul Mehta for the
-    report (#140).
+    `Nullable` Numeric, Text, `Enum`, `UUID`, and `INET` columns. Thanks to
+    Rahul Mehta for the report (#140).
 
 ### 📔 Notes
 
