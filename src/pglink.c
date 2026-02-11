@@ -385,34 +385,11 @@ static void
 char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
 {
 	Oid			pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
-	bool		is_array = type_is_array_domain(pgtype);
 
-	/* Easy check array for, else must use get_element_type on pgtype. */
 	if (data[0] == '\\' && data[1] == 'N')
+	{
+		/* \N is always NULL, thanks to format_tsv_null_representation. */
 		data = NULL;
-	else if (data && is_array && data[0] == '[')
-	{
-		size_t		pos = 0;
-
-		while (data[pos] != '\0')
-		{
-			if (data[pos] == '[')
-				data[pos] = '{';
-			if (data[pos] == ']')
-				data[pos] = '}';
-			if (data[pos] == '\'' && pgtype == UUIDARRAYOID)
-				/* Remove ClickHouse's single quotes around UUIDs */
-				data[pos] = ' ';
-			pos++;
-		}
-	}
-	else if (data && pgtype == VARCHAROID
-			 && TupleDescAttr(ctx->tupdesc, attidx)->atttypmod != 0)
-	{
-		char	   *pos;
-
-		if ((pos = strstr(data, "\\0")) != NULL)
-			pos[0] = '\0';
 	}
 	else if (data && (pgtype == TIMEOID || pgtype == TIMETZOID)
 			 && data[strlen(data) - 1] == 'Z')

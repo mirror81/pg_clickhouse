@@ -8,6 +8,9 @@
 #include <http.h>
 #include <internal.h>
 
+static void ch_http_read_array_string_literal(ch_http_read_state * state);
+static void ch_http_read_array(ch_http_read_state * state);
+
 void
 ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen)
 {
@@ -25,24 +28,129 @@ ch_http_read_state_free(ch_http_read_state * state)
 	pfree(state->val);
 }
 
+/*
+ * Parse the next tab-separated value from state->data. Parses tab-delimited
+ * ClickHouse literals including unquoted strings and arrays.
+ */
 int
 ch_http_read_next(ch_http_read_state * state)
 {
-	size_t		pos = state->curpos;
 	char	   *data = state->data;
 
 	resetStringInfo(state->val);
 	if (state->done)
 		return CH_EOF;
 
-	while (pos < state->maxpos && data[pos] != '\t' && data[pos] != '\n')
+	if (data[state->curpos] == '[')
+		/* Parse array literal. */
+		ch_http_read_array(state);
+	else
 	{
-		if (data[pos] == '\\')
+		while (state->curpos < state->maxpos && data[state->curpos] != '\t' && data[state->curpos] != '\n')
 		{
-			pos++;
-			/* unescape some sequences */
-			switch (data[pos])
+			if (data[state->curpos] == '\\')
 			{
+				state->curpos++;
+				/* unescape some sequences */
+				switch (data[state->curpos])
+				{
+					case 'n':
+						appendStringInfoChar(state->val, '\n');
+						break;
+					case 't':
+						appendStringInfoChar(state->val, '\t');
+						break;
+					case '0':
+						appendStringInfoChar(state->val, '\0');
+						break;
+					case 'r':
+						appendStringInfoChar(state->val, '\r');
+						break;
+					case 'b':
+						appendStringInfoChar(state->val, '\b');
+						break;
+					case 'f':
+						appendStringInfoChar(state->val, '\f');
+						break;
+					case 'N':
+						/* NULL (format_tsv_null_representation) */
+						appendStringInfoString(state->val, "\\N");
+						break;
+					default:
+						appendStringInfoChar(state->val, data[state->curpos]);
+				}
+				state->curpos++;
+			}
+			else
+				appendStringInfoChar(state->val, data[state->curpos++]);
+		}
+	}
+
+	if (data[state->curpos] == '\t')
+	{
+		state->curpos++;
+		return CH_CONT;
+	}
+
+	Assert(data[state->curpos] == '\n');
+	int			res = state->curpos < state->maxpos ? CH_EOL : CH_EOF;
+
+	state->done = (res == CH_EOF);
+	state->curpos++;
+
+	return res;
+}
+
+/*
+ * Convert a single-quoted string from a ClickHouse array to a double-quoted
+ * PostgreSQL array string. Based on `readQuotedStringFieldInto()` from
+ * `src/IO/ReadHelpers.cpp` in the ClickHouse source. The basic conversion is:
+ *
+ * - " => \"
+ * - \\ => \\
+ * - \ followed by b, f, r, n, t, or 0 => literal char
+ * - \ followed by any other character (including ') => append that character
+ * - Append any other character
+ *
+ * https://clickhouse.com/docs/interfaces/formats/TabSeparated
+ * https://www.postgresql.org/docs/current/arrays.html#ARRAYS-IO
+ */
+void
+ch_http_read_array_string_literal(ch_http_read_state * state)
+{
+	/* Postgres array string is double-quoted. */
+	appendStringInfoChar(state->val, '"');
+	state->curpos++;
+	char	   *src = state->data + state->curpos;
+
+	while (*src != '\0' && *src != '\'')
+	{
+		if (*src == '"')
+		{
+			/* Escape double quotation mark. */
+			appendStringInfoChar(state->val, '\\');
+			appendStringInfoChar(state->val, *src);
+			state->curpos++;
+		}
+		else if (*src == '\\')
+		{
+			/* Emit the escaped character. */
+			++src;
+			switch (*src)
+			{
+				case '\\':
+					appendStringInfoChar(state->val, *src);
+					appendStringInfoChar(state->val, *src);
+					break;
+				case 'b':
+					appendStringInfoChar(state->val, '\b');
+					break;
+				case 'f':
+					appendStringInfoChar(state->val, '\f');
+					break;
+				case 'r':
+					appendStringInfoChar(state->val, '\r');
+					break;
 				case 'n':
 					appendStringInfoChar(state->val, '\n');
 					break;
@@ -52,37 +160,76 @@ ch_http_read_next(ch_http_read_state * state)
 				case '0':
 					appendStringInfoChar(state->val, '\0');
 					break;
-				case 'r':
-					appendStringInfoChar(state->val, '\r');
-					break;
-				case 'b':
-					appendStringInfoChar(state->val, '\b');
-					break;
-				case 'f':
-					appendStringInfoChar(state->val, '\f');
-					break;
-				case 'N':
-					/* NULL (format_tsv_null_representation) */
-					appendStringInfoString(state->val, "\\N");
-					break;
 				default:
-					appendStringInfoChar(state->val, data[pos]);
+					/* Includes ' and probably no other character. */
+					appendStringInfoChar(state->val, *src);
 			}
-			pos++;
+			state->curpos += 2;
 		}
 		else
-			appendStringInfoChar(state->val, data[pos++]);
+		{
+			/* Append any other character. */
+			appendStringInfoChar(state->val, *src);
+			state->curpos++;
+		}
+
+		++src;
 	}
 
-	state->curpos = pos + 1;
+	if (*src != '\'')
+		elog(ERROR, "Invalid array string");
 
-	if (data[pos] == '\t')
-		return CH_CONT;
+	appendStringInfoChar(state->val, '"');
+	state->curpos++;
+}
 
-	Assert(data[pos] == '\n');
-	int			res = pos < state->maxpos ? CH_EOL : CH_EOF;
+/*
+ * Convert a ClickHouse array literal to a Postgres array literal. Supports
+ * nested array. The conversions are:
+ *
+ * - [ => {
+ * - ] => }
+ * - ' => Start of string, convert to double-quoted string
+ * - Append any other character
+ *
+ * Based on `readQuotedFieldInBracketsInto()` from `src/IO/ReadHelpers.cpp` in
+ * the ClickHouse source. Additional References:
+ *
+ * https://clickhouse.com/docs/interfaces/formats/TabSeparated
+ * https://www.postgresql.org/docs/current/arrays.html#ARRAYS-IO
+ */
+void
+ch_http_read_array(ch_http_read_state * state)
+{
+	size_t		balance = 1;
 
-	state->done = (res == CH_EOF);
+	/* Postgres arrays are wrapped in { and }. */
+	appendStringInfoChar(state->val, '{');
+	state->curpos++;
 
-	return res;
+	while (state->data[state->curpos] != '\0' && balance)
+	{
+		switch (state->data[state->curpos])
+		{
+			case '\'':
+				ch_http_read_array_string_literal(state);
+				break;
+			case '[':
+				++balance;
+				appendStringInfoChar(state->val, '{');
+				state->curpos++;
+				break;
+			case ']':
+				--balance;
+				appendStringInfoChar(state->val, '}');
+				state->curpos++;
+				break;
+			default:
+				appendStringInfoChar(state->val, state->data[state->curpos]);
+				state->curpos++;
+		}
+	}
+
+	if (balance != 0)
+		elog(ERROR, "malformed array literal");
 }

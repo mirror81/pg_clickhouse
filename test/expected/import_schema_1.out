@@ -315,10 +315,10 @@ SELECT * FROM clickhouse.types2 ORDER BY c1 LIMIT 2;
 (2 rows)
 
 SELECT * FROM clickhouse.arrays ORDER BY c1 LIMIT 2;
-  c1   |       c2        
--------+-----------------
- {0,1} | {'num0','num1'}
- {1,2} | {'num1','num2'}
+  c1   |     c2      
+-------+-------------
+ {0,1} | {num0,num1}
+ {1,2} | {num1,num2}
 (2 rows)
 
 SELECT * FROM clickhouse.tuples ORDER BY c1 LIMIT 2;

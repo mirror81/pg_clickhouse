@@ -484,7 +484,7 @@ ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 				ch_binary_array_t *arr;
 				array_iter	iter;
 
-				if (AARR_NDIM(v) != 1)
+				if (AARR_NDIM(v) > 1)
 					elog(ERROR, "pg_clickhouse: inserted array should have one dimension");
 
 				arr = palloc(sizeof(ch_binary_array_t));

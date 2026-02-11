@@ -30,7 +30,7 @@ SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.complex (
 ');
 
 SELECT clickhouse_raw_query('CREATE TABLE http_inserts_test.arrays (
-    c1 Int32, c2 Array(Int32)
+    c1 Int32, c2 Array(Int32), c3 Array(String)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
 
@@ -95,10 +95,12 @@ SELECT * FROM complex ORDER BY c1;
 
 /* check arrays */
 INSERT INTO arrays VALUES
-	(1, ARRAY[1,2]),
-	(2, ARRAY[3,4,5]),
-	(3, ARRAY[6,4]),
-	(4, '{}'::int[]);
+	(1, ARRAY[1,2], ARRAY['x']),
+	(2, ARRAY[3,4,5], ARRAY['😀', '🦁']),
+	(3, ARRAY[6,4], ARRAY['Zippy', 'Lisa "Skippy" Taylor']),
+	(4, '{}'::int[], '{"[bracket''d]"}'::text[]),
+	(5, ARRAY[0], ARRAY['[]']),
+	(5, ARRAY[0], ARRAY[E'\\\b\f\r\n\t\a\'']);
 SELECT * FROM arrays ORDER BY c1;
 
 /* Check UUIDs and IPs */

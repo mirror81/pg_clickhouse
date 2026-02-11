@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed binary driver errors when attempting to insert a `NULL` value into
     `Nullable` Numeric, Text, `Enum`, `UUID`, and `INET` columns. Thanks to
     Rahul Mehta for the report (#140).
+*   Fixed http driver array parsing, which previously did not parse separate
+    string values and would raise an error on values containing brackets ([]).
+    Thanks to Philip Dubé for the spot (#142).
+*   Fixed a bug where the binary driver would raise an error on an empty
+    array.
 
 ### 📔 Notes
 

@@ -27,7 +27,6 @@ typedef enum
 typedef struct
 {
 	char	   *data;
-	size_t		buflen;
 	size_t		curpos;
 	size_t		maxpos;
 	StringInfo	val;
