@@ -15,29 +15,22 @@ void
 ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen)
 {
 	state->data = datalen > 0 ? data : NULL;
-	state->maxpos = datalen - 1;
-	state->val = makeStringInfo();
 	state->done = false;
-}
-
-void
-ch_http_read_state_free(ch_http_read_state * state)
-{
-	/* destroyStringInfo not added till Postgres 17 */
-	pfree(state->val->data);
-	pfree(state->val);
+	initStringInfo(&state->val);
 }
 
 /*
  * Parse the next tab-separated value from state->data. Parses tab-delimited
- * ClickHouse literals including unquoted strings and arrays.
+ * ClickHouse literals including unquoted strings and arrays. Returns CH_CONT
+ * if there are moe fields on the line to read, CH_EOL if it has reached the
+ * end of the line, and CH_EOF if it has reached the end of the file.
  */
 int
 ch_http_read_next(ch_http_read_state * state)
 {
 	char	   *data = state->data;
 
-	resetStringInfo(state->val);
+	resetStringInfo(&state->val);
 	if (state->done)
 		return CH_EOF;
 
@@ -46,7 +39,7 @@ ch_http_read_next(ch_http_read_state * state)
 		ch_http_read_array(state);
 	else
 	{
-		while (state->curpos < state->maxpos && data[state->curpos] != '\t' && data[state->curpos] != '\n')
+		while (data[state->curpos] != '\0' && data[state->curpos] != '\t' && data[state->curpos] != '\n')
 		{
 			if (data[state->curpos] == '\\')
 			{
@@ -55,45 +48,47 @@ ch_http_read_next(ch_http_read_state * state)
 				switch (data[state->curpos])
 				{
 					case 'n':
-						appendStringInfoChar(state->val, '\n');
+						appendStringInfoChar(&state->val, '\n');
 						break;
 					case 't':
-						appendStringInfoChar(state->val, '\t');
+						appendStringInfoChar(&state->val, '\t');
 						break;
 					case '0':
-						appendStringInfoChar(state->val, '\0');
+						appendStringInfoChar(&state->val, '\0');
 						break;
 					case 'r':
-						appendStringInfoChar(state->val, '\r');
+						appendStringInfoChar(&state->val, '\r');
 						break;
 					case 'b':
-						appendStringInfoChar(state->val, '\b');
+						appendStringInfoChar(&state->val, '\b');
 						break;
 					case 'f':
-						appendStringInfoChar(state->val, '\f');
+						appendStringInfoChar(&state->val, '\f');
 						break;
 					case 'N':
 						/* NULL (format_tsv_null_representation) */
-						appendStringInfoString(state->val, "\\N");
+						appendStringInfoString(&state->val, "\\N");
 						break;
 					default:
-						appendStringInfoChar(state->val, data[state->curpos]);
+						appendStringInfoChar(&state->val, data[state->curpos]);
 				}
 				state->curpos++;
 			}
 			else
-				appendStringInfoChar(state->val, data[state->curpos++]);
+				appendStringInfoChar(&state->val, data[state->curpos++]);
 		}
 	}
 
 	if (data[state->curpos] == '\t')
 	{
+		/* There are more fields. */
 		state->curpos++;
 		return CH_CONT;
 	}
 
+	/* Should be at the end of the line or the file. */
 	Assert(data[state->curpos] == '\n');
-	int			res = state->curpos < state->maxpos ? CH_EOL : CH_EOF;
+	int			res = data[state->curpos + 1] == '\0' ? CH_EOF : CH_EOL;
 
 	state->done = (res == CH_EOF);
 	state->curpos++;
@@ -119,7 +114,7 @@ void
 ch_http_read_array_string_literal(ch_http_read_state * state)
 {
 	/* Postgres array string is double-quoted. */
-	appendStringInfoChar(state->val, '"');
+	appendStringInfoChar(&state->val, '"');
 	state->curpos++;
 	char	   *src = state->data + state->curpos;
 
@@ -128,8 +123,8 @@ ch_http_read_array_string_literal(ch_http_read_state * state)
 		if (*src == '"')
 		{
 			/* Escape double quotation mark. */
-			appendStringInfoChar(state->val, '\\');
-			appendStringInfoChar(state->val, *src);
+			appendStringInfoChar(&state->val, '\\');
+			appendStringInfoChar(&state->val, *src);
 			state->curpos++;
 		}
 		else if (*src == '\\')
@@ -139,37 +134,37 @@ ch_http_read_array_string_literal(ch_http_read_state * state)
 			switch (*src)
 			{
 				case '\\':
-					appendStringInfoChar(state->val, *src);
-					appendStringInfoChar(state->val, *src);
+					appendStringInfoChar(&state->val, *src);
+					appendStringInfoChar(&state->val, *src);
 					break;
 				case 'b':
-					appendStringInfoChar(state->val, '\b');
+					appendStringInfoChar(&state->val, '\b');
 					break;
 				case 'f':
-					appendStringInfoChar(state->val, '\f');
+					appendStringInfoChar(&state->val, '\f');
 					break;
 				case 'r':
-					appendStringInfoChar(state->val, '\r');
+					appendStringInfoChar(&state->val, '\r');
 					break;
 				case 'n':
-					appendStringInfoChar(state->val, '\n');
+					appendStringInfoChar(&state->val, '\n');
 					break;
 				case 't':
-					appendStringInfoChar(state->val, '\t');
+					appendStringInfoChar(&state->val, '\t');
 					break;
 				case '0':
-					appendStringInfoChar(state->val, '\0');
+					appendStringInfoChar(&state->val, '\0');
 					break;
 				default:
 					/* Includes ' and probably no other character. */
-					appendStringInfoChar(state->val, *src);
+					appendStringInfoChar(&state->val, *src);
 			}
 			state->curpos += 2;
 		}
 		else
 		{
 			/* Append any other character. */
-			appendStringInfoChar(state->val, *src);
+			appendStringInfoChar(&state->val, *src);
 			state->curpos++;
 		}
 
@@ -179,7 +174,7 @@ ch_http_read_array_string_literal(ch_http_read_state * state)
 	if (*src != '\'')
 		elog(ERROR, "Invalid array string");
 
-	appendStringInfoChar(state->val, '"');
+	appendStringInfoChar(&state->val, '"');
 	state->curpos++;
 }
 
@@ -204,7 +199,7 @@ ch_http_read_array(ch_http_read_state * state)
 	size_t		balance = 1;
 
 	/* Postgres arrays are wrapped in { and }. */
-	appendStringInfoChar(state->val, '{');
+	appendStringInfoChar(&state->val, '{');
 	state->curpos++;
 
 	while (state->data[state->curpos] != '\0' && balance)
@@ -216,16 +211,16 @@ ch_http_read_array(ch_http_read_state * state)
 				break;
 			case '[':
 				++balance;
-				appendStringInfoChar(state->val, '{');
+				appendStringInfoChar(&state->val, '{');
 				state->curpos++;
 				break;
 			case ']':
 				--balance;
-				appendStringInfoChar(state->val, '}');
+				appendStringInfoChar(&state->val, '}');
 				state->curpos++;
 				break;
 			default:
-				appendStringInfoChar(state->val, state->data[state->curpos]);
+				appendStringInfoChar(&state->val, state->data[state->curpos]);
 				state->curpos++;
 		}
 	}

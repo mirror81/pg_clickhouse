@@ -281,10 +281,7 @@ http_simple_insert(void *conn, const ch_query * query)
 static void
 http_cursor_free(void *c)
 {
-	ch_cursor  *cursor = c;
-
-	ch_http_read_state_free(cursor->read_state);
-	ch_http_response_free(cursor->query_response);
+	ch_http_response_free(((ch_cursor *) c)->query_response);
 }
 
 /*
@@ -320,7 +317,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 	{
 		Assert(ctx->values && ctx->nulls);
 		rc = ch_http_read_next(state);
-		if (rc != CH_CONT && state->val->data[0] == '\\' && state->val->data[1] == 'N')
+		if (rc != CH_CONT && state->val.data[0] == '\\' && state->val.data[1] == 'N')
 		{
 			ctx->nulls[0] = true;
 			ctx->values[0] = (Datum) 0;
@@ -346,7 +343,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		{
 			i = lfirst_int(lc) - 1;
 			rc = ch_http_read_next(state);
-			char_to_datum(ctx, i, state->val->data, state->val->len);
+			char_to_datum(ctx, i, state->val.data, state->val.len);
 		}
 	}
 	/* No TupleDesc, everything is text. */
@@ -356,10 +353,10 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		for (int idx = 0; idx < attcount; idx++)
 		{
 			rc = ch_http_read_next(state);
-			if (state->val->data[0] == '\\' && state->val->data[1] == 'N')
+			if (state->val.data[0] == '\\' && state->val.data[1] == 'N')
 				values[idx] = (Datum) 0;
 			else
-				values[idx] = PointerGetDatum(cstring_to_text(state->val->data));
+				values[idx] = PointerGetDatum(cstring_to_text(state->val.data));
 		}
 	}
 
@@ -424,7 +421,7 @@ chfdw_http_fetch_raw_data(ch_cursor * cursor)
 	if (state->data == NULL)
 		return NULL;
 
-	return cstring_to_text_with_len(state->data, state->maxpos + 1);
+	return cstring_to_text(state->data);
 }
 
 /*

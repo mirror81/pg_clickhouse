@@ -28,8 +28,7 @@ typedef struct
 {
 	char	   *data;
 	size_t		curpos;
-	size_t		maxpos;
-	StringInfo	val;
+	StringInfoData val;
 	bool		done;
 }			ch_http_read_state;
 
@@ -51,7 +50,6 @@ char	   *ch_http_last_error(void);
 
 /* read */
 void		ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen);
-void		ch_http_read_state_free(ch_http_read_state * state);
 int			ch_http_read_next(ch_http_read_state * state);
 void		ch_http_response_free(ch_http_response_t * resp);
 
