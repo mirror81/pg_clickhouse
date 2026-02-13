@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.4] — Unreleased
+## [v0.1.4] — 2026-02-17
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
@@ -15,9 +19,9 @@ All notable changes to this project will be documented in this file. It uses the
     `lower(hex(MD5()))` in ClickHouse.
 *   Added support for mapping PostgreSQL BYTEA columns to ClickHouse String
     columns.
-*   Added explicit setting of `format_tsv_null_representation`, and
+*   Added explicit setting of `format_tsv_null_representation` and
     `output_format_tsv_crlf_end_of_line` to all http requests, as unexpected
-    values will interfere with it operation.
+    values will interfere with its operation.
 *   Improved the error message from the binary driver when attempting to
     insert a `NULL` into a column that is not `Nullable(T)`.
 
@@ -26,9 +30,9 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed binary driver errors when attempting to insert a `NULL` value into
     `Nullable` Numeric, Text, `Enum`, `UUID`, and `INET` columns. Thanks to
     Rahul Mehta for the report (#140).
-*   Fixed http driver array parsing, which previously did not parse separate
-    string values and would raise an error on values containing brackets ([]).
-    Thanks to Philip Dubé for the spot (#142).
+*   Fixed http driver array parsing, which previously did not properly parse
+    string values and would raise an error on values containing brackets
+    (`[]`). Thanks to Philip Dubé for the spot (#142).
 *   Fixed a bug where the binary driver would raise an error on an empty
     array.
 

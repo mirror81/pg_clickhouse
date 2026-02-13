@@ -15,12 +15,12 @@ volumes:
 services:
   ch_25_12:
     image: pgxn/pgxn-tools
-    container_name: ch_25_12
+    container_name: ch_26_1
     platform: linux/amd64
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      CH_RELEASE: 25.12.1.649-stable
+      CH_RELEASE: 26.1.2.11-stable
     working_dir: /work
     volumes:
       - ..:/work
@@ -38,7 +38,7 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      CH_RELEASE: 25.8.12.129-lts
+      CH_RELEASE: 25.8.16.34-lts
     working_dir: /work
     volumes:
       - ..:/work
@@ -57,7 +57,7 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      CH_RELEASE: 25.3.10.19-lts
+      CH_RELEASE: 25.3.14.14-lts
     working_dir: /work
     volumes:
       - ..:/work
