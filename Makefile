@@ -194,6 +194,7 @@ bake-vars:
 # standard. Requires `pg_bsd_indent` to be in the path.
 indent: dev/indent.sh
 	@$<
+	clang-format --style=file:.clang-format -i src/binary.cpp
 
 # Linting.
 .PHONY: lint # Lint the project
