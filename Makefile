@@ -2,7 +2,7 @@ EXTENSION    = $(shell grep -m 1 '"name":' META.json | \
                sed -e 's/[[:space:]]*"name":[[:space:]]*"\([^"]*\)",/\1/')
 EXTVERSION   = $(shell grep -m 1 'default_version' pg_clickhouse.control | \
                sed -e "s/[[:space:]]*default_version[[:space:]]*=[[:space:]]*'\([^']*\)',\{0,1\}/\1/")
-DISTVERSION  = $(shell grep -m 1 '[[:space:]]\{3\}"version":' META.json | \
+DISTVERSION  = $(shell grep -m 1 '^[[:space:]]\{2\}"version":' META.json | \
                sed -e 's/[[:space:]]*"version":[[:space:]]*"\([^"]*\)",\{0,1\}/\1/')
 
 DATA         = $(sort $(wildcard sql/$(EXTENSION)--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql)
