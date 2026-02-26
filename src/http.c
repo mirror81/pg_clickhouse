@@ -47,6 +47,9 @@ static size_t write_data(void *contents, size_t size, size_t nmemb, void *userp)
 	else
 		res->data = realloc(res->data, res->datasize + realsize + 1);
 
+	if (res->data == NULL)
+		return CURL_WRITEFUNC_ERROR;
+
 	memcpy(&(res->data[res->datasize]), contents, realsize);
 	res->datasize += realsize;
 	res->data[res->datasize] = 0;
