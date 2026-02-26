@@ -47,6 +47,11 @@ ch_http_read_next(ch_http_read_state * state)
 				/* unescape some sequences */
 				switch (data[state->curpos])
 				{
+					case '\0':
+						/* unexpected end */
+						state->done = true;
+						state->curpos++;
+						return CH_EOF;
 					case 'n':
 						appendStringInfoChar(&state->val, '\n');
 						break;
