@@ -45,8 +45,6 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_queries_test.t4 (c1 Int, c2 Int
  
 (1 row)
 
-CREATE SCHEMA binary_queries_test;
-SET search_path = binary_queries_test, public;
 CREATE FOREIGN TABLE ft1 (
 	c0 int,
 	c1 int NOT NULL,
@@ -127,7 +125,7 @@ SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should fail
 ERROR:  pg_clickhouse: DB::Exception: Database `no such database` doesn't exist
 ALTER USER MAPPING FOR CURRENT_USER SERVER binary_queries_loopback OPTIONS (ADD user 'no such user');
 SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should fail
-ERROR:  pg_clickhouse: connection error: DB::Exception: no such user: Authentication failed: password is incorrect, or there is no user with such name.
+ERROR:  pg_clickhouse: connection error: DB::Exception: no such user: Authentication failed: password is incorrect or there is no user with such name
 ALTER SERVER binary_queries_loopback OPTIONS (SET dbname 'binary_queries_test');
 ALTER USER MAPPING FOR CURRENT_USER SERVER binary_queries_loopback OPTIONS (DROP user);
 SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should work again
@@ -167,7 +165,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 ORDER BY t1.c1, t1.tableoid OF
    ->  Sort
          Output: c1, c2, c3, c4, c5, c6, c7, c8, tableoid
          Sort Key: t1.c1, t1.tableoid
-         ->  Foreign Scan on binary_queries_test.ft1 t1
+         ->  Foreign Scan on public.ft1 t1
                Output: c1, c2, c3, c4, c5, c6, c7, c8, tableoid
                Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1
 (8 rows)
@@ -190,7 +188,7 @@ SELECT * FROM ft1 t1 ORDER BY t1.c1, t1.tableoid OFFSET 100 LIMIT 10;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT t1 FROM ft1 t1 ORDER BY t1.c1 OFFSET 100 LIMIT 10;
                                                            QUERY PLAN                                                           
 --------------------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: t1.*, c1
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 ORDER BY c1 ASC NULLS LAST LIMIT 10 OFFSET 100
 (3 rows)
@@ -218,7 +216,7 @@ SELECT * FROM ft1 WHERE false;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 101 AND t1.c6 = '1' AND t1.c7 >= '1';
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c7 >= '1')) AND ((c1 = 101)) AND ((c6 = '1'))
 (3 rows)
@@ -324,7 +322,7 @@ RESET enable_nestloop;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 1;         -- Var, OpExpr(b), Const
                                             QUERY PLAN                                            
 --------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c1 = 1))
 (3 rows)
@@ -332,7 +330,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 1;         -- Va
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 100 AND t1.c2 = 0; -- BoolExpr
                                                     QUERY PLAN                                                     
 -------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c1 = 100)) AND ((c2 = 0))
 (3 rows)
@@ -348,7 +346,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NULL;        -- Nu
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NOT NULL;    -- NullTest
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1
 (3 rows)
@@ -356,7 +354,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NOT NULL;    -- Nu
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE round(abs(c1), 0) = 1; -- FuncExpr
                                                    QUERY PLAN                                                    
 -----------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((round(abs(c1), 0) = 1))
 (3 rows)
@@ -364,7 +362,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE round(abs(c1), 0) = 1; -
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 = -c1;          -- OpExpr(l)
                                               QUERY PLAN                                               
 -------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c1 = (- c1)))
 (3 rows)
@@ -372,7 +370,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 = -c1;          -- Op
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE 1 = factorial(c1);           -- OpExpr(r)
                                                  QUERY PLAN                                                  
 -------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((1 = factorial(c1)))
 (3 rows)
@@ -380,7 +378,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE 1 = factorial(c1);      
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE (((c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL)))
 (3 rows)
@@ -388,7 +386,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DIST
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 = ANY(ARRAY[c2, 1, c1 + 0]); -- ScalarArrayOpExpr
                                                      QUERY PLAN                                                      
 ---------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((has([c2, 1, (c1 + 0)],c1)))
 (3 rows)
@@ -511,7 +509,7 @@ SELECT * FROM ft1 t1 WHERE c1 = ANY(ARRAY[c2, 1, c1 + 0]) ORDER BY c1; -- Scalar
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 = (ARRAY[c1,c2,3])[1]; -- ArrayRef
                                                     QUERY PLAN                                                     
 -------------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c1 = (([c1, c2, 3])[1])))
 (3 rows)
@@ -634,7 +632,7 @@ SELECT * FROM ft1 t1 WHERE c1 = (ARRAY[c1,c2,3])[1] ORDER BY c1; -- ArrayRef
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c6 = E'foo''s\\bar';  -- check special chars
                                                   QUERY PLAN                                                  
 --------------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c6 = 'foo''s\\bar'))
 (3 rows)
@@ -642,7 +640,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c6 = E'foo''s\\bar';  --
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c8 = 'foo';  -- can't be sent to remote
                                               QUERY PLAN                                              
 ------------------------------------------------------------------------------------------------------
- Foreign Scan on binary_queries_test.ft1 t1
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM binary_queries_test.t1 WHERE ((c8 = 'foo'))
 (3 rows)
@@ -702,7 +700,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FR
 --------------------------------------------------------------------------------------
  Aggregate
    Output: count(DISTINCT c1) FILTER (WHERE (c1 < 20))
-   ->  Foreign Scan on binary_queries_test.ft2
+   ->  Foreign Scan on public.ft2
          Output: c1, c2
          Remote SQL: SELECT c1 FROM binary_queries_test.t2 ORDER BY c1 ASC NULLS LAST
 (5 rows)

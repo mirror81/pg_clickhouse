@@ -17,7 +17,7 @@ binary_inserts.sql
 
  ClickHouse | File
 ------------|--------------------
- 22-25      | binary_inserts.out
+ 22-26      | binary_inserts.out
 
 binary_queries.sql
 ------------------
@@ -31,10 +31,11 @@ binary_queries.sql
 
  ClickHouse | File
 ------------|----------------------
- 25         | binary_queries.out
- 23-24      | binary_queries_4.out
- 23         | binary_queries_5.out
- 22         | binary_queries_6.out
+ 26         | binary_queries.out
+ 25         | binary_queries_4.out
+ 23-24      | binary_queries_5.out
+ 23         | binary_queries_6.out
+ 22         | binary_queries_7.out
 
 deparse_checks.sql
 ------------------
@@ -46,7 +47,7 @@ deparse_checks.sql
 
  ClickHouse | File
 ------------|--------------------
- 22-25      | deparse_checks.out
+ 22+        | deparse_checks.out
 
 engines.sql
 -----------
@@ -58,7 +59,7 @@ engines.sql
 
  ClickHouse | File
 ------------|-------------
- 22-25      | engines.out
+ 22+        | engines.out
 
 functions.sql
 -------------
@@ -71,7 +72,7 @@ functions.sql
 
  ClickHouse | File
 ------------|---------------
- 22-25      | functions.out
+ 22+        | functions.out
 
 http.sql
 --------
@@ -85,7 +86,7 @@ http.sql
 
  ClickHouse | File
 ------------|------------
- 23-25      | http.out
+ 23+        | http.out
  23         | http_4.out
  22         | http_5.out
 
@@ -99,7 +100,7 @@ http_inserts.sql
 
  ClickHouse | File
 ------------|--------------------
- 24-25      | http_inserts.out
+ 24+        | http_inserts.out
  23         | http_inserts_2.out
 
 import_schema.sql
@@ -112,7 +113,7 @@ import_schema.sql
 
  ClickHouse | File
 ------------|---------------------
- 23-25      | import_schema.out
+ 23+        | import_schema.out
  22         | import_schema_2.out
 
 json.sql
@@ -139,7 +140,7 @@ param.sql
 
  ClickHouse | File
 ------------|-----------
- 23-25      | param.out
+ 23+        | param.out
 
 subquery_eq.sql
 ---------------------
@@ -151,7 +152,7 @@ subquery_eq.sql
 
  ClickHouse | File
 ------------|-----------------
- 23-25      | subquery_eq.out
+ 23+        | subquery_eq.out
 
 subquery_pushdown.sql
 ---------------------
@@ -163,7 +164,7 @@ subquery_pushdown.sql
 
  ClickHouse | File
 ------------|-----------------------
- 22-25      | subquery_pushdown.out
+ 22+        | subquery_pushdown.out
 
 timezone.sql
 ------------
@@ -187,4 +188,4 @@ where_sub.sql
 
  ClickHouse | File
 ------------|-----------------
- 22-25      | where_sub.out
+ 22+      | where_sub.out

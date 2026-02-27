@@ -229,8 +229,23 @@ SELECT COUNT(DISTINCT c1) FROM ft2;
 /* DISTINCT with IF */
 EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FROM ft2;
 
+/* Disallow line endings in database names. */
+SELECT clickhouse_raw_query('SELECT 1', E'dbname=''http_test\r\nX-My-Header: 123''');
+-- SELECT clickhouse_raw_query('SELECT 1', E$$dbname='test\rX-My-Header: 123'$$);
+
+CREATE SERVER http_loopback_bad FOREIGN DATA WRAPPER clickhouse_fdw OPTIONS(dbname E'http_test\r\nX-My-Header: 123');
+CREATE USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
+
+CREATE FOREIGN TABLE bad_name (
+	c1 int NOT NULL,
+	c3 text
+) SERVER http_loopback_bad OPTIONS ( table_name 't3' );
+SELECT * FROM bad_name;
+
+DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_test');
+DROP SERVER http_loopback_bad CASCADE;
 DROP SERVER http_loopback2 CASCADE;
 DROP SERVER http_loopback CASCADE;

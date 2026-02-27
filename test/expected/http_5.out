@@ -164,7 +164,7 @@ INSERT INTO ftcopy VALUES
 EXPLAIN (VERBOSE) SELECT * FROM ftcopy ORDER BY c1;
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Foreign Scan on public.ftcopy  (cost=1.00..5.50 rows=1000 width=64)
+ Foreign Scan on public.ftcopy  (cost=1.00..0.60 rows=1000 width=64)
    Output: c1, c2, c3, c4, c5, c6
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6 FROM http_test.tcopy ORDER BY c1 ASC NULLS LAST
 (3 rows)
@@ -192,7 +192,7 @@ DETAIL:  Remote Query: SELECT c1, c3, c4 FROM "no such database".t1 ORDER BY c3 
 CONTEXT:  HTTP status code: 404
 ALTER USER MAPPING FOR CURRENT_USER SERVER http_loopback OPTIONS (ADD user 'no such user');
 SELECT c3, c4 FROM ft1 ORDER BY c3, c1;  -- should fail
-ERROR:  pg_clickhouse: Code: 516. DB::Exception: no such user: Authentication failed: password is incorrect or there is no user with such name. (AUTHENTICATION_FAILED)
+ERROR:  pg_clickhouse: Code: 516. DB::Exception: no such user: Authentication failed: password is incorrect, or there is no user with such name. (AUTHENTICATION_FAILED)
 CONTEXT:  HTTP status code: 403
 ALTER SERVER http_loopback OPTIONS (SET dbname 'http_test');
 ALTER USER MAPPING FOR CURRENT_USER SERVER http_loopback OPTIONS (DROP user);
@@ -786,6 +786,23 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FR
          Remote SQL: SELECT c1 FROM http_test.t2 ORDER BY c1 ASC NULLS LAST
 (5 rows)
 
+/* Disallow line endings in database names. */
+SELECT clickhouse_raw_query('SELECT 1', E'dbname=''http_test\r\nX-My-Header: 123''');
+ERROR:  pg_clickhouse: unsupported line ending character in database name
+DETAIL:  Invalid database name: 'http_test
+X-My-Header: 123'
+-- SELECT clickhouse_raw_query('SELECT 1', E$$dbname='test\rX-My-Header: 123'$$);
+CREATE SERVER http_loopback_bad FOREIGN DATA WRAPPER clickhouse_fdw OPTIONS(dbname E'http_test\r\nX-My-Header: 123');
+CREATE USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
+CREATE FOREIGN TABLE bad_name (
+	c1 int NOT NULL,
+	c3 text
+) SERVER http_loopback_bad OPTIONS ( table_name 't3' );
+SELECT * FROM bad_name;
+ERROR:  pg_clickhouse: unsupported line ending character in database name
+DETAIL:  Invalid database name: 'http_test
+X-My-Header: 123'
+DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_test');
@@ -794,6 +811,8 @@ SELECT clickhouse_raw_query('DROP DATABASE http_test');
  
 (1 row)
 
+DROP SERVER http_loopback_bad CASCADE;
+NOTICE:  drop cascades to foreign table bad_name
 DROP SERVER http_loopback2 CASCADE;
 NOTICE:  drop cascades to foreign table ft6
 DROP SERVER http_loopback CASCADE;

@@ -15,6 +15,7 @@ repos:
       - id: end-of-file-fixer
       - id: fix-byte-order-marker
       - id: mixed-line-ending
+        exclude: "[.]out$"
         args: ["--fix=auto"]
       - id: trailing-whitespace
         exclude: "[.](?:sql|out)$"

@@ -20,7 +20,7 @@ services:
     stdin_open: true
     stop_grace_period: 10ms
     environment:
-      CH_RELEASE: 26.1.2.11-stable
+      CH_RELEASE: 26.2.1.1139-stable
     working_dir: /work
     volumes:
       - ..:/work

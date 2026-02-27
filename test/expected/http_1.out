@@ -786,6 +786,23 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FR
          Remote SQL: SELECT c1 FROM http_test.t2 ORDER BY c1 ASC NULLS LAST
 (5 rows)
 
+/* Disallow line endings in database names. */
+SELECT clickhouse_raw_query('SELECT 1', E'dbname=''http_test\r\nX-My-Header: 123''');
+ERROR:  pg_clickhouse: unsupported line ending character in database name
+DETAIL:  Invalid database name: 'http_test
+X-My-Header: 123'
+-- SELECT clickhouse_raw_query('SELECT 1', E$$dbname='test\rX-My-Header: 123'$$);
+CREATE SERVER http_loopback_bad FOREIGN DATA WRAPPER clickhouse_fdw OPTIONS(dbname E'http_test\r\nX-My-Header: 123');
+CREATE USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
+CREATE FOREIGN TABLE bad_name (
+	c1 int NOT NULL,
+	c3 text
+) SERVER http_loopback_bad OPTIONS ( table_name 't3' );
+SELECT * FROM bad_name;
+ERROR:  pg_clickhouse: unsupported line ending character in database name
+DETAIL:  Invalid database name: 'http_test
+X-My-Header: 123'
+DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_test');
@@ -794,6 +811,8 @@ SELECT clickhouse_raw_query('DROP DATABASE http_test');
  
 (1 row)
 
+DROP SERVER http_loopback_bad CASCADE;
+NOTICE:  drop cascades to foreign table bad_name
 DROP SERVER http_loopback2 CASCADE;
 NOTICE:  drop cascades to foreign table ft6
 DROP SERVER http_loopback CASCADE;

@@ -90,7 +90,7 @@ ch_connection
 chfdw_http_connect(ch_connection_details * details)
 {
 	ch_connection res;
-	ch_http_connection_t *conn = ch_http_connection(details);
+	ch_http_connection_t *conn;
 
 	if (!initialized)
 	{
@@ -98,6 +98,23 @@ chfdw_http_connect(ch_connection_details * details)
 		ch_http_init(0, (uint32_t) MyProcPid);
 	}
 
+	/*
+	 * Since http.c will set the database name in a plain text header, we
+	 * cannot allow line endings because they could allow header injection.
+	 */
+	if (details->dbname)
+	{
+		for (char *c = details->dbname; *c != '\0'; c++)
+		{
+			if (*c == '\n' || *c == '\r')
+				ereport(ERROR,
+						errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+						errmsg("pg_clickhouse: unsupported line ending character in database name"),
+						errdetail("Invalid database name: %s", ch_quote_literal(details->dbname)));
+		}
+	}
+
+	conn = ch_http_connection(details);
 	if (conn == NULL)
 	{
 		char	   *error = ch_http_last_error();

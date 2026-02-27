@@ -7,6 +7,23 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.5] — Unreleased
+
+### 🚨 Security Fixes
+
+*   Changed the http driver connection function to raise an error if the
+    database name contains line ending characters to prevent HTTP header
+    injection.
+
+### 🪲 Bug Fixes
+
+*   Fixed a crash due to an unexpected EOF while the http driver parses a
+    response. Thanks to @serprex for the fix (#153)
+*   Fixed a crash due to an unchecked memory allocation while the http driver
+    reads a response. Thanks to @serprex for the fix (#154).
+
+  [v0.1.5]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.4...v0.1.5
+
 ## [v0.1.4] — 2026-02-17
 
 This release makes binary-only changes. Once installed, any existing use of
@@ -169,6 +186,13 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Refactored the internal handling of the `pg_clickhouse.session_settings`
     GUC to parse the settings only once rather than for every query sent to
     ClickHouse
+
+### 🚨 Security Fixes
+
+*   Updated the SQL query rewriting to properly quote strings and identifiers
+    in SQL queries sent to ClickHouse, fixing potential SQL injection
+    vulnerabilities, notably via `IMPORT SCHEMA`. This has the effect of
+    preserving mixed-case and uppercase identifiers.
 
 ### 🪲 Bug Fixes
 
