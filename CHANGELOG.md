@@ -18,6 +18,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Changed the http driver connection function to raise an error if the
     database name contains line ending characters to prevent HTTP header
     injection.
+*   Fixed an SQL injection vulnerability in parsing of parameters to the
+    `engine 'CollapsingMergeTree($sign)` option to `CREATE FOREIGN TABLE`.
 
 ### 🪲 Bug Fixes
 

@@ -31,6 +31,15 @@
 #define FirstUnpinnedObjectId FirstBootstrapObjectId
 #endif
 
+/*
+ * Max allowed length of a quoted ClickHouse identifier, including null
+ * terminator. ClickHouse allows longer names (internally they're hashed) but
+ * there are a bunch of wrinkles, and names in Postgres can't be more than
+ * NAMEDATALEN (currently 64), so just make enough room for every character to
+ * be escaped plus opening and closing quotation marks.
+*/
+#define CH_ESCAPED_NAMEDATALEN NAMEDATALEN*2
+
 /* pglink.c */
 typedef struct ch_cursor ch_cursor;
 typedef struct ch_cursor
@@ -89,6 +98,7 @@ text	   *chfdw_http_fetch_raw_data(ch_cursor * cursor);
 List	   *chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * server);
 char	   *ch_quote_literal(const char *rawstr);
 char	   *chfdw_datum_to_ch_literal(Datum value, Oid type);
+const char *ch_quote_ident(const char *rawstr);
 
 typedef enum
 {
@@ -196,7 +206,12 @@ typedef struct CHFdwRelationInfo
 
 	/* Custom */
 	CHRemoteTableEngine ch_table_engine;
-	char		ch_table_sign_field[NAMEDATALEN];
+
+	/*
+	 * Long enough for a quoted identifier with all but two characters
+	 * escaped.
+	 */
+	char		ch_table_sign_field[CH_ESCAPED_NAMEDATALEN];
 }			CHFdwRelationInfo;
 
 /* in fdw.c */
@@ -310,7 +325,6 @@ typedef struct CustomColumnInfo
 	custom_object_type coltype;
 
 	CHRemoteTableEngine table_engine;
-	char		signfield[NAMEDATALEN];
 }			CustomColumnInfo;
 
 extern bool chfdw_check_for_ordered_aggregate(Aggref * agg);

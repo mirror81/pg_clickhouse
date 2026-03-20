@@ -1,0 +1,306 @@
+CREATE SERVER engine_args_svr FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'engine_args_test', driver 'binary');
+CREATE USER MAPPING FOR CURRENT_USER SERVER engine_args_svr;
+SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS engine_args_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query('CREATE DATABASE engine_args_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+	CREATE TABLE engine_args_test.innocuous (
+        id UInt32,
+        value String
+    )
+	ENGINE = MergeTree()
+	ORDER BY id
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    INSERT INTO engine_args_test.innocuous
+    VALUES (1, 'public'), (2, 'data'), (3, 'here')
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    CREATE TABLE IF NOT EXISTS engine_args_test.sensitive (
+        id UInt32,
+        password String
+    ) ENGINE=MergeTree() ORDER BY id;
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    INSERT INTO engine_args_test.sensitive
+    VALUES (1, 'admin123'), (2, 'password!')
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+CREATE SCHEMA engine_args_test;
+-- Should fail on invalid column name (also attempted SQL injection).
+CREATE FOREIGN TABLE engine_args_test.dr_evil (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(1, (SELECT count() FROM sensitive) > 0) -- )'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.dr_evil;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (dr_evil)
+   Remote SQL: SELECT sumIf("1, (SELECT count() FROM sensitive) > 0) -- ",(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Make sure ClickHouse returns the expected exception (formatting changed
+-- between 24.3 and 24.8, so use LIKE to evaluate it.
+DO $$
+BEGIN
+    PERFORM COUNT(id) FROM engine_args_test.dr_evil;
+    RAISE WARNING 'Unexpected successful execution';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLERRM NOT LIKE ' pg_clickhouse: DB::Exception: Unknown expression or function identifier %'
+        AND SQLERRM NOT LIKE '%1, (SELECT count() FROM sensitive) > 0)%' THEN
+            RAISE EXCEPTION 'UNEXPECTED EXCEPTION: %', SQLERRM;
+        END IF;
+        RAISE NOTICE 'Unknown expression error correctly raised from ClickHouse';
+END;
+$$;
+NOTICE:  Unknown expression error correctly raised from ClickHouse
+-- Should fail on invalid double-quoted column name.
+CREATE FOREIGN TABLE engine_args_test.dr_evil2 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("id");create table asdf(id Int32);select "a")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.dr_evil2;
+ERROR:  pg_clickhouse: invalid identifier
+-- Should fail on invalid backtick-quoted column name.
+CREATE FOREIGN TABLE engine_args_test.dr_evil3 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(`id`);create table asdf(id Int32);select `a`)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.dr_evil3;
+ERROR:  pg_clickhouse: invalid identifier
+-- Should work for normal column name.
+CREATE FOREIGN TABLE engine_args_test.a_ok (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(id)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.a_ok;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (a_ok)
+   Remote SQL: SELECT sumIf(id,(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+SELECT COUNT(id) FROM engine_args_test.a_ok;
+ count 
+-------
+     6
+(1 row)
+
+-- Should work for "column name".
+CREATE FOREIGN TABLE engine_args_test.name_var1 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("id")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var1;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var1)
+   Remote SQL: SELECT sumIf("id",(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+SELECT COUNT(id) FROM engine_args_test.name_var1;
+ count 
+-------
+     6
+(1 row)
+
+-- Should work for `column name`.
+CREATE FOREIGN TABLE engine_args_test.name_var2 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(`id`)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var2;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var2)
+   Remote SQL: SELECT sumIf(`id`,(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+SELECT COUNT(id) FROM engine_args_test.name_var2;
+ count 
+-------
+     6
+(1 row)
+
+-- Should not quote "column name""".
+CREATE FOREIGN TABLE engine_args_test.name_var3 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("id""")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var3;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var3)
+   Remote SQL: SELECT sumIf("id""",(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Should not quote "column name\"".
+CREATE FOREIGN TABLE engine_args_test.name_var3a (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("id\"")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var3a;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var3a)
+   Remote SQL: SELECT sumIf("id\"",(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Should  not quote quote `column name```.
+CREATE FOREIGN TABLE engine_args_test.name_var4 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(`id```)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var4;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var4)
+   Remote SQL: SELECT sumIf(`id```,(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Should  not quote quote `column name\``.
+CREATE FOREIGN TABLE engine_args_test.name_var4a (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(`id\``)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var4a;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var4a)
+   Remote SQL: SELECT sumIf(`id\``,(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Should fail with no parameter.
+CREATE FOREIGN TABLE engine_args_test.name_var5 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree()'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var5;
+ERROR:  pg_clickhouse: invalid identifier
+-- Should fail with parameter length > 63.
+CREATE FOREIGN TABLE engine_args_test.name_var6 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var6;
+ERROR:  pg_clickhouse: invalid identifier
+-- Should succeed with max length parameter.
+CREATE FOREIGN TABLE engine_args_test.name_var7 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var7;
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var7)
+   Remote SQL: SELECT sumIf(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+-- Should fail with quoted parameter length > 127.
+CREATE FOREIGN TABLE engine_args_test.name_var8 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var8;
+ERROR:  pg_clickhouse: invalid engine parameter
+-- Should succeed with quoted parameter length == 130.
+CREATE FOREIGN TABLE engine_args_test.name_var9 (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var9;
+                                                                                                  QUERY PLAN                                                                                                  
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(id))
+   Relations: Aggregate on (name_var9)
+   Remote SQL: SELECT sumIf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",(id) IS NOT NULL) FROM engine_args_test.innocuous
+(4 rows)
+
+DROP USER MAPPING FOR CURRENT_USER SERVER engine_args_svr;
+SELECT clickhouse_raw_query('DROP DATABASE engine_args_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+DROP SERVER engine_args_svr CASCADE;
+NOTICE:  drop cascades to 15 other objects
+DETAIL:  drop cascades to foreign table engine_args_test.dr_evil
+drop cascades to foreign table engine_args_test.dr_evil2
+drop cascades to foreign table engine_args_test.dr_evil3
+drop cascades to foreign table engine_args_test.a_ok
+drop cascades to foreign table engine_args_test.name_var1
+drop cascades to foreign table engine_args_test.name_var2
+drop cascades to foreign table engine_args_test.name_var3
+drop cascades to foreign table engine_args_test.name_var3a
+drop cascades to foreign table engine_args_test.name_var4
+drop cascades to foreign table engine_args_test.name_var4a
+drop cascades to foreign table engine_args_test.name_var5
+drop cascades to foreign table engine_args_test.name_var6
+drop cascades to foreign table engine_args_test.name_var7
+drop cascades to foreign table engine_args_test.name_var8
+drop cascades to foreign table engine_args_test.name_var9

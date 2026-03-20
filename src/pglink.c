@@ -56,6 +56,7 @@ static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 static char *ch_escape_string(const char *s, size_t len);
 static void ch_quote_literal_internal(char *dst, const char *src, size_t len);
 extern char *ch_quote_literal(const char *rawstr);
+extern const char *ch_quote_ident(const char *rawstr);
 
 static libclickhouse_methods binary_methods =
 {
@@ -1321,4 +1322,55 @@ ch_quote_literal(const char *rawstr)
 
 	ch_quote_literal_internal(result, rawstr, len);
 	return result;
+}
+
+/*
+ * Function to quote a ClickHouse identifier. Simply returns `ident` if it's
+ * already double-quoted or backtick-quoted. Otherwise quotes it using
+ * PostgreSQL's `quote_identifier()`. Raises an error if the identifier length
+ * is zero or greater than `NAMEDATALEN` (64) unquoted or
+ * `CH_ESCAPED_NAMEDATALEN` quoted.
+*/
+const char *
+ch_quote_ident(const char *ident)
+{
+	/* https://clickhouse.com/docs/sql-reference/syntax#identifiers */
+	int			len = strlen(ident);
+
+	if (len >= 2 && ((ident[0] == '"' && ident[len - 1] == '"') || (ident[0] == '`' && ident[len - 1] == '`')))
+	{
+		/*
+		 * Make sure it has no unescaped quote character. Allowed escapes:
+		 *
+		 * ": (""|\\.)
+		 *
+		 * `: (``|\\.)
+		 */
+		for (int i = 2; i <= len - 2; i++)
+		{
+			/* Skip escaped character. */
+			if (ident[i] == '\\')
+				i++;
+
+			/* Disallow unescaped quote character. */
+			else if (ident[i] == ident[0] && ident[i + 1] != ident[0])
+				ereport(ERROR,
+						errcode(ERRCODE_FDW_INVALID_STRING_LENGTH_OR_BUFFER_LENGTH),
+						errmsg_internal("pg_clickhouse: invalid identifier"));
+		}
+
+		/* Allow already quoted identifier. */
+		if (len == 2 || len > CH_ESCAPED_NAMEDATALEN - 1)
+			ereport(ERROR,
+					errcode(ERRCODE_FDW_INVALID_STRING_LENGTH_OR_BUFFER_LENGTH),
+					errmsg_internal("pg_clickhouse: invalid identifier"));
+		return ident;
+	}
+
+	/* Rely on PostgreSQL 's identifier quoting. */
+	if (len == 0 || len > NAMEDATALEN - 1)
+		ereport(ERROR,
+				errcode(ERRCODE_FDW_INVALID_STRING_LENGTH_OR_BUFFER_LENGTH),
+				errmsg_internal("pg_clickhouse: invalid identifier"));
+	return quote_identifier(ident);
 }

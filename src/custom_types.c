@@ -439,19 +439,15 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 			{
 				char	   *start = index(val, '('),
 						   *end = rindex(val, ')');
+				char		sign[CH_ESCAPED_NAMEDATALEN];
+
+				if (end - start - 1 > (CH_ESCAPED_NAMEDATALEN - 1))
+					elog(ERROR, "pg_clickhouse: invalid engine parameter");
 
 				fpinfo->ch_table_engine = CH_COLLAPSING_MERGE_TREE;
-				if (start == end)
-				{
-					strcpy(fpinfo->ch_table_sign_field, "sign");
-					continue;
-				}
-
-				if (end - start > NAMEDATALEN)
-					elog(ERROR, "invalid format of ClickHouse engine");
-
-				strncpy(fpinfo->ch_table_sign_field, start + 1, end - start - 1);
-				fpinfo->ch_table_sign_field[end - start] = '\0';
+				strncpy(sign, start + 1, end - start - 1);
+				sign[end - start - 1] = '\0';
+				strcpy(fpinfo->ch_table_sign_field, ch_quote_ident(sign));
 			}
 			else if (strncasecmp(val, aggregating_text, strlen(aggregating_text)) == 0)
 			{
@@ -487,7 +483,6 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 		entry->coltype = CF_USUAL;
 		entry->is_AggregateFunction = CF_AGGR_USUAL;
 		strcpy(entry->colname, NameStr(attr->attname));
-		strcpy(entry->signfield, fpinfo->ch_table_sign_field);
 
 		/* If a column has the column_name FDW option, use that value */
 		options = GetForeignColumnOptions(relid, attnum);
