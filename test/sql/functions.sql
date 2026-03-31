@@ -31,6 +31,7 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t3_map (key1 Int32, key
         val String) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t4 (val String) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t5 (ts DateTime) engine=TinyLog();');
+SELECT clickhouse_raw_query('CREATE TABLE functions_test.t6 (i64 Int64, f64 Float64) engine=TinyLog();');
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
@@ -42,12 +43,21 @@ SELECT clickhouse_raw_query($$
 		('2030-03-20T02:16:30')
 $$);
 
+SELECT clickhouse_raw_query($$
+	INSERT INTO functions_test.t6 VALUES
+		(20423, 20423.123),
+		(2042323443, 2042323443.232),
+		(0, 0),
+		(1774996811, 1774996811.8384),
+$$);
+
 CREATE FOREIGN TABLE t1 (a int, b int, c timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t2 (a int, b int, c timestamp with time zone) SERVER functions_loopback OPTIONS (table_name 't1');
 CREATE FOREIGN TABLE t3 (a int, b int) SERVER functions_loopback;
 CREATE FOREIGN TABLE t3_map (key1 int, key2 text, val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
+CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
@@ -288,6 +298,16 @@ SELECT val FROM t4 WHERE regexp_like('^val\d', val);
 -- Check hashing functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
 SELECT key1 FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
+
+-- Check to_timestamp(float8).
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(0);
+SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(0);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(2042323443);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
+SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
 
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');

@@ -296,7 +296,6 @@ typedef enum
 	CF_INTARRAY_IDX,
 	CF_CH_FUNCTION,				/* adapted clickhouse function */
 	CF_MATCH,					/* regexp_match function */
-	CF_MD5,						/* md5() function */
 }			custom_object_type;
 
 typedef enum
@@ -312,6 +311,7 @@ typedef struct CustomObjectDef
 	custom_object_type cf_type;
 	char		custom_name[NAMEDATALEN];	/* \0 - no custom name, \1 - many
 											 * names */
+	int			paren_count;	/* Number closing parens; defaults to 1 */
 	Oid			rowfunc;
 	void	   *cf_context;
 }			CustomObjectDef;

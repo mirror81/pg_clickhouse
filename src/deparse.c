@@ -2488,9 +2488,6 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 		appendStringInfoChar(buf, ')');
 		return;
 	}
-	else if (cdef && cdef->cf_type == CF_MD5)
-		/* Postgres MD5 returns a lowecase hex string. */
-		appendStringInfoString(buf, "lower(hex(MD5");
 
 	appendStringInfoChar(buf, '(');
 	if (cdef && (cdef->cf_type == CF_TIMEZONE || cdef->cf_type == CF_MATCH))
@@ -2516,9 +2513,15 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	}
 
 	context->func = old_cdef;
-	appendStringInfoChar(buf, ')');
-	if (cdef && cdef->cf_type == CF_MD5)
-		appendStringInfoString(buf, "))");
+	if (cdef)
+	{
+		for (int i = 0; i < cdef->paren_count; i++)
+		{
+			appendStringInfoChar(buf, ')');
+		}
+	}
+	else
+		appendStringInfoChar(buf, ')');
 }
 
 static void

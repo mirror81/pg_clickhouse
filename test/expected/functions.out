@@ -70,6 +70,12 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t5 (ts DateTime) engine
  
 (1 row)
 
+SELECT clickhouse_raw_query('CREATE TABLE functions_test.t6 (i64 Int64, f64 Float64) engine=TinyLog();');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
 		('2025-10-15T20:12:25'),
@@ -84,12 +90,25 @@ $$);
  
 (1 row)
 
+SELECT clickhouse_raw_query($$
+	INSERT INTO functions_test.t6 VALUES
+		(20423, 20423.123),
+		(2042323443, 2042323443.232),
+		(0, 0),
+		(1774996811, 1774996811.8384),
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 CREATE FOREIGN TABLE t1 (a int, b int, c timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t2 (a int, b int, c timestamp with time zone) SERVER functions_loopback OPTIONS (table_name 't1');
 CREATE FOREIGN TABLE t3 (a int, b int) SERVER functions_loopback;
 CREATE FOREIGN TABLE t3_map (key1 int, key2 text, val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
+CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
 	SELECT number+1, number+2
@@ -1364,6 +1383,63 @@ SELECT key1 FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
     9
 (2 rows)
 
+-- Check to_timestamp(float8).
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t6
+   Output: i64, f64
+   Remote SQL: SELECT i64, f64 FROM functions_test.t6 WHERE ((fromUnixTimestamp(toInt64(i64)) = '1970-01-01 00:00:00'))
+(3 rows)
+
+SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+ i64 | f64 
+-----+-----
+   0 |   0
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(0);
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t6
+   Output: i64, f64
+   Remote SQL: SELECT i64, f64 FROM functions_test.t6 WHERE ((fromUnixTimestamp(toInt64(f64)) = '1970-01-01 00:00:00'))
+(3 rows)
+
+SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(0);
+ i64 | f64 
+-----+-----
+   0 |   0
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(0);
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t6
+   Output: i64, f64
+   Remote SQL: SELECT i64, f64 FROM functions_test.t6 WHERE ((fromUnixTimestamp(toInt64(i64)) = '1970-01-01 00:00:00'))
+(3 rows)
+
+SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(2042323443);
+    i64     |      f64       
+------------+----------------
+ 2042323443 | 2042323443.232
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t6
+   Output: i64, f64
+   Remote SQL: SELECT i64, f64 FROM functions_test.t6 WHERE ((fromUnixTimestamp(toInt64(f64)) = '2034-09-20 00:04:03'))
+(3 rows)
+
+SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
+    i64     |      f64       
+------------+----------------
+ 2042323443 | 2042323443.232
+(1 row)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 
@@ -1372,10 +1448,11 @@ SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 (1 row)
 
 DROP SERVER functions_loopback CASCADE;
-NOTICE:  drop cascades to 6 other objects
+NOTICE:  drop cascades to 7 other objects
 DETAIL:  drop cascades to foreign table t1
 drop cascades to foreign table t2
 drop cascades to foreign table t3
 drop cascades to foreign table t3_map
 drop cascades to foreign table t4
 drop cascades to foreign table t5
+drop cascades to foreign table t6

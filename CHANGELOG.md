@@ -7,6 +7,15 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.6] — Unreleased
+
+### ⚡ Improvements
+
+*   Added support for the PostgreSQL `to_timestamp(float8)` function, mapped to
+    `fromUnixTimestamp(toInt64())` in ClickHouse.
+
+  [v0.1.6]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.5...v0.1.6
+
 ## [v0.1.5] — 2026-03-20
 
 This release makes binary-only changes. Once installed, any existing use of

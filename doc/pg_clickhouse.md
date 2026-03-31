@@ -1025,6 +1025,7 @@ maps the following functions:
 *   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
+*   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
 
 ### Custom Functions
 

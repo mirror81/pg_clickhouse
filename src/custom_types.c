@@ -38,6 +38,7 @@
 #define F_PERCENTILE_CONT_FLOAT8_FLOAT8 3974
 #define F_PERCENTILE_CONT_FLOAT8_INTERVAL 3976
 #define F_ARRAY_AGG_ANYNONARRAY 2335
+#define F_TO_TIMESTAMP_FLOAT8 1158
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -109,6 +110,7 @@ init_custom_entry(CustomObjectDef * entry)
 	entry->custom_name[0] = '\0';
 	entry->cf_context = NULL;
 	entry->rowfunc = InvalidOid;
+	entry->paren_count = 1;
 }
 
 /*
@@ -199,6 +201,7 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_ARRAY_AGG_ANYNONARRAY:
 			case F_MD5_BYTEA:
 			case F_MD5_TEXT:
+			case F_TO_TIMESTAMP_FLOAT8:
 				special_builtin = true;
 				break;
 			default:
@@ -282,8 +285,18 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_MD5_TEXT:
 				{
 					/* Special hashing function returns lowercase hex. */
-					entry->cf_type = CF_MD5;
-					entry->custom_name[0] = '\1';
+					strcpy(entry->custom_name, "lower(hex(MD5");
+					entry->paren_count = 3;
+					break;
+				}
+			case F_TO_TIMESTAMP_FLOAT8:
+				{
+					/*
+					 * ClickHouse doesn't work with subsecond precision
+					 * timestamps.
+					 */
+					strcpy(entry->custom_name, "fromUnixTimestamp(toInt64");
+					entry->paren_count = 2;
 					break;
 				}
 		}
