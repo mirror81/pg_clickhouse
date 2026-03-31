@@ -93,4 +93,3 @@ SELECT clickhouse_raw_query('DROP DATABASE cancel_test');
 ----------------------
  
 (1 row)
-
