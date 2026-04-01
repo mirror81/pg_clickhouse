@@ -167,6 +167,18 @@ chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 	ShippableCacheKey key;
 	ShippableCacheEntry *entry;
 
+	/*
+	 * For operators, check for custom overrides before the builtin shortcut,
+	 * since some builtin operators (e.g. ~*, !~*) must be marked unshippable.
+	 */
+	if (classId == OperatorRelationId)
+	{
+		CustomObjectDef *cdef = chfdw_check_for_custom_operator(objectId, NULL);
+
+		if (cdef)
+			return (cdef->cf_type != CF_UNSHIPPABLE);
+	}
+
 	/* Built-in objects are presumed shippable. */
 	if (chfdw_is_builtin(objectId))
 		return true;

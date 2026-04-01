@@ -2684,6 +2684,21 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 	{
 		switch (cdef->cf_type)
 		{
+			case CF_REGEX_MATCH:
+			case CF_REGEX_NO_MATCH:
+				{
+					if (cdef->cf_type == CF_REGEX_NO_MATCH)
+						appendStringInfoString(buf, "(NOT ");
+					appendStringInfoString(buf, "match(");
+					deparseExpr(linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr(lsecond(node->args), context);
+					appendStringInfoChar(buf, ')');
+					if (cdef->cf_type == CF_REGEX_NO_MATCH)
+						appendStringInfoChar(buf, ')');
+					goto cleanup;
+				}
+				break;
 			case CF_TIMESTAMPTZ_PL_INTERVAL:
 				{
 					deparseIntervalOp(linitial(node->args),
@@ -2813,11 +2828,11 @@ deparseOperatorName(StringInfo buf, Form_pg_operator opform)
 	if (strcmp(opname, "~~") == 0)
 		appendStringInfoString(buf, "LIKE");
 	else if (strcmp(opname, "~~*") == 0)
-		appendStringInfoString(buf, "LIKE");
+		appendStringInfoString(buf, "ILIKE");
 	else if (strcmp(opname, "!~~") == 0)
 		appendStringInfoString(buf, "NOT LIKE");
 	else if (strcmp(opname, "!~~*") == 0)
-		appendStringInfoString(buf, "NOT LIKE");
+		appendStringInfoString(buf, "NOT ILIKE");
 	else
 		appendStringInfoString(buf, opname);
 }

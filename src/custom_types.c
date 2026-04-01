@@ -362,10 +362,30 @@ chfdw_check_for_custom_type(Oid typeoid)
 	return entry;
 }
 
+/*
+ * Map a builtin operator name to its custom_object_type.  Returns CF_USUAL
+ * when the operator needs no special handling and should follow the normal
+ * builtin shortcut (i.e. be presumed shippable with no rewrite).
+ *
+ * Keep this function in sync with the CF_* enum in fdw.h.
+ */
+static custom_object_type
+classify_builtin_operator(const char *oprname)
+{
+	if (strcmp(oprname, "~") == 0)
+		return CF_REGEX_MATCH;
+	if (strcmp(oprname, "!~") == 0)
+		return CF_REGEX_NO_MATCH;
+	if (strcmp(oprname, "~*") == 0 || strcmp(oprname, "!~*") == 0)
+		return CF_UNSHIPPABLE;
+	return CF_USUAL;
+}
+
 CustomObjectDef *
 chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 {
 	HeapTuple	tuple = NULL;
+	custom_object_type ctype;
 
 	CustomObjectDef *entry;
 
@@ -380,6 +400,22 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 			case F_TIMESTAMPTZ_PL_INTERVAL:
 				break;
 			default:
+
+				/* Look up the operator name so we can classify it. */
+				if (!form)
+				{
+					tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(opoid));
+					if (!HeapTupleIsValid(tuple))
+						elog(ERROR, "cache lookup failed for operator %u", opoid);
+					form = (Form_pg_operator) GETSTRUCT(tuple);
+				}
+
+				ctype = classify_builtin_operator(NameStr(form->oprname));
+				if (ctype != CF_USUAL)
+					break;		/* fall through to cache + classify below */
+
+				if (tuple)
+					ReleaseSysCache(tuple);
 				return NULL;
 		}
 	}
@@ -400,6 +436,8 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 
 		if (opoid == F_TIMESTAMPTZ_PL_INTERVAL)
 			entry->cf_type = CF_TIMESTAMPTZ_PL_INTERVAL;
+		else if (form && classify_builtin_operator(NameStr(form->oprname)) != CF_USUAL)
+			entry->cf_type = classify_builtin_operator(NameStr(form->oprname));
 		else
 		{
 			Oid			extoid = getExtensionOfObject(OperatorRelationId, opoid);

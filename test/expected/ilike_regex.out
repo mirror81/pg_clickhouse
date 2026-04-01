@@ -1,0 +1,305 @@
+-- Test ILIKE and POSIX regex operator pushdown
+SET datestyle = 'ISO';
+CREATE SERVER ilike_regex_loopback FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'ilike_regex_test', driver 'binary');
+CREATE USER MAPPING FOR CURRENT_USER SERVER ilike_regex_loopback;
+SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS ilike_regex_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query('CREATE DATABASE ilike_regex_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    CREATE TABLE ilike_regex_test.events (
+        id     Int32,
+        name   String,
+        path   String
+    ) ENGINE = MergeTree ORDER BY id
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    INSERT INTO ilike_regex_test.events VALUES
+        (1, 'page_view',   '/users/profile'),
+        (2, 'Page_View',   '/users/settings'),
+        (3, 'PAGE_VIEW',   '/admin/dashboard'),
+        (4, 'add_to_cart', '/products/shoes'),
+        (5, 'Add_To_Cart', '/products/hats'),
+        (6, 'purchase',    '/checkout'),
+        (7, 'PURCHASE',    '/checkout/confirm'),
+        (8, 'share',       '/social/twitter'),
+        (9, 'logout',      '/auth/logout'),
+        (10, 'signup',     '/auth/signup')
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+CREATE SCHEMA ilike_regex_test;
+IMPORT FOREIGN SCHEMA "ilike_regex_test" FROM SERVER ilike_regex_loopback INTO ilike_regex_test;
+SET search_path = ilike_regex_test, public;
+-- =======================================================
+-- ILIKE: case-insensitive LIKE pushdown
+-- =======================================================
+-- ILIKE should match regardless of case
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name ILIKE '%view%' ORDER BY id;
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE ((name ILIKE '%view%')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name ILIKE '%view%' ORDER BY id;
+ id |   name    
+----+-----------
+  1 | page_view
+  2 | Page_View
+  3 | PAGE_VIEW
+(3 rows)
+
+-- NOT ILIKE
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name NOT ILIKE '%view%' ORDER BY id;
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE ((name NOT ILIKE '%view%')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name NOT ILIKE '%view%' ORDER BY id;
+ id |    name     
+----+-------------
+  4 | add_to_cart
+  5 | Add_To_Cart
+  6 | purchase
+  7 | PURCHASE
+  8 | share
+  9 | logout
+ 10 | signup
+(7 rows)
+
+-- ILIKE in aggregate context
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT count(*) FROM events WHERE name ILIKE 'page%';
+                                       QUERY PLAN                                        
+-----------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(*))
+   Relations: Aggregate on (events)
+   Remote SQL: SELECT count(*) FROM ilike_regex_test.events WHERE ((name ILIKE 'page%'))
+(4 rows)
+
+SELECT count(*) FROM events WHERE name ILIKE 'page%';
+ count 
+-------
+     3
+(1 row)
+
+-- ILIKE with underscore wildcard
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT count(*) FROM events WHERE name ILIKE 'page______';
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(*))
+   Relations: Aggregate on (events)
+   Remote SQL: SELECT count(*) FROM ilike_regex_test.events WHERE ((name ILIKE 'page______'))
+(4 rows)
+
+SELECT count(*) FROM events WHERE name ILIKE 'page______';
+ count 
+-------
+     0
+(1 row)
+
+-- LIKE (case-sensitive) should still work as before
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name LIKE '%view%' ORDER BY id;
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE ((name LIKE '%view%')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name LIKE '%view%' ORDER BY id;
+ id |   name    
+----+-----------
+  1 | page_view
+(1 row)
+
+-- NOT LIKE (case-sensitive)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT count(*) FROM events WHERE name NOT LIKE '%view%';
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(*))
+   Relations: Aggregate on (events)
+   Remote SQL: SELECT count(*) FROM ilike_regex_test.events WHERE ((name NOT LIKE '%view%'))
+(4 rows)
+
+SELECT count(*) FROM events WHERE name NOT LIKE '%view%';
+ count 
+-------
+     9
+(1 row)
+
+-- =======================================================
+-- POSIX regex: ~ mapped to match(), !~ to NOT match()
+-- =======================================================
+-- ~ (case-sensitive regex match)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name ~ '^page' ORDER BY id;
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE (match(name, '^page')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name ~ '^page' ORDER BY id;
+ id |   name    
+----+-----------
+  1 | page_view
+(1 row)
+
+-- !~ (case-sensitive regex no match)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name !~ '^page' ORDER BY id;
+                                                        QUERY PLAN                                                        
+--------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE ((NOT match(name, '^page'))) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name !~ '^page' ORDER BY id;
+ id |    name     
+----+-------------
+  2 | Page_View
+  3 | PAGE_VIEW
+  4 | add_to_cart
+  5 | Add_To_Cart
+  6 | purchase
+  7 | PURCHASE
+  8 | share
+  9 | logout
+ 10 | signup
+(9 rows)
+
+-- ~ with alternation pattern
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name ~ '^(purchase|share)$' ORDER BY id;
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events WHERE (match(name, '^(purchase|share)$')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, name FROM events WHERE name ~ '^(purchase|share)$' ORDER BY id;
+ id |   name   
+----+----------
+  6 | purchase
+  8 | share
+(2 rows)
+
+-- ~ in aggregate context
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT count(*) FROM events WHERE name ~ '_view$';
+                                        QUERY PLAN                                        
+------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (count(*))
+   Relations: Aggregate on (events)
+   Remote SQL: SELECT count(*) FROM ilike_regex_test.events WHERE (match(name, '_view$'))
+(4 rows)
+
+SELECT count(*) FROM events WHERE name ~ '_view$';
+ count 
+-------
+     1
+(1 row)
+
+-- ~ with path column (test regex with slashes)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, path FROM events WHERE path ~ '^/auth/' ORDER BY id;
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, path
+   Remote SQL: SELECT id, path FROM ilike_regex_test.events WHERE (match(path, '^/auth/')) ORDER BY id ASC NULLS LAST
+(3 rows)
+
+SELECT id, path FROM events WHERE path ~ '^/auth/' ORDER BY id;
+ id |     path     
+----+--------------
+  9 | /auth/logout
+ 10 | /auth/signup
+(2 rows)
+
+-- =======================================================
+-- ~* and !~* fall back to local evaluation (not pushed)
+-- =======================================================
+-- ~* (case-insensitive regex) should NOT be pushed down
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM events WHERE name ~* '^page' ORDER BY id;
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_test.events
+   Output: id, name
+   Filter: (events.name ~* '^page'::text)
+   Remote SQL: SELECT id, name FROM ilike_regex_test.events ORDER BY id ASC NULLS LAST
+(4 rows)
+
+SELECT id, name FROM events WHERE name ~* '^page' ORDER BY id;
+ id |   name    
+----+-----------
+  1 | page_view
+  2 | Page_View
+  3 | PAGE_VIEW
+(3 rows)
+
+-- !~* (case-insensitive regex negation) should NOT be pushed down
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT count(*) FROM events WHERE name !~* '^page';
+                          QUERY PLAN                          
+--------------------------------------------------------------
+ Aggregate
+   Output: count(*)
+   ->  Foreign Scan on ilike_regex_test.events
+         Output: id, name, path
+         Filter: (events.name !~* '^page'::text)
+         Remote SQL: SELECT name FROM ilike_regex_test.events
+(6 rows)
+
+SELECT count(*) FROM events WHERE name !~* '^page';
+ count 
+-------
+     7
+(1 row)
+
+-- Cleanup
+SELECT clickhouse_raw_query('DROP DATABASE ilike_regex_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+DROP USER MAPPING FOR CURRENT_USER SERVER ilike_regex_loopback;
+DROP SERVER ilike_regex_loopback CASCADE;
+NOTICE:  drop cascades to foreign table events
