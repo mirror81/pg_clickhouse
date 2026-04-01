@@ -169,7 +169,8 @@ chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 
 	/*
 	 * For operators, check for custom overrides before the builtin shortcut,
-	 * since some builtin operators (e.g. ~*, !~*) must be marked unshippable.
+	 * since some builtin operators (e.g. ~, !~, ~*, !~*) need special
+	 * handling.
 	 */
 	if (classId == OperatorRelationId)
 	{

@@ -376,8 +376,10 @@ classify_builtin_operator(const char *oprname)
 		return CF_REGEX_MATCH;
 	if (strcmp(oprname, "!~") == 0)
 		return CF_REGEX_NO_MATCH;
-	if (strcmp(oprname, "~*") == 0 || strcmp(oprname, "!~*") == 0)
-		return CF_UNSHIPPABLE;
+	if (strcmp(oprname, "~*") == 0)
+		return CF_REGEX_ICASE_MATCH;
+	if (strcmp(oprname, "!~*") == 0)
+		return CF_REGEX_ICASE_NO_MATCH;
 	return CF_USUAL;
 }
 
@@ -406,7 +408,9 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 				{
 					tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(opoid));
 					if (!HeapTupleIsValid(tuple))
-						elog(ERROR, "cache lookup failed for operator %u", opoid);
+						ereport(ERROR,
+								errcode(ERRCODE_INTERNAL_ERROR),
+								errmsg("pg_clickhouse: cache lookup failed for operator %u", opoid));
 					form = (Form_pg_operator) GETSTRUCT(tuple);
 				}
 

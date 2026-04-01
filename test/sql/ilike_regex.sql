@@ -1,9 +1,13 @@
 -- Test ILIKE and POSIX regex operator pushdown
 SET datestyle = 'ISO';
 
-CREATE SERVER ilike_regex_loopback FOREIGN DATA WRAPPER clickhouse_fdw
+CREATE SERVER ilike_regex_bin_svr FOREIGN DATA WRAPPER clickhouse_fdw
     OPTIONS(dbname 'ilike_regex_test', driver 'binary');
-CREATE USER MAPPING FOR CURRENT_USER SERVER ilike_regex_loopback;
+CREATE USER MAPPING FOR CURRENT_USER SERVER ilike_regex_bin_svr;
+
+CREATE SERVER ilike_regex_http_svr FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'ilike_regex_test', driver 'http');
+CREATE USER MAPPING FOR CURRENT_USER SERVER ilike_regex_http_svr;
 
 SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS ilike_regex_test');
 SELECT clickhouse_raw_query('CREATE DATABASE ilike_regex_test');
@@ -30,43 +34,63 @@ SELECT clickhouse_raw_query($$
         (10, 'signup',     '/auth/signup')
 $$);
 
-CREATE SCHEMA ilike_regex_test;
-IMPORT FOREIGN SCHEMA "ilike_regex_test" FROM SERVER ilike_regex_loopback INTO ilike_regex_test;
-SET search_path = ilike_regex_test, public;
+CREATE SCHEMA ilike_regex_bin;
+CREATE SCHEMA ilike_regex_http;
+IMPORT FOREIGN SCHEMA "ilike_regex_test" FROM SERVER ilike_regex_bin_svr INTO ilike_regex_bin;
+IMPORT FOREIGN SCHEMA "ilike_regex_test" FROM SERVER ilike_regex_http_svr INTO ilike_regex_http;
 
 -- =======================================================
--- ILIKE: case-insensitive LIKE pushdown
+-- ILIKE: case-insensitive LIKE pushdown (binary driver)
 -- =======================================================
 
 -- ILIKE should match regardless of case
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name ILIKE '%view%' ORDER BY id;
-SELECT id, name FROM events WHERE name ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ILIKE '%view%' ORDER BY id;
 
 -- NOT ILIKE
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name NOT ILIKE '%view%' ORDER BY id;
-SELECT id, name FROM events WHERE name NOT ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name NOT ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name NOT ILIKE '%view%' ORDER BY id;
 
 -- ILIKE in aggregate context
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT count(*) FROM events WHERE name ILIKE 'page%';
-SELECT count(*) FROM events WHERE name ILIKE 'page%';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name ILIKE 'page%';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name ILIKE 'page%';
 
--- ILIKE with underscore wildcard
+-- ILIKE with underscore wildcard (matches page_view, Page_View, PAGE_VIEW)
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT count(*) FROM events WHERE name ILIKE 'page______';
-SELECT count(*) FROM events WHERE name ILIKE 'page______';
+SELECT id, name FROM ilike_regex_bin.events WHERE name ILIKE 'page_____' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ILIKE 'page_____' ORDER BY id;
 
 -- LIKE (case-sensitive) should still work as before
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name LIKE '%view%' ORDER BY id;
-SELECT id, name FROM events WHERE name LIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name LIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name LIKE '%view%' ORDER BY id;
 
 -- NOT LIKE (case-sensitive)
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT count(*) FROM events WHERE name NOT LIKE '%view%';
-SELECT count(*) FROM events WHERE name NOT LIKE '%view%';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name NOT LIKE '%view%';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name NOT LIKE '%view%';
+
+-- =======================================================
+-- ILIKE: case-insensitive LIKE pushdown (http driver)
+-- =======================================================
+
+-- ILIKE should match regardless of case
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name ILIKE '%view%' ORDER BY id;
+
+-- NOT ILIKE
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name NOT ILIKE '%view%' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name NOT ILIKE '%view%' ORDER BY id;
+
+-- ILIKE with underscore wildcard (matches page_view, Page_View, PAGE_VIEW)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name ILIKE 'page_____' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name ILIKE 'page_____' ORDER BY id;
 
 -- =======================================================
 -- POSIX regex: ~ mapped to match(), !~ to NOT match()
@@ -74,44 +98,60 @@ SELECT count(*) FROM events WHERE name NOT LIKE '%view%';
 
 -- ~ (case-sensitive regex match)
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name ~ '^page' ORDER BY id;
-SELECT id, name FROM events WHERE name ~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~ '^page' ORDER BY id;
 
 -- !~ (case-sensitive regex no match)
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name !~ '^page' ORDER BY id;
-SELECT id, name FROM events WHERE name !~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name !~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name !~ '^page' ORDER BY id;
 
 -- ~ with alternation pattern
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name ~ '^(purchase|share)$' ORDER BY id;
-SELECT id, name FROM events WHERE name ~ '^(purchase|share)$' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~ '^(purchase|share)$' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~ '^(purchase|share)$' ORDER BY id;
 
 -- ~ in aggregate context
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT count(*) FROM events WHERE name ~ '_view$';
-SELECT count(*) FROM events WHERE name ~ '_view$';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name ~ '_view$';
+SELECT count(*) FROM ilike_regex_bin.events WHERE name ~ '_view$';
 
 -- ~ with path column (test regex with slashes)
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, path FROM events WHERE path ~ '^/auth/' ORDER BY id;
-SELECT id, path FROM events WHERE path ~ '^/auth/' ORDER BY id;
+SELECT id, path FROM ilike_regex_bin.events WHERE path ~ '^/auth/' ORDER BY id;
+SELECT id, path FROM ilike_regex_bin.events WHERE path ~ '^/auth/' ORDER BY id;
+
+-- POSIX regex with http driver
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name ~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name ~ '^page' ORDER BY id;
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name !~ '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name !~ '^page' ORDER BY id;
 
 -- =======================================================
--- ~* and !~* fall back to local evaluation (not pushed)
+-- ~* and !~* pushed down via match(col, concat('(?i)', pattern))
 -- =======================================================
 
--- ~* (case-insensitive regex) should NOT be pushed down
+-- ~* (case-insensitive regex) should be pushed down
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT id, name FROM events WHERE name ~* '^page' ORDER BY id;
-SELECT id, name FROM events WHERE name ~* '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~* '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name ~* '^page' ORDER BY id;
 
--- !~* (case-insensitive regex negation) should NOT be pushed down
+-- !~* (case-insensitive regex negation) should be pushed down
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT count(*) FROM events WHERE name !~* '^page';
-SELECT count(*) FROM events WHERE name !~* '^page';
+SELECT id, name FROM ilike_regex_bin.events WHERE name !~* '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_bin.events WHERE name !~* '^page' ORDER BY id;
+
+-- ~* with http driver
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, name FROM ilike_regex_http.events WHERE name ~* '^page' ORDER BY id;
+SELECT id, name FROM ilike_regex_http.events WHERE name ~* '^page' ORDER BY id;
 
 -- Cleanup
 SELECT clickhouse_raw_query('DROP DATABASE ilike_regex_test');
-DROP USER MAPPING FOR CURRENT_USER SERVER ilike_regex_loopback;
-DROP SERVER ilike_regex_loopback CASCADE;
+DROP USER MAPPING FOR CURRENT_USER SERVER ilike_regex_bin_svr;
+DROP USER MAPPING FOR CURRENT_USER SERVER ilike_regex_http_svr;
+DROP SERVER ilike_regex_bin_svr CASCADE;
+DROP SERVER ilike_regex_http_svr CASCADE;

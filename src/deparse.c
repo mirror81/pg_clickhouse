@@ -2686,15 +2686,27 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 		{
 			case CF_REGEX_MATCH:
 			case CF_REGEX_NO_MATCH:
+			case CF_REGEX_ICASE_MATCH:
+			case CF_REGEX_ICASE_NO_MATCH:
 				{
-					if (cdef->cf_type == CF_REGEX_NO_MATCH)
+					bool		negated = (cdef->cf_type == CF_REGEX_NO_MATCH ||
+										   cdef->cf_type == CF_REGEX_ICASE_NO_MATCH);
+					bool		icase = (cdef->cf_type == CF_REGEX_ICASE_MATCH ||
+										 cdef->cf_type == CF_REGEX_ICASE_NO_MATCH);
+
+					if (negated)
 						appendStringInfoString(buf, "(NOT ");
 					appendStringInfoString(buf, "match(");
 					deparseExpr(linitial(node->args), context);
-					appendStringInfoString(buf, ", ");
+					if (icase)
+						appendStringInfoString(buf, ", concat('(?i)', ");
+					else
+						appendStringInfoString(buf, ", ");
 					deparseExpr(lsecond(node->args), context);
+					if (icase)
+						appendStringInfoChar(buf, ')');
 					appendStringInfoChar(buf, ')');
-					if (cdef->cf_type == CF_REGEX_NO_MATCH)
+					if (negated)
 						appendStringInfoChar(buf, ')');
 					goto cleanup;
 				}
