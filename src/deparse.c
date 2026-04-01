@@ -376,6 +376,15 @@ foreign_expr_walker(Node * node,
 					return false;
 
 				/*
+				 * The jsonb subscript syntax column['key'] is not supported
+				 * on ClickHouse JSON (it requires dot notation). Refuse to
+				 * push down jsonb subscript expressions for now, so they are
+				 * evaluated locally instead.
+				 */
+				if (ar->refcontainertype == JSONBOID)
+					return false;
+
+				/*
 				 * Recurse to remaining subexpressions. Since the array
 				 * subscripts must yield (noncollatable) integers, they won't
 				 * affect the inner_cxt state.

@@ -64,14 +64,35 @@ SELECT * FROM json_bin.things ORDER BY id;
 ERROR:  pg_clickhouse: unsupported column type: JSON
 DETAIL:  Remote Query: SELECT id, data FROM json_test.things ORDER BY id ASC NULLS LAST
 SELECT * FROM json_http.things ORDER BY id;
- id |                               data                                
-----+-------------------------------------------------------------------
-  1 | {"id": "1", "name": "widget", "size": "large", "stocked": true}
-  2 | {"id": "2", "name": "sprocket", "size": "small", "stocked": true}
-  3 | {"id": "3", "name": "gizmo", "size": "medium", "stocked": true}
-  4 | {"id": "4", "name": "doodad", "size": "large", "stocked": false}
+ id |                              data                               
+----+-----------------------------------------------------------------
+  1 | {"id": 1, "name": "widget", "size": "large", "stocked": true}
+  2 | {"id": 2, "name": "sprocket", "size": "small", "stocked": true}
+  3 | {"id": 3, "name": "gizmo", "size": "medium", "stocked": true}
+  4 | {"id": 4, "name": "doodad", "size": "large", "stocked": false}
 (4 rows)
 
+-- Subscript access on JSON columns must not be pushed down to ClickHouse.
+-- ClickHouse JSON does not support the jsonb `column['key']` syntax (it
+-- requires dot notation), so subscripts must be evaluated locally by
+-- PostgreSQL.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT data['name'] FROM json_http.things;
+ERROR:  cannot subscript type jsonb because it is not an array
+SELECT data['name'] FROM json_http.things ORDER BY id;
+ERROR:  cannot subscript type jsonb because it is not an array
+-- DISTINCT forces an ORDER BY or HashAgg; the subscript must stay local.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT DISTINCT data['size'] FROM json_http.things;
+ERROR:  cannot subscript type jsonb because it is not an array
+SELECT DISTINCT data['size'] FROM json_http.things;
+ERROR:  cannot subscript type jsonb because it is not an array
+-- GROUP BY with a JSON subscript expression.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT data['size'], count(*) FROM json_http.things GROUP BY data['size'];
+ERROR:  cannot subscript type jsonb because it is not an array
+SELECT data['size'], count(*) FROM json_http.things GROUP BY data['size'];
+ERROR:  cannot subscript type jsonb because it is not an array
 SELECT clickhouse_raw_query('DROP DATABASE json_test');
  clickhouse_raw_query 
 ----------------------

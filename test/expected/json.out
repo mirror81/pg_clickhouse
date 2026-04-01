@@ -72,6 +72,70 @@ SELECT * FROM json_http.things ORDER BY id;
   4 | {"id": 4, "name": "doodad", "size": "large", "stocked": false}
 (4 rows)
 
+-- Subscript access on JSON columns must not be pushed down to ClickHouse.
+-- ClickHouse JSON does not support the jsonb `column['key']` syntax (it
+-- requires dot notation), so subscripts must be evaluated locally by
+-- PostgreSQL.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT data['name'] FROM json_http.things;
+                   QUERY PLAN                    
+-------------------------------------------------
+ Foreign Scan on json_http.things
+   Output: data['name'::text]
+   Remote SQL: SELECT data FROM json_test.things
+(3 rows)
+
+SELECT data['name'] FROM json_http.things ORDER BY id;
+    data    
+------------
+ "widget"
+ "sprocket"
+ "gizmo"
+ "doodad"
+(4 rows)
+
+-- DISTINCT forces an ORDER BY or HashAgg; the subscript must stay local.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT DISTINCT data['size'] FROM json_http.things;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ HashAggregate
+   Output: (data['size'::text])
+   Group Key: things.data['size'::text]
+   ->  Foreign Scan on json_http.things
+         Output: data['size'::text]
+         Remote SQL: SELECT data FROM json_test.things
+(6 rows)
+
+SELECT DISTINCT data['size'] FROM json_http.things;
+   data   
+----------
+ "medium"
+ "small"
+ "large"
+(3 rows)
+
+-- GROUP BY with a JSON subscript expression.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT data['size'], count(*) FROM json_http.things GROUP BY data['size'];
+                      QUERY PLAN                       
+-------------------------------------------------------
+ HashAggregate
+   Output: (data['size'::text]), count(*)
+   Group Key: things.data['size'::text]
+   ->  Foreign Scan on json_http.things
+         Output: data['size'::text]
+         Remote SQL: SELECT data FROM json_test.things
+(6 rows)
+
+SELECT data['size'], count(*) FROM json_http.things GROUP BY data['size'];
+   data   | count 
+----------+-------
+ "medium" |     1
+ "small"  |     1
+ "large"  |     2
+(3 rows)
+
 SELECT clickhouse_raw_query('DROP DATABASE json_test');
  clickhouse_raw_query 
 ----------------------

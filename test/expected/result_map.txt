@@ -120,14 +120,15 @@ json.sql
 --------
 
  Postgres | File
-----------|----------
- 13-18    | json.out
+----------|------------
+ 14-18    | json.out
+ 13       | json_1.out
 
  ClickHouse | File
 ------------|------------
  25.8+      | json.out
- 24.8-25.3  | json_1.out
- 22-24.3    | json_2.out
+ 24.8-25.3  | json_2.out
+ 22-24.3    | json_3.out
 
 param.sql
 ---------
