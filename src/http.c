@@ -86,7 +86,12 @@ ch_http_connection(ch_connection_details * details)
 	if (!conn->curl)
 		goto cleanup;
 
-	conn->dbname = details->dbname ? strdup(details->dbname) : NULL;
+	if (details->dbname)
+	{
+		conn->dbname = strdup(details->dbname);
+		if (conn->dbname == NULL)
+			goto cleanup;
+	}
 
 
 	if (!host || !*host)
@@ -143,7 +148,11 @@ cleanup:
 		free(connstring);
 
 	if (conn)
+	{
+		if (conn->dbname)
+			free(conn->dbname);
 		free(conn);
+	}
 
 	return NULL;
 }
@@ -233,9 +242,8 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 		if (!headers)
 		{
 			curl_free(url);
-			resp->http_status = -1;
-			resp->data = "out of memory";
-			return resp;
+			free(resp);
+			return NULL;
 		}
 		curl_easy_setopt(conn->curl, CURLOPT_HTTPHEADER, headers);
 	}
@@ -264,9 +272,8 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 			curl_free(url);
 			if (headers)
 				curl_slist_free_all(headers);
-			resp->http_status = -1;
-			resp->data = "out of memory";
-			return resp;
+			free(resp);
+			return NULL;
 		}
 		part = curl_mime_addpart(form);
 		curl_mime_name(part, "query");
@@ -297,6 +304,11 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 	{
 		resp->http_status = 419;	/* illegal http status */
 		resp->data = strdup(errbuffer);
+		if (resp->data == NULL)
+		{
+			free(resp);
+			return NULL;
+		}
 		resp->datasize = strlen(errbuffer);
 		return resp;
 	}
