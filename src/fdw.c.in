@@ -273,6 +273,9 @@ static void add_foreign_grouping_paths(PlannerInfo * root,
 									   RelOptInfo * input_rel,
 									   RelOptInfo * grouped_rel,
 									   GroupPathExtraData * extra);
+static void add_foreign_window_paths(PlannerInfo * root, RelOptInfo * input_rel,
+									 RelOptInfo * window_rel);
+static bool foreign_window_ok(PlannerInfo * root, RelOptInfo * window_rel);
 static void add_foreign_ordered_paths(PlannerInfo * root, RelOptInfo * input_rel,
 									  RelOptInfo * ordered_rel);
 static void add_foreign_final_paths(PlannerInfo * root, RelOptInfo * input_rel,
@@ -2395,6 +2398,7 @@ clickhouseGetForeignUpperPaths(PlannerInfo * root, UpperRelationKind stage,
 
 	/* Ignore stages we don't support; and skip any duplicate calls. */
 	if ((stage != UPPERREL_GROUP_AGG &&
+		 stage != UPPERREL_WINDOW &&
 		 stage != UPPERREL_ORDERED &&
 		 stage != UPPERREL_FINAL) ||
 		output_rel->fdw_private)
@@ -2410,6 +2414,9 @@ clickhouseGetForeignUpperPaths(PlannerInfo * root, UpperRelationKind stage,
 		case UPPERREL_GROUP_AGG:
 			add_foreign_grouping_paths(root, input_rel, output_rel,
 									   (GroupPathExtraData *) extra);
+			break;
+		case UPPERREL_WINDOW:
+			add_foreign_window_paths(root, input_rel, output_rel);
 			break;
 		case UPPERREL_ORDERED:
 			add_foreign_ordered_paths(root, input_rel, output_rel);
@@ -2520,6 +2527,165 @@ add_foreign_grouping_paths(PlannerInfo * root, RelOptInfo * input_rel,
 }
 
 /*
+ * foreign_window_ok
+ *		Assess whether window functions in the query are safe to push down.
+ *
+ * Checks that every expression in the window relation's target list is
+ * shippable, and builds a target list suitable for the remote query.
+ */
+static bool
+foreign_window_ok(PlannerInfo * root, RelOptInfo * window_rel)
+{
+	CHFdwRelationInfo *fpinfo = (CHFdwRelationInfo *) window_rel->fdw_private;
+	CHFdwRelationInfo *ofpinfo;
+	PathTarget *window_target = root->upper_targets[UPPERREL_WINDOW];
+	ListCell   *lc;
+	List	   *tlist = NIL;
+	int			i;
+
+	/* Get the fpinfo of the underlying scan relation. */
+	ofpinfo = (CHFdwRelationInfo *) fpinfo->outerrel->fdw_private;
+
+	/*
+	 * If underlying scan relation has any local conditions, those conditions
+	 * must be applied before performing windowing. Hence the window functions
+	 * cannot be pushed down.
+	 */
+	if (ofpinfo->local_conds)
+		return false;
+
+	/*
+	 * Examine each expression in the window target list and check whether it
+	 * is safe to push down.  Build a tlist that matches the window target
+	 * exactly (same length, same order, same sortgrouprefs) so that
+	 * apply_pathtarget_labeling_to_tlist can match them up later.
+	 */
+	i = 0;
+	foreach(lc, window_target->exprs)
+	{
+		Expr	   *expr = (Expr *) lfirst(lc);
+		Index		sgref = get_pathtarget_sortgroupref(window_target, i);
+		TargetEntry *tle;
+
+		/*
+		 * Check whether the expression is safe to push down. We need to check
+		 * the expression against the window_rel so that WindowFunc nodes are
+		 * recognized as being in an upper relation context.
+		 */
+		if (!chfdw_is_foreign_expr(root, window_rel, expr))
+			return false;
+
+		/*
+		 * If it would be a foreign param, we can't put it into the tlist.
+		 */
+		if (is_foreign_param(root, window_rel, expr))
+			return false;
+
+		/*
+		 * Build a TargetEntry preserving sortgroupref, without deduplication,
+		 * to exactly mirror the PathTarget.
+		 */
+		tle = makeTargetEntry(expr, list_length(tlist) + 1, NULL, false);
+		tle->ressortgroupref = sgref;
+		tlist = lappend(tlist, tle);
+		i++;
+	}
+
+	/* Store generated targetlist */
+	fpinfo->grouped_tlist = tlist;
+
+	/* Safe to pushdown */
+	fpinfo->pushdown_safe = true;
+
+	fpinfo->rel_startup_cost = -1;
+	fpinfo->rel_total_cost = -1;
+
+	fpinfo->relation_name = makeStringInfo();
+	appendStringInfo(fpinfo->relation_name, "Window on (%s)",
+					 ofpinfo->relation_name->data);
+
+	return true;
+}
+
+/*
+ * add_foreign_window_paths
+ *		Add foreign path for performing window functions remotely.
+ *
+ * Given input_rel represents the underlying scan or grouping relation.
+ * The paths are added to the given window_rel.
+ */
+static void
+add_foreign_window_paths(PlannerInfo * root, RelOptInfo * input_rel,
+						 RelOptInfo * window_rel)
+{
+	CHFdwRelationInfo *ifpinfo = input_rel->fdw_private;
+	CHFdwRelationInfo *fpinfo = window_rel->fdw_private;
+	ForeignPath *window_path;
+	double		rows;
+	int			width;
+	Cost		startup_cost;
+	Cost		total_cost;
+
+	/* Save the input_rel as outerrel in fpinfo */
+	fpinfo->outerrel = input_rel;
+
+	/*
+	 * Copy foreign table, foreign server, user mapping, FDW options etc.
+	 * details from the input relation's fpinfo.
+	 */
+	fpinfo->table = ifpinfo->table;
+	fpinfo->server = ifpinfo->server;
+	fpinfo->user = ifpinfo->user;
+	merge_fdw_options(fpinfo, ifpinfo, NULL);
+
+	/* Assess if it is safe to push down the window functions */
+	if (!foreign_window_ok(root, window_rel))
+		return;
+
+	/* Estimate the cost of push down */
+	estimate_path_cost_size(&rows, &width, &startup_cost, &total_cost, 0.1);
+
+	/* Now update this information in the fpinfo */
+	fpinfo->rows = rows;
+	fpinfo->width = width;
+	fpinfo->startup_cost = startup_cost;
+	fpinfo->total_cost = total_cost;
+
+	/* Create and add foreign path to the window relation. */
+#if (PG_VERSION_NUM < 120000)
+	window_path = create_foreignscan_path(root,
+										  window_rel,
+										  root->upper_targets[UPPERREL_WINDOW],
+										  rows,
+										  startup_cost,
+										  total_cost,
+										  NIL,  /* no pathkeys */
+										  NULL, /* no required_outer */
+										  NULL,
+										  NIL); /* no fdw_private */
+#else
+	window_path = create_foreign_upper_path(root,
+											window_rel,
+											root->upper_targets[UPPERREL_WINDOW],
+											rows,
+#if PG_VERSION_NUM >= 180000
+											0,
+#endif
+											startup_cost,
+											total_cost,
+											NIL,	/* no pathkeys */
+											NULL,
+#if PG_VERSION_NUM >= 170000
+											NIL,
+#endif
+											NIL);	/* no fdw_private */
+#endif
+
+	/* Add generated path into window_rel by add_path(). */
+	add_path(window_rel, (Path *) window_path);
+}
+
+/*
  * add_foreign_ordered_paths
  *		Add foreign paths for performing the final sort remotely.
  *
@@ -2579,9 +2745,10 @@ add_foreign_ordered_paths(PlannerInfo * root, RelOptInfo * input_rel,
 		return;
 	}
 
-	/* The input_rel should be a grouping relation */
+	/* The input_rel should be a grouping or window relation */
 	Assert(input_rel->reloptkind == RELOPT_UPPER_REL &&
-		   ifpinfo->stage == UPPERREL_GROUP_AGG);
+		   (ifpinfo->stage == UPPERREL_GROUP_AGG ||
+			ifpinfo->stage == UPPERREL_WINDOW));
 
 	/*
 	 * We try to create a path below by extending a simple foreign path for
@@ -2734,11 +2901,12 @@ add_foreign_final_paths(PlannerInfo * root, RelOptInfo * input_rel,
 		pathkeys = root->sort_pathkeys;
 	}
 
-	/* The input_rel should be a base, join, or grouping relation */
+	/* The input_rel should be a base, join, grouping, or window relation */
 	Assert(input_rel->reloptkind == RELOPT_BASEREL ||
 		   input_rel->reloptkind == RELOPT_JOINREL ||
 		   (input_rel->reloptkind == RELOPT_UPPER_REL &&
-			ifpinfo->stage == UPPERREL_GROUP_AGG));
+			(ifpinfo->stage == UPPERREL_GROUP_AGG ||
+			 ifpinfo->stage == UPPERREL_WINDOW)));
 
 	/*
 	 * We try to create a path below by extending a simple foreign path for

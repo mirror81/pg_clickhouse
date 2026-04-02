@@ -160,6 +160,7 @@ static void deparseRangeTblRef(StringInfo buf, PlannerInfo * root,
 							   RelOptInfo * foreignrel, bool make_subquery,
 							   Index ignore_rel, List * *ignore_conds, List * *params_list);
 static void deparseAggref(Aggref * node, deparse_expr_cxt * context);
+static void deparseWindowFunc(WindowFunc * node, deparse_expr_cxt * context);
 static void appendGroupByClause(List * tlist, deparse_expr_cxt * context);
 static CustomObjectDef * appendFunctionName(Oid funcid, deparse_expr_cxt * context);
 static Node * deparseSortGroupClause(Index ref, List * tlist, bool force_colno,
@@ -582,6 +583,28 @@ foreign_expr_walker(Node * node,
 
 				/* Check aggregate filter */
 				if (!foreign_expr_walker((Node *) agg->aggfilter,
+										 glob_cxt))
+					return false;
+			}
+			break;
+		case T_WindowFunc:
+			{
+				WindowFunc *wfunc = (WindowFunc *) node;
+
+				/* Not safe to pushdown when not in upper relation context */
+				if (!IS_UPPER_REL(glob_cxt->foreignrel))
+					return false;
+
+				/* The window function must be shippable */
+				if (!chfdw_is_shippable(wfunc->winfnoid, ProcedureRelationId, fpinfo, NULL))
+					return false;
+
+				/* FILTER is not supported in ClickHouse window functions */
+				if (wfunc->aggfilter)
+					return false;
+
+				/* Recurse to input arguments */
+				if (!foreign_expr_walker((Node *) wfunc->args,
 										 glob_cxt))
 					return false;
 			}
@@ -1804,6 +1827,9 @@ deparseExpr(Expr * node, deparse_expr_cxt * context)
 			break;
 		case T_Aggref:
 			deparseAggref((Aggref *) node, context);
+			break;
+		case T_WindowFunc:
+			deparseWindowFunc((WindowFunc *) node, context);
 			break;
 		case T_CaseExpr:
 			deparseCaseExpr((CaseExpr *) node, context);
@@ -3508,6 +3534,173 @@ deparseAggref(Aggref * node, deparse_expr_cxt * context)
 
 	/* original */
 	context->func = cdef;
+}
+
+/*
+ * Deparse a WindowFunc node into context->buf.
+ *
+ * Generates: func_name(args) OVER (PARTITION BY ... ORDER BY ... frame)
+ */
+static void
+deparseWindowFunc(WindowFunc * node, deparse_expr_cxt * context)
+{
+	StringInfo	buf = context->buf;
+	Query	   *query = context->root->parse;
+	WindowClause *wc;
+	ListCell   *lc;
+	bool		first;
+	char	   *funcname;
+
+	/* Find the WindowClause referenced by this WindowFunc */
+	wc = (WindowClause *) list_nth(query->windowClause, node->winref - 1);
+
+	/* Emit function name */
+	funcname = get_func_name(node->winfnoid);
+	CSTRING_TOLOWER(funcname);
+	appendStringInfoString(buf, funcname);
+	appendStringInfoChar(buf, '(');
+
+	/* Emit arguments */
+	first = true;
+	foreach(lc, node->args)
+	{
+		if (!first)
+			appendStringInfoString(buf, ", ");
+		first = false;
+		deparseExpr((Expr *) lfirst(lc), context);
+	}
+
+	appendStringInfoString(buf, ") OVER (");
+
+	/* PARTITION BY */
+	if (wc->partitionClause)
+	{
+		appendStringInfoString(buf, "PARTITION BY ");
+		first = true;
+		foreach(lc, wc->partitionClause)
+		{
+			SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+			TargetEntry *tle = get_sortgroupref_tle(sgc->tleSortGroupRef,
+													query->targetList);
+
+			if (!first)
+				appendStringInfoString(buf, ", ");
+			first = false;
+			deparseExpr((Expr *) tle->expr, context);
+		}
+	}
+
+	/* ORDER BY */
+	if (wc->orderClause)
+	{
+		if (wc->partitionClause)
+			appendStringInfoChar(buf, ' ');
+		appendStringInfoString(buf, "ORDER BY ");
+		first = true;
+		foreach(lc, wc->orderClause)
+		{
+			SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+			TargetEntry *tle = get_sortgroupref_tle(sgc->tleSortGroupRef,
+													query->targetList);
+			TypeCacheEntry *typentry;
+
+			if (!first)
+				appendStringInfoString(buf, ", ");
+			first = false;
+			deparseExpr((Expr *) tle->expr, context);
+
+			/* Determine sort direction from the sort operator */
+			typentry = lookup_type_cache(exprType((Node *) tle->expr),
+										 TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
+			if (sgc->sortop == typentry->gt_opr)
+				appendStringInfoString(buf, " DESC");
+			else
+				appendStringInfoString(buf, " ASC");
+
+			if (sgc->nulls_first)
+				appendStringInfoString(buf, " NULLS FIRST");
+		}
+	}
+
+	/*
+	 * Frame clause.  We only emit non-default frames.  The default is RANGE
+	 * BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW when there is an ORDER BY,
+	 * or RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING when there
+	 * is no ORDER BY.
+	 */
+	if (wc->frameOptions != (FRAMEOPTION_DEFAULTS | FRAMEOPTION_NONDEFAULT) &&
+		(wc->frameOptions & FRAMEOPTION_NONDEFAULT))
+	{
+		appendStringInfoChar(buf, ' ');
+
+		/* Frame type */
+		if (wc->frameOptions & FRAMEOPTION_ROWS)
+			appendStringInfoString(buf, "ROWS ");
+		else if (wc->frameOptions & FRAMEOPTION_RANGE)
+			appendStringInfoString(buf, "RANGE ");
+		else if (wc->frameOptions & FRAMEOPTION_GROUPS)
+			appendStringInfoString(buf, "GROUPS ");
+
+		/* Frame start and end */
+		if (wc->frameOptions & FRAMEOPTION_BETWEEN)
+		{
+			appendStringInfoString(buf, "BETWEEN ");
+
+			/* Start bound */
+			if (wc->frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING)
+				appendStringInfoString(buf, "UNBOUNDED PRECEDING");
+			else if (wc->frameOptions & FRAMEOPTION_START_CURRENT_ROW)
+				appendStringInfoString(buf, "CURRENT ROW");
+			else if (wc->frameOptions & FRAMEOPTION_START_OFFSET_PRECEDING)
+			{
+				deparseExpr((Expr *) wc->startOffset, context);
+				appendStringInfoString(buf, " PRECEDING");
+			}
+			else if (wc->frameOptions & FRAMEOPTION_START_OFFSET_FOLLOWING)
+			{
+				deparseExpr((Expr *) wc->startOffset, context);
+				appendStringInfoString(buf, " FOLLOWING");
+			}
+
+			appendStringInfoString(buf, " AND ");
+
+			/* End bound */
+			if (wc->frameOptions & FRAMEOPTION_END_UNBOUNDED_FOLLOWING)
+				appendStringInfoString(buf, "UNBOUNDED FOLLOWING");
+			else if (wc->frameOptions & FRAMEOPTION_END_CURRENT_ROW)
+				appendStringInfoString(buf, "CURRENT ROW");
+			else if (wc->frameOptions & FRAMEOPTION_END_OFFSET_PRECEDING)
+			{
+				deparseExpr((Expr *) wc->endOffset, context);
+				appendStringInfoString(buf, " PRECEDING");
+			}
+			else if (wc->frameOptions & FRAMEOPTION_END_OFFSET_FOLLOWING)
+			{
+				deparseExpr((Expr *) wc->endOffset, context);
+				appendStringInfoString(buf, " FOLLOWING");
+			}
+		}
+		else
+		{
+			/* No BETWEEN — single start bound */
+			if (wc->frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING)
+				appendStringInfoString(buf, "UNBOUNDED PRECEDING");
+			else if (wc->frameOptions & FRAMEOPTION_START_CURRENT_ROW)
+				appendStringInfoString(buf, "CURRENT ROW");
+			else if (wc->frameOptions & FRAMEOPTION_START_OFFSET_PRECEDING)
+			{
+				deparseExpr((Expr *) wc->startOffset, context);
+				appendStringInfoString(buf, " PRECEDING");
+			}
+			else if (wc->frameOptions & FRAMEOPTION_START_OFFSET_FOLLOWING)
+			{
+				deparseExpr((Expr *) wc->startOffset, context);
+				appendStringInfoString(buf, " FOLLOWING");
+			}
+		}
+	}
+
+	appendStringInfoChar(buf, ')');
 }
 
 static void
