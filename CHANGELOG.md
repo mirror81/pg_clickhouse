@@ -7,12 +7,25 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.6] — Unreleased
+## [v0.1.6] — 2026-04-02
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
 *   Added support for the PostgreSQL `to_timestamp(float8)` function, mapped to
     `fromUnixTimestamp(toInt64())` in ClickHouse.
+
+### 🪲 Bug Fixes
+
+*   Disabled query pushdown for JSONB subscript syntax (e.g.,
+    `col_name['field']`) for now. Thanks Kaushik Iska for the PR (#161).
+*   Added query cancellation via Ctrl-C and `statement_timeout` to the binary
+    driver. Thanks Kaushik Iska for the PR (#162) that fixed this issue (#41).
+*   Fixed `LIKE`, `ILIKE`, and regex operator pushdown, including `~~*`,
+    `!~~*`, `~`, `!~`, `~*`, `!~*`. Thanks Kaushik Iska for the PR (#164).
 
   [v0.1.6]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.5...v0.1.6
 
