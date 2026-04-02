@@ -300,6 +300,8 @@ typedef enum
 	CF_REGEX_NO_MATCH,			/* !~ POSIX regex operator */
 	CF_REGEX_ICASE_MATCH,		/* ~* case-insensitive regex operator */
 	CF_REGEX_ICASE_NO_MATCH,	/* !~* case-insensitive regex operator */
+	CF_JSONB_FETCHVAL,			/* -> operator on jsonb */
+	CF_JSONB_FETCHVAL_TEXT,		/* ->> operator on jsonb */
 }			custom_object_type;
 
 typedef enum

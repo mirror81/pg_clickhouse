@@ -2745,6 +2745,45 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 					goto cleanup;
 				}
 				break;
+			case CF_JSONB_FETCHVAL:
+			case CF_JSONB_FETCHVAL_TEXT:
+				{
+					Expr	   *arg1 = linitial(node->args);
+					Expr	   *arg2 = lsecond(node->args);
+
+					/*
+					 * Convert jsonb ->> 'key' to ClickHouse dot notation:
+					 * column.key Convert jsonb -> 'key' to JSON-wrapped dot
+					 * notation: toJSONString(column.key) The -> operator
+					 * returns jsonb, so we need to wrap the result with
+					 * toJSONString() for type compatibility.
+					 */
+					if (IsA(arg2, Const))
+					{
+						Const	   *key = (Const *) arg2;
+
+						if (key->consttype == TEXTOID && !key->constisnull)
+						{
+							char	   *keyval = TextDatumGetCString(key->constvalue);
+
+							if (cdef->cf_type == CF_JSONB_FETCHVAL)
+								appendStringInfoString(buf, "toJSONString(");
+
+							deparseExpr(arg1, context);
+							appendStringInfoChar(buf, '.');
+							appendStringInfoString(buf,
+												   quote_identifier(keyval));
+
+							if (cdef->cf_type == CF_JSONB_FETCHVAL)
+								appendStringInfoChar(buf, ')');
+
+							pfree(keyval);
+							goto cleanup;
+						}
+					}
+					/* Non-text key: fall through to standard deparse */
+				}
+				break;
 			default: /* keep compiler quiet */ ;
 		}
 	}

@@ -9,12 +9,19 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.7] — Unreleased
 
+### ⚡ Improvements
+
+*   Added mapping for the `JSON` and `JSONB` `-> TEXT` and `->> TEXT`
+    operators to be passed down to ClickHouse using its [sub-column syntax]
+
 ### 📔 Notes
 
 *   Eliminated use of a constant that required libcurl 7.87.0, restoring
     support for earlier versions.
 
   [v0.1.7]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.7
+  https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
+    "ClickHouse Docs: Reading JSON paths as sub-columns"
 
 ## [v0.1.6] — 2026-04-02
 

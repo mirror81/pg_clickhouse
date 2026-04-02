@@ -363,23 +363,37 @@ chfdw_check_for_custom_type(Oid typeoid)
 }
 
 /*
+ * Operator-name to custom_object_type mapping table, searched linearly by
+ * classify_builtin_operator().  Keep in sync with the CF_* enum in fdw.h.
+ */
+typedef struct
+{
+	const char *oprname;
+	custom_object_type ctype;
+}			BuiltinOperatorMap;
+
+static const BuiltinOperatorMap builtin_operator_map[] = {
+	{"~", CF_REGEX_MATCH},
+	{"!~", CF_REGEX_NO_MATCH},
+	{"~*", CF_REGEX_ICASE_MATCH},
+	{"!~*", CF_REGEX_ICASE_NO_MATCH},
+	{"->", CF_JSONB_FETCHVAL},
+	{"->>", CF_JSONB_FETCHVAL_TEXT},
+};
+
+/*
  * Map a builtin operator name to its custom_object_type.  Returns CF_USUAL
  * when the operator needs no special handling and should follow the normal
  * builtin shortcut (i.e. be presumed shippable with no rewrite).
- *
- * Keep this function in sync with the CF_* enum in fdw.h.
  */
 static custom_object_type
 classify_builtin_operator(const char *oprname)
 {
-	if (strcmp(oprname, "~") == 0)
-		return CF_REGEX_MATCH;
-	if (strcmp(oprname, "!~") == 0)
-		return CF_REGEX_NO_MATCH;
-	if (strcmp(oprname, "~*") == 0)
-		return CF_REGEX_ICASE_MATCH;
-	if (strcmp(oprname, "!~*") == 0)
-		return CF_REGEX_ICASE_NO_MATCH;
+	for (int i = 0; i < lengthof(builtin_operator_map); i++)
+	{
+		if (strcmp(oprname, builtin_operator_map[i].oprname) == 0)
+			return builtin_operator_map[i].ctype;
+	}
 	return CF_USUAL;
 }
 
