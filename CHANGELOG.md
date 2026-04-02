@@ -7,6 +7,15 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.7] — Unreleased
+
+### 📔 Notes
+
+*   Eliminated use of a constant that required libcurl 7.87.0, restoring
+    support for earlier versions.
+
+  [v0.1.7]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.7
+
 ## [v0.1.6] — 2026-04-02
 
 This release makes binary-only changes. Once installed, any existing use of

@@ -11,6 +11,10 @@
 
 #define DATABASE_HEADER "X-ClickHouse-Database"
 
+#ifndef CURL_WRITEFUNC_ERROR
+#define CURL_WRITEFUNC_ERROR 0xFFFFFFFF
+#endif
+
 static char curl_error_buffer[CURL_ERROR_SIZE];
 static bool curl_error_happened = false;
 static long curl_verbose = 0;
