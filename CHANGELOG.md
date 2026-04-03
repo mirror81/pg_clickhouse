@@ -18,10 +18,13 @@ All notable changes to this project will be documented in this file. It uses the
     `jsonb_extract_path()` to ClickHouse [sub-column syntax]. Thanks Kaushik
     Iska for the PR ([#176]).
 
-### 🪲 Bug Fixes
+### 🐛 Bug Fixes
 
 *   Improved memory management, fixing potential crashes in out of memory
     situations. Thanks to Philip Dubé for the PRs ([#173], [#173]).
+*   Fixed issue where the `-Merge` suffix was not consistently appended to
+    aggregates on `AggregateFunction` columns. Thanks to Philip Dubé for the
+    PR ([#179]).
 
 ### 📔 Notes
 
@@ -39,6 +42,8 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#173 ch_http_simple_query: return NULL on OOM"
   [#178]: https://github.com/ClickHouse/pg_clickhouse/pull/178
     "pg_clickhouse#178 pglink.c: handle OOM preventing error being set"
+  [#179]: https://github.com/ClickHouse/pg_clickhouse/pull/179
+    "pg_clickhouse#179 Fix appending Merge suffix incorrectly"
 
 ## [v0.1.6] — 2026-04-02
 

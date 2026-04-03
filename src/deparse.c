@@ -65,12 +65,6 @@ typedef struct foreign_glob_cxt
 								 * scan */
 }			foreign_glob_cxt;
 
-typedef struct foreign_loc_cxt
-{
-	bool		found_AggregateFunction;	/* indicator or CH
-											 * AggregateFunction fields */
-}			foreign_loc_cxt;
-
 /*
  * Context for deparseExpr
  */
@@ -109,8 +103,7 @@ do { \
  * remote server.
  */
 static bool foreign_expr_walker(Node * node,
-								foreign_glob_cxt * glob_cxt,
-								foreign_loc_cxt * outer_cxt);
+								foreign_glob_cxt * glob_cxt);
 static char *deparse_type_name(Oid type_oid, int32 typemod);
 
 /*
@@ -223,7 +216,6 @@ chfdw_is_foreign_expr(PlannerInfo * root,
 					  Expr * expr)
 {
 	foreign_glob_cxt glob_cxt;
-	foreign_loc_cxt loc_cxt = {false};
 	CHFdwRelationInfo *fpinfo = (CHFdwRelationInfo *) (baserel->fdw_private);
 
 	/*
@@ -243,7 +235,7 @@ chfdw_is_foreign_expr(PlannerInfo * root,
 	else
 		glob_cxt.relids = baserel->relids;
 
-	if (!foreign_expr_walker((Node *) expr, &glob_cxt, &loc_cxt))
+	if (!foreign_expr_walker((Node *) expr, &glob_cxt))
 		return false;
 
 	/* OK to evaluate on the remote server */
@@ -276,8 +268,6 @@ chfdw_is_equal_op(Oid opno)
 /*
  * Check if expression is safe to execute remotely, and return true if so.
  *
- * In addition, *outer_cxt is updated with collation information.
- *
  * We must check that the expression contains only node types we can deparse,
  * that all types/functions/operators are safe to send (they are "shippable"),
  * and that all collations used in the expression derive from Vars of the
@@ -288,12 +278,10 @@ chfdw_is_equal_op(Oid opno)
  */
 static bool
 foreign_expr_walker(Node * node,
-					foreign_glob_cxt * glob_cxt,
-					foreign_loc_cxt * outer_cxt)
+					foreign_glob_cxt * glob_cxt)
 {
 	bool		check_type = true;
 	CHFdwRelationInfo *fpinfo;
-	foreign_loc_cxt inner_cxt = {false};
 
 	/* Need do nothing for empty subexpressions */
 	if (node == NULL)
@@ -318,9 +306,6 @@ foreign_expr_walker(Node * node,
 				if (bms_is_member(var->varno, glob_cxt->relids) &&
 					var->varlevelsup == 0)
 				{
-					RangeTblEntry *rte;
-					CustomColumnInfo *cinfo;
-
 					/* Var belongs to foreign table */
 
 					/*
@@ -331,17 +316,6 @@ foreign_expr_walker(Node * node,
 					 */
 					if (var->varattno < 0)
 						return false;
-
-					rte = planner_rt_fetch(var->varno, glob_cxt->root);
-					cinfo = chfdw_get_custom_column_info(rte->relid, var->varattno);
-
-					/*
-					 * If this T_Var column is an aggregate function column,
-					 * tell the outer context as much, so that it propagates
-					 * to its parent `T_Aggref`, if any.
-					 */
-					if (cinfo && cinfo->is_AggregateFunction == CF_AGGR_FUNC)
-						outer_cxt->found_AggregateFunction = true;
 				}
 			}
 			break;
@@ -385,21 +359,17 @@ foreign_expr_walker(Node * node,
 				if (ar->refcontainertype == JSONBOID)
 					return false;
 
-				/*
-				 * Recurse to remaining subexpressions. Since the array
-				 * subscripts must yield (noncollatable) integers, they won't
-				 * affect the inner_cxt state.
-				 */
+				/* Recurse to remaining subexpressions. */
 				if (!foreign_expr_walker((Node *) ar->refupperindexpr,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 
 				if (!foreign_expr_walker((Node *) ar->reflowerindexpr,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 
 				if (!foreign_expr_walker((Node *) ar->refexpr,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 			}
 			break;
@@ -433,7 +403,7 @@ foreign_expr_walker(Node * node,
 
 					/* Only recurse on the column expression. */
 					if (!foreign_expr_walker((Node *) linitial(fe->args),
-											 glob_cxt, &inner_cxt))
+											 glob_cxt))
 						return false;
 					break;
 				}
@@ -446,7 +416,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) fe->args,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 			}
 			break;
@@ -468,7 +438,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) oe->args,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 			}
 			break;
@@ -483,7 +453,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) oe->args,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 			}
 			break;
@@ -495,7 +465,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpression.
 				 */
 				if (!foreign_expr_walker((Node *) r->arg,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 				{
 					return false;
 				}
@@ -509,7 +479,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) b->args,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 				{
 					return false;
 				}
@@ -523,7 +493,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) nt->arg,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 				{
 					return false;
 				}
@@ -537,7 +507,7 @@ foreign_expr_walker(Node * node,
 				 * Recurse to input subexpressions.
 				 */
 				if (!foreign_expr_walker((Node *) a->elements,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 				{
 					return false;
 				}
@@ -554,7 +524,7 @@ foreign_expr_walker(Node * node,
 				foreach(lc, l)
 				{
 					if (!foreign_expr_walker((Node *) lfirst(lc),
-											 glob_cxt, &inner_cxt))
+											 glob_cxt))
 					{
 						return false;
 					}
@@ -606,25 +576,13 @@ foreign_expr_walker(Node * node,
 						n = (Node *) tle->expr;
 					}
 
-					/*
-					 * Walk the inner node and determine if the inner T_Var is
-					 * an AggregateFunction. If so, we'll append "Merge" to
-					 * the function call in deparseAggref.
-					 */
-					inner_cxt.found_AggregateFunction = false;
-					if (!foreign_expr_walker(n, glob_cxt, &inner_cxt))
+					if (!foreign_expr_walker(n, glob_cxt))
 						return false;
-
-					if (inner_cxt.found_AggregateFunction)
-						agg->location = -2;
-
-					/* Prevent propagating to earlier nodes. */
-					inner_cxt.found_AggregateFunction = false;
 				}
 
 				/* Check aggregate filter */
 				if (!foreign_expr_walker((Node *) agg->aggfilter,
-										 glob_cxt, &inner_cxt))
+										 glob_cxt))
 					return false;
 			}
 			break;
@@ -633,19 +591,19 @@ foreign_expr_walker(Node * node,
 				CaseExpr   *caseexpr = (CaseExpr *) node;
 				ListCell   *lc;
 
-				if (!foreign_expr_walker((Node *) caseexpr->arg, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) caseexpr->arg, glob_cxt))
 					return true;
 
 				foreach(lc, caseexpr->args)
 				{
 					CaseWhen   *when = lfirst_node(CaseWhen, lc);
 
-					if (!foreign_expr_walker((Node *) when->expr, glob_cxt, &inner_cxt))
+					if (!foreign_expr_walker((Node *) when->expr, glob_cxt))
 						return false;
-					if (!foreign_expr_walker((Node *) when->result, glob_cxt, &inner_cxt))
+					if (!foreign_expr_walker((Node *) when->result, glob_cxt))
 						return false;
 				}
-				if (!foreign_expr_walker((Node *) caseexpr->defresult, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) caseexpr->defresult, glob_cxt))
 					return false;
 			}
 			break;
@@ -653,7 +611,7 @@ foreign_expr_walker(Node * node,
 			{
 				CoalesceExpr *ce = (CoalesceExpr *) node;
 
-				if (!foreign_expr_walker((Node *) ce->args, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) ce->args, glob_cxt))
 					return false;
 			}
 			break;
@@ -661,7 +619,7 @@ foreign_expr_walker(Node * node,
 			{
 				MinMaxExpr *me = (MinMaxExpr *) node;
 
-				if (!foreign_expr_walker((Node *) me->args, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) me->args, glob_cxt))
 					return false;
 			}
 			break;
@@ -669,7 +627,7 @@ foreign_expr_walker(Node * node,
 			{
 				CoerceViaIO *me = (CoerceViaIO *) node;
 
-				if (!foreign_expr_walker((Node *) me->arg, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) me->arg, glob_cxt))
 					return false;
 			}
 			break;
@@ -677,7 +635,7 @@ foreign_expr_walker(Node * node,
 			{
 				RowExpr    *me = (RowExpr *) node;
 
-				if (!foreign_expr_walker((Node *) me->args, glob_cxt, &inner_cxt))
+				if (!foreign_expr_walker((Node *) me->args, glob_cxt))
 					return false;
 			}
 			break;
@@ -701,9 +659,6 @@ foreign_expr_walker(Node * node,
 		return false;
 	}
 
-	/* It looks OK; propagate found_AggregateFunction to the previous node. */
-	if (inner_cxt.found_AggregateFunction)
-		outer_cxt->found_AggregateFunction = true;
 	return true;
 }
 
@@ -3301,6 +3256,59 @@ appendAggOrderBy(List * orderList, List * targetList, deparse_expr_cxt * context
 }
 
 /*
+ * Check if Aggref operates on a ClickHouse AggregateFunction column.
+ *
+ * ClickHouse AggregateFunction columns store partially aggregated state
+ * (e.g., AggregateFunction(sum, Int64)) that must be finalized with a
+ * -Merge suffix (e.g., sumMerge) instead of plain aggregate.
+ *
+ * Walks Vars in node->args checking if any Var belongs to foreign scan relation
+ * and has "aggregatefunction" FDW column option set.
+ */
+static bool
+aggref_on_aggregate_function(Aggref * node, deparse_expr_cxt * context)
+{
+	List	   *vars = pull_var_clause((Node *) node->args, 0);
+	ListCell   *lc;
+	Relids		relids = context->scanrel->relids;
+	bool		found = false;
+
+	foreach(lc, vars)
+	{
+		Var		   *var = (Var *) lfirst(lc);
+
+		if (bms_is_member(var->varno, relids) && var->varlevelsup == 0)
+		{
+			RangeTblEntry *rte = planner_rt_fetch(var->varno, context->root);
+
+			/*
+			 * Check FDW column options directly rather than relying on
+			 * custom_columns_cache, which can be invalidated between
+			 * GetForeignRelSize and deparse.
+			 */
+			List	   *options = GetForeignColumnOptions(rte->relid,
+														  var->varattno);
+			ListCell   *olc;
+
+			foreach(olc, options)
+			{
+				DefElem    *def = (DefElem *) lfirst(olc);
+
+				if (strcmp(def->defname, "aggregatefunction") == 0)
+				{
+					found = true;
+					break;
+				}
+			}
+			if (found)
+				break;
+		}
+	}
+	list_free(vars);
+	return found;
+}
+
+/*
  * Deparse an Aggref node.
  */
 static void
@@ -3329,8 +3337,7 @@ deparseAggref(Aggref * node, deparse_expr_cxt * context)
 	if (context->func && context->func->cf_type == CF_SIGN_COUNT && !node->aggstar)
 		sign_count_filter = true;
 
-	/* We use this field as indicator of aggregate functions */
-	if (node->location == -2)
+	if (aggref_on_aggregate_function(node, context))
 		appendStringInfoString(buf, "Merge");
 
 	if (node->aggfilter || sign_count_filter)
