@@ -18,6 +18,11 @@ All notable changes to this project will be documented in this file. It uses the
     `jsonb_extract_path()` to ClickHouse [sub-column syntax]. Thanks Kaushik
     Iska for the PR ([#176]).
 
+### 🪲 Bug Fixes
+
+*   Improved memory management, fixing potential crashes in out of memory
+    situations. Thanks to Philip Dubé for the PRs ([#173], [#173]).
+
 ### 📔 Notes
 
 *   Eliminated use of a constant that required libcurl 7.87.0, restoring
@@ -30,6 +35,10 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#169 Push down jsonb -> and ->> operators as ClickHouse dot notation"
   [#176]: https://github.com/ClickHouse/pg_clickhouse/pull/176
     "pg_clickhouse#176 Pushdown jsonb_extract_path_text and jsonb_extract_path"
+  [#173]: https://github.com/ClickHouse/pg_clickhouse/pull/173
+    "pg_clickhouse#173 ch_http_simple_query: return NULL on OOM"
+  [#178]: https://github.com/ClickHouse/pg_clickhouse/pull/178
+    "pg_clickhouse#178 pglink.c: handle OOM preventing error being set"
 
 ## [v0.1.6] — 2026-04-02
 

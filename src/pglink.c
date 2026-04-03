@@ -196,7 +196,11 @@ http_simple_query(void *conn, const ch_query * query)
 again:
 	resp = ch_http_simple_query(conn, query);
 	if (resp == NULL)
-		elog(ERROR, "out of memory");
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				 errmsg("out of memory")));
+	}
 
 	attempts++;
 	if (resp->http_status == 419)
@@ -614,14 +618,22 @@ chfdw_binary_connect(ch_connection_details * details)
 
 	if (conn == NULL)
 	{
-		Assert(ch_error);
-		char	   *error = pstrdup(ch_error);
+		if (ch_error == NULL)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+					 errmsg("out of memory")));
+		}
+		else
+		{
+			char	   *error = pstrdup(ch_error);
 
-		free(ch_error);
+			free(ch_error);
 
-		ereport(ERROR,
-				(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-				 errmsg("pg_clickhouse: connection error: %s", error)));
+			ereport(ERROR,
+					(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+					 errmsg("pg_clickhouse: connection error: %s", error)));
+		}
 	}
 
 	res.conn = conn;
