@@ -1097,6 +1097,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 		Datum	   *dvalues;
 		bool		first = true;
 
+		CHECK_FOR_INTERRUPTS();
 		if (table_name == NULL)
 			continue;
 
