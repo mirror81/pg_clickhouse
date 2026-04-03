@@ -28,6 +28,7 @@
 #include "nodes/primnodes.h"
 #include "optimizer/tlist.h"
 #include "parser/parsetree.h"
+#include "utils/array.h"
 #include "utils/arrayaccess.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
@@ -407,16 +408,38 @@ foreign_expr_walker(Node * node,
 				CustomObjectDef *cdef = NULL;
 				FuncExpr   *fe = (FuncExpr *) node;
 
-				/* not in ClickHouse */
-				if (fe->funcvariadic)
-					return false;
-
 				/*
 				 * If function used by the expression is not shippable, it
 				 * can't be sent to remote because it might have incompatible
 				 * semantics on remote side.
 				 */
 				if (!chfdw_is_shippable(fe->funcid, ProcedureRelationId, fpinfo, &cdef))
+					return false;
+
+				/*
+				 * jsonb_extract_path_text / jsonb_extract_path are always
+				 * presented by the planner in variadic form: two args where
+				 * the second is a text[] constant.  Allow them through the
+				 * variadic gate; only recurse on the column argument.
+				 */
+				if (cdef &&
+					(cdef->cf_type == CF_JSONB_EXTRACT_PATH_TEXT ||
+					 cdef->cf_type == CF_JSONB_EXTRACT_PATH))
+				{
+					if (list_length(fe->args) != 2 ||
+						!IsA(lsecond(fe->args), Const) ||
+						((Const *) lsecond(fe->args))->constisnull)
+						return false;
+
+					/* Only recurse on the column expression. */
+					if (!foreign_expr_walker((Node *) linitial(fe->args),
+											 glob_cxt, &inner_cxt))
+						return false;
+					break;
+				}
+
+				/* Other variadic functions are not in ClickHouse. */
+				if (fe->funcvariadic)
 					return false;
 
 				/*
@@ -2352,6 +2375,50 @@ deparseSubscriptingRef(SubscriptingRef * node, deparse_expr_cxt * context)
 }
 
 /*
+ * Deparse jsonb_extract_path_text() / jsonb_extract_path() into ClickHouse
+ * JSON dot notation.
+ *
+ *   jsonb_extract_path_text(col, 'k1', 'k2') → col."k1"."k2"
+ *   jsonb_extract_path(col, 'k1')            → toJSONString(col."k1")
+ *
+ * The planner presents these in variadic form: two args where the second
+ * is a text[] constant holding the path keys.
+ */
+static void
+deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
+						bool wrap_json)
+{
+	StringInfo	buf = context->buf;
+	Const	   *arr = (Const *) lsecond(node->args);
+	ArrayType  *array;
+	Datum	   *elems;
+	bool	   *nulls;
+	int			nelems;
+
+	if (wrap_json)
+		appendStringInfoString(buf, "toJSONString(");
+
+	/* First arg is the JSONB column expression. */
+	deparseExpr((Expr *) linitial(node->args), context);
+
+	/* Second arg is text[] with path keys → dot notation. */
+	array = DatumGetArrayTypeP(arr->constvalue);
+	deconstruct_array(array, TEXTOID, -1, false, TYPALIGN_INT,
+					  &elems, &nulls, &nelems);
+
+	for (int i = 0; i < nelems; i++)
+	{
+		char	   *key = TextDatumGetCString(elems[i]);
+
+		appendStringInfoChar(buf, '.');
+		appendStringInfoString(buf, quote_identifier(key));
+	}
+
+	if (wrap_json)
+		appendStringInfoChar(buf, ')');
+}
+
+/*
  * Deparse a function call.
  */
 static void
@@ -2396,6 +2463,15 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	 * Normal function: display as proname(args).
 	 */
 	cdef = appendFunctionName(node->funcid, context);
+
+	if (cdef && (cdef->cf_type == CF_JSONB_EXTRACT_PATH_TEXT ||
+				 cdef->cf_type == CF_JSONB_EXTRACT_PATH))
+	{
+		deparseJsonbExtractPath(node, context,
+								cdef->cf_type == CF_JSONB_EXTRACT_PATH);
+		return;
+	}
+
 	if (cdef && cdef->cf_type == CF_DATE_TRUNC)
 	{
 		Const	   *arg = (Const *) linitial(node->args);

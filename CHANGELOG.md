@@ -12,7 +12,11 @@ All notable changes to this project will be documented in this file. It uses the
 ### ⚡ Improvements
 
 *   Added mapping for the `JSON` and `JSONB` `-> TEXT` and `->> TEXT`
-    operators to be passed down to ClickHouse using its [sub-column syntax]
+    operators to be passed down to ClickHouse using its [sub-column syntax].
+    Thanks Kaushik Iska for the PR ([#169]).
+*   Added pushdown support for `jsonb_extract_path_text()` and
+    `jsonb_extract_path()` to ClickHouse [sub-column syntax]. Thanks Kaushik
+    Iska for the PR ([#176]).
 
 ### 📔 Notes
 
@@ -22,6 +26,10 @@ All notable changes to this project will be documented in this file. It uses the
   [v0.1.7]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.7
   https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
     "ClickHouse Docs: Reading JSON paths as sub-columns"
+  [#169]: https://github.com/ClickHouse/pg_clickhouse/pull/169
+    "pg_clickhouse#169 Push down jsonb -> and ->> operators as ClickHouse dot notation"
+  [#176]: https://github.com/ClickHouse/pg_clickhouse/pull/176
+    "pg_clickhouse#176 Pushdown jsonb_extract_path_text and jsonb_extract_path"
 
 ## [v0.1.6] — 2026-04-02
 

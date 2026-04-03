@@ -302,6 +302,9 @@ typedef enum
 	CF_REGEX_ICASE_NO_MATCH,	/* !~* case-insensitive regex operator */
 	CF_JSONB_FETCHVAL,			/* -> operator on jsonb */
 	CF_JSONB_FETCHVAL_TEXT,		/* ->> operator on jsonb */
+	CF_JSONB_EXTRACT_PATH_TEXT, /* jsonb_extract_path_text() → col."k1"."k2" */
+	CF_JSONB_EXTRACT_PATH,		/* jsonb_extract_path() →
+								 * toJSONString(col."k1"."k2") */
 }			custom_object_type;
 
 typedef enum

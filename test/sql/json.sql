@@ -164,6 +164,65 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'key/with!special@chars#' = 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.special_keys WHERE data ->> '123numeric' = 'num';
 
+-- =======================================================================
+-- jsonb_extract_path_text / jsonb_extract_path pushdown
+-- =======================================================================
+
+-- Create a table with nested JSON for multi-level path tests.
+SELECT clickhouse_raw_query($$
+    CREATE TABLE json_test.events (
+        id         UInt32,
+        event_name String,
+        props      JSON
+    ) ENGINE = MergeTree ORDER BY (event_name, id);
+$$);
+SELECT clickhouse_raw_query($$
+    INSERT INTO json_test.events VALUES
+        (1, 'order', '{"customerId": "C100", "address": {"city": "Paris", "zip": "75001"}}'),
+        (2, 'order', '{"customerId": "C200", "address": {"city": "London", "zip": "SW1A"}}');
+$$);
+
+CREATE FOREIGN TABLE json_http_events (
+    id         integer,
+    event_name text,
+    props      jsonb
+) SERVER http_json_loopback OPTIONS (table_name 'events');
+
+-- Target-list: jsonb_extract_path_text is evaluated locally (like -> / ->>).
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path_text(props, 'customerId') FROM json_http_events;
+SELECT jsonb_extract_path_text(props, 'customerId') FROM json_http_events ORDER BY id;
+
+-- Target-list: multi-level path, still evaluated locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path_text(props, 'address', 'city') FROM json_http_events;
+SELECT jsonb_extract_path_text(props, 'address', 'city') FROM json_http_events ORDER BY id;
+
+-- Target-list: jsonb_extract_path (returns jsonb, not text), evaluated locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path(props, 'address') FROM json_http_events;
+
+-- WHERE: single-level jsonb_extract_path_text pushes down as dot notation.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'customerId') = 'C100';
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'customerId') = 'C100';
+
+-- WHERE: multi-level jsonb_extract_path_text pushes down as dot notation.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'address', 'city') = 'Paris';
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'address', 'city') = 'Paris';
+
+-- WHERE: jsonb_extract_path pushes down with toJSONString wrapping.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path(props, 'address', 'city') = '"Paris"'::jsonb;
+
+DROP FOREIGN TABLE json_http_events;
+
 SELECT clickhouse_raw_query('DROP DATABASE json_test');
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_json_loopback;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_json_loopback;

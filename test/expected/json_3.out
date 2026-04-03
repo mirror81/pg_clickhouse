@@ -314,6 +314,123 @@ SELECT * FROM json_http.special_keys WHERE data ->> '123numeric' = 'num';
    Remote SQL: SELECT id, data FROM json_test.special_keys WHERE ((data."123numeric" = 'num'))
 (3 rows)
 
+-- =======================================================================
+-- jsonb_extract_path_text / jsonb_extract_path pushdown
+-- =======================================================================
+-- Create a table with nested JSON for multi-level path tests.
+SELECT clickhouse_raw_query($$
+    CREATE TABLE json_test.events (
+        id         UInt32,
+        event_name String,
+        props      JSON
+    ) ENGINE = MergeTree ORDER BY (event_name, id);
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    INSERT INTO json_test.events VALUES
+        (1, 'order', '{"customerId": "C100", "address": {"city": "Paris", "zip": "75001"}}'),
+        (2, 'order', '{"customerId": "C200", "address": {"city": "London", "zip": "SW1A"}}');
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+CREATE FOREIGN TABLE json_http_events (
+    id         integer,
+    event_name text,
+    props      jsonb
+) SERVER http_json_loopback OPTIONS (table_name 'events');
+-- Target-list: jsonb_extract_path_text is evaluated locally (like -> / ->>).
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path_text(props, 'customerId') FROM json_http_events;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: jsonb_extract_path_text(props, VARIADIC '{customerId}'::text[])
+   Remote SQL: SELECT props FROM json_test.events
+(3 rows)
+
+SELECT jsonb_extract_path_text(props, 'customerId') FROM json_http_events ORDER BY id;
+ERROR:  invalid input syntax for type json
+DETAIL:  Token "(" is invalid.
+CONTEXT:  JSON data, line 1: (...
+-- Target-list: multi-level path, still evaluated locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path_text(props, 'address', 'city') FROM json_http_events;
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: jsonb_extract_path_text(props, VARIADIC '{address,city}'::text[])
+   Remote SQL: SELECT props FROM json_test.events
+(3 rows)
+
+SELECT jsonb_extract_path_text(props, 'address', 'city') FROM json_http_events ORDER BY id;
+ERROR:  invalid input syntax for type json
+DETAIL:  Token "(" is invalid.
+CONTEXT:  JSON data, line 1: (...
+-- Target-list: jsonb_extract_path (returns jsonb, not text), evaluated locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT jsonb_extract_path(props, 'address') FROM json_http_events;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: jsonb_extract_path(props, VARIADIC '{address}'::text[])
+   Remote SQL: SELECT props FROM json_test.events
+(3 rows)
+
+-- WHERE: single-level jsonb_extract_path_text pushes down as dot notation.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'customerId') = 'C100';
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: id
+   Remote SQL: SELECT id FROM json_test.events WHERE ((props."customerId" = 'C100'))
+(3 rows)
+
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'customerId') = 'C100';
+ id 
+----
+  1
+(1 row)
+
+-- WHERE: multi-level jsonb_extract_path_text pushes down as dot notation.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'address', 'city') = 'Paris';
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: id
+   Remote SQL: SELECT id FROM json_test.events WHERE ((props.address.city = 'Paris'))
+(3 rows)
+
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path_text(props, 'address', 'city') = 'Paris';
+ id 
+----
+  1
+(1 row)
+
+-- WHERE: jsonb_extract_path pushes down with toJSONString wrapping.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM json_http_events
+WHERE jsonb_extract_path(props, 'address', 'city') = '"Paris"'::jsonb;
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.json_http_events
+   Output: id
+   Remote SQL: SELECT id FROM json_test.events WHERE ((toJSONString(props.address.city) = '"Paris"'))
+(3 rows)
+
+DROP FOREIGN TABLE json_http_events;
 SELECT clickhouse_raw_query('DROP DATABASE json_test');
  clickhouse_raw_query 
 ----------------------

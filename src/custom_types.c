@@ -202,6 +202,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_MD5_BYTEA:
 			case F_MD5_TEXT:
 			case F_TO_TIMESTAMP_FLOAT8:
+			case F_JSONB_EXTRACT_PATH:
+			case F_JSONB_EXTRACT_PATH_TEXT:
 				special_builtin = true;
 				break;
 			default:
@@ -297,6 +299,18 @@ chfdw_check_for_custom_function(Oid funcid)
 					 */
 					strcpy(entry->custom_name, "fromUnixTimestamp(toInt64");
 					entry->paren_count = 2;
+					break;
+				}
+			case F_JSONB_EXTRACT_PATH_TEXT:
+				{
+					entry->cf_type = CF_JSONB_EXTRACT_PATH_TEXT;
+					entry->custom_name[0] = '\1';
+					break;
+				}
+			case F_JSONB_EXTRACT_PATH:
+				{
+					entry->cf_type = CF_JSONB_EXTRACT_PATH;
+					entry->custom_name[0] = '\1';
 					break;
 				}
 		}

@@ -180,6 +180,22 @@ chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 			return (cdef->cf_type != CF_UNSHIPPABLE);
 	}
 
+	/*
+	 * For procedures, check for custom overrides before the builtin shortcut
+	 * so the caller gets the CustomObjectDef it needs for deparse.
+	 */
+	if (classId == ProcedureRelationId && chfdw_is_builtin(objectId))
+	{
+		CustomObjectDef *cdef = chfdw_check_for_custom_function(objectId);
+
+		if (cdef)
+		{
+			if (outcdef != NULL)
+				*outcdef = cdef;
+			return (cdef->cf_type != CF_UNSHIPPABLE);
+		}
+	}
+
 	/* Built-in objects are presumed shippable. */
 	if (chfdw_is_builtin(objectId))
 		return true;
