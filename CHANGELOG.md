@@ -23,6 +23,12 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added mappings to push down the Postgres `statement_timestamp()`,
     `transaction_timestamp()`, and `clock_timestamp()` functions to to
     [nowInBlock64][] (requires ClickHouse 25.8 or higher).
+*   Pushdown window functions (`ROW_NUMBER`, `RANK`, `DENSE_RANK`, `LEAD`,
+    `LAG`, `FIRST_VALUE`, `LAST_VALUE`, `NTH_VALUE`, `NTILE`, `CUME_DIST`,
+    `PERCENT_RANK`, `MIN`/`MAX OVER`) to ClickHouse instead of computing
+    them locally. Thanks Kaushik Iska for the PR ([#175]).
+*   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as
+    `groupBitOr`, and `string_agg` as `groupConcat` to ClickHouse.
 
 ### 🐛 Bug Fixes
 
@@ -31,6 +37,13 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed issue where the `-Merge` suffix was not consistently appended to
     aggregates on `AggregateFunction` columns. Thanks to Philip Dubé for the
     PR ([#179]).
+*   Fixed `NTILE`, `CUME_DIST`, and `PERCENT_RANK` pushdown failing because
+    the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that
+    ClickHouse rejects for ranking functions.
+*   `string_agg`, `regr_avgx`, `regr_avgy`, `regr_count`,
+    `regr_intercept`, `regr_r2`, `regr_slope`, `regr_sxx`, `regr_sxy`,
+    `regr_syy`, `json_agg_strict`, and `jsonb_agg_strict` now evaluate
+    locally instead of being pushed to ClickHouse where they would fail.
 
 ### 📔 Notes
 
@@ -50,6 +63,8 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#173 ch_http_simple_query: return NULL on OOM"
   [#178]: https://github.com/ClickHouse/pg_clickhouse/pull/178
     "pg_clickhouse#178 pglink.c: handle OOM preventing error being set"
+  [#175]: https://github.com/ClickHouse/pg_clickhouse/pull/175
+    "pg_clickhouse#175 Pushdown window functions"
   [#179]: https://github.com/ClickHouse/pg_clickhouse/pull/179
     "pg_clickhouse#179 Fix appending Merge suffix incorrectly"
   [now64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64

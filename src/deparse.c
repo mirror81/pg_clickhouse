@@ -47,6 +47,34 @@
 
 #include "fdw.h"
 
+/*
+ * Prior to PostgreSQL 14 these fmgroids had different names or were
+ * not generated.  Window functions used F_WINDOW_ prefix; aggregate
+ * OIDs were not emitted at all so must use raw values.
+ */
+#if PG_VERSION_NUM < 140000
+#define F_ROW_NUMBER F_WINDOW_ROW_NUMBER
+#define F_RANK_ F_WINDOW_RANK
+#define F_DENSE_RANK_ F_WINDOW_DENSE_RANK
+#define F_PERCENT_RANK_ F_WINDOW_PERCENT_RANK
+#define F_CUME_DIST_ F_WINDOW_CUME_DIST
+#define F_NTILE F_WINDOW_NTILE
+#define F_BOOL_AND 2517
+#define F_BOOL_OR 2518
+#define F_EVERY 2519
+#define F_STRING_AGG_TEXT_TEXT 3538
+#define F_STRING_AGG_BYTEA_BYTEA 3545
+#define F_REGR_COUNT 2818
+#define F_REGR_SXX 2819
+#define F_REGR_SYY 2820
+#define F_REGR_SXY 2821
+#define F_REGR_AVGX 2822
+#define F_REGR_AVGY 2823
+#define F_REGR_R2 2824
+#define F_REGR_SLOPE 2825
+#define F_REGR_INTERCEPT 2826
+#endif
+
 #ifndef MAXINT8LEN
 #define MAXINT8LEN		25
 #endif
@@ -567,6 +595,26 @@ foreign_expr_walker(Node * node,
 				if (agg->aggfnoid == F_STRING_AGG_TEXT_TEXT
 					&& agg->aggorder != NIL)
 					return false;
+
+				/* Block aggregates with no ClickHouse equivalent */
+				switch (agg->aggfnoid)
+				{
+					case F_STRING_AGG_BYTEA_BYTEA:
+					case F_REGR_COUNT:
+					case F_REGR_SXX:
+					case F_REGR_SYY:
+					case F_REGR_SXY:
+					case F_REGR_AVGX:
+					case F_REGR_AVGY:
+					case F_REGR_R2:
+					case F_REGR_SLOPE:
+					case F_REGR_INTERCEPT:
+#if PG_VERSION_NUM >= 160000
+					case F_JSON_AGG_STRICT:
+					case F_JSONB_AGG_STRICT:
+#endif
+						return false;
+				}
 
 				/*
 				 * Recurse to input args. aggdirectargs, aggorder and
@@ -3665,13 +3713,19 @@ deparseWindowFunc(WindowFunc * node, deparse_expr_cxt * context)
 	}
 
 	/*
-	 * Frame clause.  We only emit non-default frames.  The default is RANGE
-	 * BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW when there is an ORDER BY,
-	 * or RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING when there
-	 * is no ORDER BY.
+	 * Frame clause.  Skip for ranking functions (row_number, rank,
+	 * dense_rank, ntile, cume_dist, percent_rank) since ClickHouse does not
+	 * accept frame specifications for these.  For other functions, emit
+	 * non-default frames only.
 	 */
-	if (wc->frameOptions != (FRAMEOPTION_DEFAULTS | FRAMEOPTION_NONDEFAULT) &&
-		(wc->frameOptions & FRAMEOPTION_NONDEFAULT))
+	if (node->winfnoid != F_ROW_NUMBER
+		&& node->winfnoid != F_RANK_
+		&& node->winfnoid != F_DENSE_RANK_
+		&& node->winfnoid != F_NTILE
+		&& node->winfnoid != F_CUME_DIST_
+		&& node->winfnoid != F_PERCENT_RANK_
+		&& wc->frameOptions != (FRAMEOPTION_DEFAULTS | FRAMEOPTION_NONDEFAULT)
+		&& (wc->frameOptions & FRAMEOPTION_NONDEFAULT))
 	{
 		appendStringInfoChar(buf, ' ');
 
@@ -4091,34 +4145,44 @@ appendFunctionName(Oid funcid, deparse_expr_cxt * context)
 	if (chfdw_is_builtin(funcid) && procform->prokind == PROKIND_AGGREGATE
 		&& fpinfo->ch_table_engine == CH_COLLAPSING_MERGE_TREE)
 	{
-		cdef = palloc(sizeof(CustomObjectDef));
-		cdef->cf_oid = funcid;
-
 		if (strcmp(proname, "sum") == 0)
+		{
+			cdef = palloc(sizeof(CustomObjectDef));
+			cdef->cf_oid = funcid;
 			cdef->cf_type = CF_SIGN_SUM;
+		}
 		else if (strcmp(proname, "avg") == 0)
 		{
+			cdef = palloc(sizeof(CustomObjectDef));
+			cdef->cf_oid = funcid;
 			cdef->cf_type = CF_SIGN_AVG;;
 			proname = "sum";
 		}
 		else if (strcmp(proname, "count") == 0)
 		{
+			cdef = palloc(sizeof(CustomObjectDef));
+			cdef->cf_oid = funcid;
 			cdef->cf_type = CF_SIGN_COUNT;
 			proname = "sum";
 		}
-		else
-		{
-			pfree(cdef);
-			cdef = NULL;
-		}
 	}
 
-	if (funcid == F_STRING_AGG_TEXT_TEXT)
+	/* Map PG aggregate names to ClickHouse equivalents */
+	switch (funcid)
 	{
-		proname = "groupConcat";
-		cdef = palloc0(sizeof(CustomObjectDef));
-		cdef->cf_oid = funcid;
-		cdef->cf_type = CF_STRING_AGG;
+		case F_BOOL_AND:
+		case F_EVERY:
+			proname = "groupBitAnd";
+			break;
+		case F_BOOL_OR:
+			proname = "groupBitOr";
+			break;
+		case F_STRING_AGG_TEXT_TEXT:
+			proname = "groupConcat";
+			cdef = palloc0(sizeof(CustomObjectDef));
+			cdef->cf_oid = funcid;
+			cdef->cf_type = CF_STRING_AGG;
+			break;
 	}
 
 	/* Always print the function name */

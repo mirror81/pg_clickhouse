@@ -90,7 +90,7 @@
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'lead' does not exists. In scope SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'
+ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function lead
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 -- LEAD pushdown (http)
            QUERY PLAN            
@@ -99,7 +99,7 @@ DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITIO
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: Code: 63. DB::Exception: Aggregate function with name 'lead' does not exists. In scope SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'. (UNKNOWN_AGGREGATE_FUNCTION)
+ERROR:  pg_clickhouse: Code: 63. DB::Exception: Unknown aggregate function lead. (UNKNOWN_AGGREGATE_FUNCTION)
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 CONTEXT:  HTTP status code: 404
 -- ntile pushdown (binary)
@@ -125,7 +125,7 @@ CONTEXT:  HTTP status code: 404
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'cume_dist' does not exists. In scope SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE event_name = 'lead_created' ORDER BY amount ASC NULLS LAST
+ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function cume_dist
 DETAIL:  Remote Query: SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY amount ASC NULLS LAST
 -- percent_rank pushdown (binary)
            QUERY PLAN            
@@ -134,7 +134,7 @@ DETAIL:  Remote Query: SELECT entity_id, amount, cume_dist() OVER (ORDER BY amou
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'percent_rank' does not exists. In scope SELECT entity_id, amount, percent_rank() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE event_name = 'lead_created' ORDER BY amount ASC NULLS LAST
+ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function percent_rank
 DETAIL:  Remote Query: SELECT entity_id, amount, percent_rank() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY amount ASC NULLS LAST
 -- ROW_NUMBER + ORDER BY pushdown (binary)
            QUERY PLAN            

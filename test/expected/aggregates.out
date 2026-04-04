@@ -1274,5 +1274,72 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
  2025-12-07 | /users, /users/802683, /search
 (3 rows)
 
+-- bool_and pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_and 
+----------
+ t
+(1 row)
+
+-- bool_or pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_or 
+---------
+ t
+(1 row)
+
+-- every pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ every 
+-------
+ t
+(1 row)
+
+-- bool_and pushdown (http)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_and 
+----------
+ t
+(1 row)
+
+-- bool_or pushdown (http)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_or 
+---------
+ t
+(1 row)
+
+-- regr_slope local fallback
+         QUERY PLAN         
+----------------------------
+ Aggregate
+   ->  Foreign Scan on hits
+(2 rows)
+
 NOTICE:  drop cascades to foreign table agg_bin.hits
 NOTICE:  drop cascades to foreign table agg_http.hits

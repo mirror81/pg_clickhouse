@@ -215,7 +215,9 @@ window_functions.sql
 
  ClickHouse | File
 ------------|----------------------------
- 25.4+      | window_functions.out
+ 26+        | window_functions.out
+ 25.4-25.8  | window_functions_4.out
  24.8-25.3  | window_functions_1.out
  24.3       | window_functions_2.out
- 23         | window_functions_3.out
+ 23.8       | window_functions_5.out
+ 23.3       | window_functions_3.out

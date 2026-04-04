@@ -392,6 +392,42 @@ SELECT datestamp, string_agg(path, ', ') FROM agg_bin.hits
     WHERE datestamp BETWEEN '2025-12-05' AND '2025-12-07'
     GROUP BY datestamp ORDER BY datestamp;
 
+-- bool_and / bool_or / every pushdown
+\echo -- bool_and pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT bool_and(duration > 0) FROM agg_bin.hits;
+
+SELECT bool_and(duration > 0) FROM agg_bin.hits;
+
+\echo -- bool_or pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT bool_or(duration > 5000) FROM agg_bin.hits;
+
+SELECT bool_or(duration > 5000) FROM agg_bin.hits;
+
+\echo -- every pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT every(cost > 0) FROM agg_bin.hits;
+
+SELECT every(cost > 0) FROM agg_bin.hits;
+
+\echo -- bool_and pushdown (http)
+EXPLAIN (COSTS OFF)
+SELECT bool_and(duration > 0) FROM agg_http.hits;
+
+SELECT bool_and(duration > 0) FROM agg_http.hits;
+
+\echo -- bool_or pushdown (http)
+EXPLAIN (COSTS OFF)
+SELECT bool_or(duration > 5000) FROM agg_http.hits;
+
+SELECT bool_or(duration > 5000) FROM agg_http.hits;
+
+-- regr_* local fallback (not pushed)
+\echo -- regr_slope local fallback
+EXPLAIN (COSTS OFF)
+SELECT regr_slope(cost::float8, duration::float8) FROM agg_bin.hits;
+
 -- Clean up.
 DROP USER MAPPING FOR CURRENT_USER SERVER agg_bin_svr;
 DROP SERVER agg_bin_svr CASCADE;

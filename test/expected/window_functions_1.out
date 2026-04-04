@@ -102,6 +102,47 @@ DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITIO
 ERROR:  pg_clickhouse: Code: 63. DB::Exception: Aggregate function with name 'lead' does not exist. In scope SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'. (UNKNOWN_AGGREGATE_FUNCTION)
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 CONTEXT:  HTTP status code: 404
+-- ntile pushdown (binary)
+           QUERY PLAN            
+---------------------------------
+ Foreign Scan
+   Relations: Window on (events)
+(2 rows)
+
+ entity_id |        ts_event        | bucket 
+-----------+------------------------+--------
+ lead_100  | 2026-03-01 10:00:00+00 |      1
+ lead_300  | 2026-03-05 08:00:00+00 |      1
+ lead_200  | 2026-03-10 09:00:00+00 |      1
+ lead_100  | 2026-03-15 14:00:00+00 |      2
+ lead_200  | 2026-03-20 11:00:00+00 |      2
+(5 rows)
+
+-- cume_dist pushdown (binary)
+           QUERY PLAN            
+---------------------------------
+ Foreign Scan
+   Relations: Window on (events)
+(2 rows)
+
+ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'cume_dist' does not exist. In scope SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE event_name = 'lead_created' ORDER BY amount ASC NULLS LAST
+DETAIL:  Remote Query: SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY amount ASC NULLS LAST
+-- percent_rank pushdown (binary)
+           QUERY PLAN            
+---------------------------------
+ Foreign Scan
+   Relations: Window on (events)
+(2 rows)
+
+ entity_id | amount |  pr  
+-----------+--------+------
+ lead_100  |    100 |    0
+ lead_200  |    150 | 0.25
+ lead_100  |    200 |  0.5
+ lead_300  |    250 | 0.75
+ lead_200  |    300 |    1
+(5 rows)
+
 -- ROW_NUMBER + ORDER BY pushdown (binary)
            QUERY PLAN            
 ---------------------------------

@@ -130,6 +130,51 @@ FROM wf_http.events
 WHERE event_name = 'lead_created';
 
 -- ============================================================
+-- Ranking window functions (ntile, cume_dist, percent_rank)
+-- ============================================================
+\echo -- ntile pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, ts_event,
+       ntile(2) OVER (ORDER BY ts_event) AS bucket
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY ts_event;
+
+SELECT entity_id, ts_event,
+       ntile(2) OVER (ORDER BY ts_event) AS bucket
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY ts_event;
+
+\echo -- cume_dist pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, amount,
+       cume_dist() OVER (ORDER BY amount) AS cd
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY amount;
+
+SELECT entity_id, amount,
+       cume_dist() OVER (ORDER BY amount) AS cd
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY amount;
+
+\echo -- percent_rank pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, amount,
+       percent_rank() OVER (ORDER BY amount) AS pr
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY amount;
+
+SELECT entity_id, amount,
+       percent_rank() OVER (ORDER BY amount) AS pr
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY amount;
+
+-- ============================================================
 -- ORDER BY pushdown with window functions
 -- ============================================================
 \echo -- ROW_NUMBER + ORDER BY pushdown (binary)
