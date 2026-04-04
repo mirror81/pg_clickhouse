@@ -1264,5 +1264,72 @@ CONTEXT:  HTTP status code: 404
 
 ERROR:  pg_clickhouse: DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE (datestamp >= '2025-12-05') AND (datestamp <= '2025-12-07') GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST. Maybe you meant: ['mapConcat','arrayConcat']
 DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE ((datestamp >= '2025-12-05')) AND ((datestamp <= '2025-12-07')) GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
+-- bool_and pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_and 
+----------
+ t
+(1 row)
+
+-- bool_or pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_or 
+---------
+ t
+(1 row)
+
+-- every pushdown (binary)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ every 
+-------
+ t
+(1 row)
+
+-- bool_and pushdown (http)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_and 
+----------
+ t
+(1 row)
+
+-- bool_or pushdown (http)
+            QUERY PLAN            
+----------------------------------
+ Foreign Scan
+   Relations: Aggregate on (hits)
+(2 rows)
+
+ bool_or 
+---------
+ t
+(1 row)
+
+-- regr_slope local fallback
+         QUERY PLAN         
+----------------------------
+ Aggregate
+   ->  Foreign Scan on hits
+(2 rows)
+
 NOTICE:  drop cascades to foreign table agg_bin.hits
 NOTICE:  drop cascades to foreign table agg_http.hits

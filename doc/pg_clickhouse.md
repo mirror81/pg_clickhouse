@@ -1,4 +1,4 @@
-pg_clickhouse 0.1.6
+pg_clickhouse 0.1.7
 ===================
 
 ## Synopsis
@@ -1061,9 +1061,12 @@ These PostgreSQL aggregate functions pushdown to ClickHouse.
 
 *   [array_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparray)
 *   [avg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/avg)
+*   [bool_and / every](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitand)
+*   [bool_or](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitor)
 *   [count](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/count)
 *   [min](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/min)
 *   [max](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/max)
+*   [string_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupconcat)
 
 ### Custom Aggregates
 
@@ -1105,6 +1108,32 @@ are not supported and will raise an error.
 *   `percentile_cont(double)`: [quantile](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantile)
 *   `quantile(double)`: [quantile](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantile)
 *   `quantileExact(double)`: [quantileExact](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantileexact)
+
+### Pushdown Window Functions
+
+These PostgreSQL [window functions] push down to ClickHouse with `OVER
+(PARTITION BY ... ORDER BY ...)` clauses, including frame specifications where
+applicable.
+
+*   [row_number](https://clickhouse.com/docs/sql-reference/window-functions#row_number)
+*   [rank](https://clickhouse.com/docs/sql-reference/window-functions#rank)
+*   [dense_rank](https://clickhouse.com/docs/sql-reference/window-functions#dense_rank)
+*   [ntile](https://clickhouse.com/docs/sql-reference/window-functions#ntile)
+*   [cume_dist](https://clickhouse.com/docs/sql-reference/window-functions#cume_dist)
+*   [percent_rank](https://clickhouse.com/docs/sql-reference/window-functions#percent_rank)
+*   [lead](https://clickhouse.com/docs/sql-reference/window-functions#lead)
+*   [lag](https://clickhouse.com/docs/sql-reference/window-functions#lag)
+*   [first_value](https://clickhouse.com/docs/sql-reference/window-functions#first_value)
+*   [last_value](https://clickhouse.com/docs/sql-reference/window-functions#last_value)
+*   [nth_value](https://clickhouse.com/docs/sql-reference/window-functions#nth_value)
+*   `min` / `max` (with `OVER` clause)
+
+Ranking functions (`row_number`, `rank`, `dense_rank`, `ntile`, `cume_dist`,
+`percent_rank`) omit their frame clause during pushdown because ClickHouse
+rejects frame specifications on these functions.
+
+  [window functions]: https://www.postgresql.org/docs/current/functions-window.html
+    "PostgreSQL Docs: Window Functions"
 
 ## Authors
 
