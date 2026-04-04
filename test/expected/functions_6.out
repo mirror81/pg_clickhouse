@@ -1486,12 +1486,8 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
- a | b |          c          
----+---+---------------------
- 1 | 1 | 2019-01-01 02:00:00
- 2 | 2 | 2019-01-02 02:00:00
-(2 rows)
-
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
                                     QUERY PLAN                                    
 ----------------------------------------------------------------------------------
@@ -1501,12 +1497,8 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
- a | b |          c          
----+---+---------------------
- 1 | 1 | 2019-01-01 02:00:00
- 2 | 2 | 2019-01-02 02:00:00
-(2 rows)
-
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
                                     QUERY PLAN                                    
 ----------------------------------------------------------------------------------
@@ -1516,12 +1508,8 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
- a | b |          c          
----+---+---------------------
- 1 | 1 | 2019-01-01 02:00:00
- 2 | 2 | 2019-01-02 02:00:00
-(2 rows)
-
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 

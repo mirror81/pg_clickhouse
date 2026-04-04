@@ -71,8 +71,12 @@ functions.sql
  13       | functions_2.out
 
  ClickHouse | File
-------------|---------------
- 22+        | functions.out
+------------|-----------------
+ 25.8+      | functions.out
+ 25.3       | functions_3.out
+ 24.8       | functions_4.out
+ 24.3       | functions_5.out
+ 23         | functions_6.out
 
 http.sql
 --------

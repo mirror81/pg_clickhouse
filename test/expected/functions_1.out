@@ -76,6 +76,12 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t6 (i64 Int64, f64 Floa
  
 (1 row)
 
+SELECT clickhouse_raw_query('CREATE TABLE functions_test.t7(dt Date) engine=TinyLog();');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
 		('2025-10-15T20:12:25'),
@@ -84,6 +90,20 @@ SELECT clickhouse_raw_query($$
 		('2028-01-18T23:15:28'),
 		('2029-02-19T01:16:29'),
 		('2030-03-20T02:16:30')
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+	INSERT INTO functions_test.t7 VALUES
+		('2025-10-15'),
+		('2024-11-16'),
+		('2023-12-17'),
+		('2022-01-18'),
+		('2021-02-19'),
+		('2020-03-20')
 $$);
  clickhouse_raw_query 
 ----------------------
@@ -109,6 +129,7 @@ CREATE FOREIGN TABLE t3_map (key1 int, key2 text, val text) SERVER functions_loo
 CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
+CREATE FOREIGN TABLE t7 (ts date) SERVER functions_loopback;
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
 	SELECT number+1, number+2
@@ -1435,6 +1456,67 @@ SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
  2042323443 | 2042323443.232
 (1 row)
 
+-- Check current date/time functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < NOW();
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < NOW() ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 
@@ -1443,7 +1525,7 @@ SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 (1 row)
 
 DROP SERVER functions_loopback CASCADE;
-NOTICE:  drop cascades to 7 other objects
+NOTICE:  drop cascades to 8 other objects
 DETAIL:  drop cascades to foreign table t1
 drop cascades to foreign table t2
 drop cascades to foreign table t3
@@ -1451,3 +1533,4 @@ drop cascades to foreign table t3_map
 drop cascades to foreign table t4
 drop cascades to foreign table t5
 drop cascades to foreign table t6
+drop cascades to foreign table t7

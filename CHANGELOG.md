@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added pushdown support for `jsonb_extract_path_text()` and
     `jsonb_extract_path()` to ClickHouse [sub-column syntax]. Thanks Kaushik
     Iska for the PR ([#176]).
+*   Added mapping to push down `now()` to [now64] rather than [now], as
+    previously, because PostgreSQL's `now()` produces sub-second precision, so
+    should its clickHouse equivalent.
+*   Added mappings to push down the Postgres `statement_timestamp()`,
+    `transaction_timestamp()`, and `clock_timestamp()` functions to to
+    [nowInBlock64][] (requires ClickHouse 25.8 or higher).
 
 ### 🐛 Bug Fixes
 
@@ -44,6 +50,8 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#178 pglink.c: handle OOM preventing error being set"
   [#179]: https://github.com/ClickHouse/pg_clickhouse/pull/179
     "pg_clickhouse#179 Fix appending Merge suffix incorrectly"
+  [now64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64
+  [nowInBlock64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64
 
 ## [v0.1.6] — 2026-04-02
 

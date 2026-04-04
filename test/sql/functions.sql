@@ -32,6 +32,7 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t3_map (key1 Int32, key
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t4 (val String) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t5 (ts DateTime) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t6 (i64 Int64, f64 Float64) engine=TinyLog();');
+SELECT clickhouse_raw_query('CREATE TABLE functions_test.t7(dt Date) engine=TinyLog();');
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
@@ -41,6 +42,16 @@ SELECT clickhouse_raw_query($$
 		('2028-01-18T23:15:28'),
 		('2029-02-19T01:16:29'),
 		('2030-03-20T02:16:30')
+$$);
+
+SELECT clickhouse_raw_query($$
+	INSERT INTO functions_test.t7 VALUES
+		('2025-10-15'),
+		('2024-11-16'),
+		('2023-12-17'),
+		('2022-01-18'),
+		('2021-02-19'),
+		('2020-03-20')
 $$);
 
 SELECT clickhouse_raw_query($$
@@ -58,6 +69,7 @@ CREATE FOREIGN TABLE t3_map (key1 int, key2 text, val text) SERVER functions_loo
 CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
+CREATE FOREIGN TABLE t7 (ts date) SERVER functions_loopback;
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
@@ -308,6 +320,16 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(i64) = to_times
 SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(2042323443);
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
 SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
+
+-- Check current date/time functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < NOW();
+SELECT * FROM t1 WHERE c < NOW() ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
+SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
+SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
+SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');

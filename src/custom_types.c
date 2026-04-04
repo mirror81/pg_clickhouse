@@ -39,6 +39,7 @@
 #define F_PERCENTILE_CONT_FLOAT8_INTERVAL 3976
 #define F_ARRAY_AGG_ANYNONARRAY 2335
 #define F_TO_TIMESTAMP_FLOAT8 1158
+#define F_TRANSACTION_TIMESTAMP 2647
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -204,6 +205,10 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_TO_TIMESTAMP_FLOAT8:
 			case F_JSONB_EXTRACT_PATH:
 			case F_JSONB_EXTRACT_PATH_TEXT:
+			case F_NOW:
+			case F_STATEMENT_TIMESTAMP:
+			case F_TRANSACTION_TIMESTAMP:
+			case F_CLOCK_TIMESTAMP:
 				special_builtin = true;
 				break;
 			default:
@@ -311,6 +316,22 @@ chfdw_check_for_custom_function(Oid funcid)
 				{
 					entry->cf_type = CF_JSONB_EXTRACT_PATH;
 					entry->custom_name[0] = '\1';
+					break;
+				}
+			case F_NOW:
+				{
+					/*
+					 * Postgres NOW() produces subsecond precision, to map to
+					 * now64()
+					 */
+					strcpy(entry->custom_name, "now64");
+					break;
+				}
+			case F_STATEMENT_TIMESTAMP:
+			case F_TRANSACTION_TIMESTAMP:
+			case F_CLOCK_TIMESTAMP:
+				{
+					strcpy(entry->custom_name, "nowInBlock64");
 					break;
 				}
 		}
