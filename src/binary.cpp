@@ -174,8 +174,7 @@ extern "C"
 		if (resp->error)
 			return;
 
-		resp->error = (char *)malloc(strlen(str) + 1);
-		strcpy(resp->error, str);
+		resp->error = strdup(str);
 	}
 
 	/*
@@ -214,8 +213,7 @@ extern "C"
 	set_state_error(ch_binary_read_state_t *state, const char *str)
 	{
 		assert(state->error == NULL);
-		state->error = (char *)malloc(strlen(str) + 1);
-		strcpy(state->error, str);
+		state->error = strdup(str);
 	}
 
 	ch_binary_response_t *

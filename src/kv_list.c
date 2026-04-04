@@ -65,11 +65,14 @@ extern kv_list * new_kv_list_from_pg_list(List * list, int allocate)
 		/* Append the element name and arg that constitute the pair. */
 		elem = (DefElem *) lfirst(lc);
 		str = (char *) pairs->data + ck_size;
-		strcpy(str, elem->defname);
-		ck_size += strlen(str) + 1;
+		size_t		len = strlen(elem->defname) + 1;
+
+		memcpy(str, elem->defname, len);
+		ck_size += len;
 		str = (char *) pairs->data + ck_size;
-		strcpy(str, strVal(elem->arg));
-		ck_size += strlen(str) + 1;
+		len = strlen(strVal(elem->arg)) + 1;
+		memcpy(str, strVal(elem->arg), len);
+		ck_size += len;
 	}
 
 	/* Assert the two loops agreed on size calculations. */

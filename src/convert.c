@@ -302,7 +302,6 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 		}
 		else if (outtype == BOOLOID && intype == INT2OID)
 		{
-			val = BoolGetDatum(val);
 			state->func = convert_bool;
 		}
 		else

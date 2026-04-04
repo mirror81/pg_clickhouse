@@ -366,7 +366,7 @@ chfdw_check_for_custom_function(Oid funcid)
 			{
 				/* pg_clickhouse custom functions. */
 				entry->cf_type = CF_CH_FUNCTION;
-				strcpy(entry->custom_name, ch_func_name(proname));
+				strlcpy(entry->custom_name, ch_func_name(proname), NAMEDATALEN);
 			}
 			ReleaseSysCache(proctup);
 			pfree(extname);
@@ -551,7 +551,7 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 				fpinfo->ch_table_engine = CH_COLLAPSING_MERGE_TREE;
 				strncpy(sign, start + 1, end - start - 1);
 				sign[end - start - 1] = '\0';
-				strcpy(fpinfo->ch_table_sign_field, ch_quote_ident(sign));
+				strlcpy(fpinfo->ch_table_sign_field, ch_quote_ident(sign), CH_ESCAPED_NAMEDATALEN);
 			}
 			else if (strncasecmp(val, aggregating_text, strlen(aggregating_text)) == 0)
 			{
@@ -586,7 +586,7 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 		entry->table_engine = fpinfo->ch_table_engine;
 		entry->coltype = CF_USUAL;
 		entry->is_AggregateFunction = CF_AGGR_USUAL;
-		strcpy(entry->colname, NameStr(attr->attname));
+		strlcpy(entry->colname, NameStr(attr->attname), NAMEDATALEN);
 
 		/* If a column has the column_name FDW option, use that value */
 		options = GetForeignColumnOptions(relid, attnum);

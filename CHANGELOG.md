@@ -36,6 +36,8 @@ All notable changes to this project will be documented in this file. It uses the
 
 *   Eliminated use of a constant that required libcurl 7.87.0, restoring
     support for earlier versions.
+*   Introduced clang-tidy and integrated it into `make lint` and for use in
+    CI. Thanks to Philip Dubé for the PR ([#177]).
 
   [v0.1.7]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.7
   https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
@@ -52,6 +54,8 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#179 Fix appending Merge suffix incorrectly"
   [now64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64
   [nowInBlock64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64
+  [#177]: https://github.com/ClickHouse/pg_clickhouse/pull/177
+    "pg_clickhouse#177 clang-tidy static analysis"
 
 ## [v0.1.6] — 2026-04-02
 
