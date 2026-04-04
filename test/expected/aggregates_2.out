@@ -1220,11 +1220,8 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
    Remote SQL: SELECT groupConcat('|')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 (4 rows)
 
-                                   string_agg                                    
----------------------------------------------------------------------------------
- /users/283434|/users/802683|/search|/users/283434|/users/7392323|/users/7392323
-(1 row)
-
+ERROR:  pg_clickhouse: DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT groupConcat('|')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'. Maybe you meant: ['mapConcat','arrayConcat']
+DETAIL:  Remote Query: SELECT groupConcat('|')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 -- string_agg pushdown (http)
                                             QUERY PLAN                                            
 --------------------------------------------------------------------------------------------------
@@ -1234,11 +1231,9 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
    Remote SQL: SELECT groupConcat('')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 (4 rows)
 
-                                 string_agg                                 
-----------------------------------------------------------------------------
- /users/283434/users/802683/search/users/283434/users/7392323/users/7392323
-(1 row)
-
+ERROR:  pg_clickhouse: Code: 46. DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT groupConcat('')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'. Maybe you meant: ['mapConcat','arrayConcat']. (UNKNOWN_FUNCTION)
+DETAIL:  Remote Query: SELECT groupConcat('')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
+CONTEXT:  HTTP status code: 404
 -- string_agg DISTINCT pushdown (binary)
                                                  QUERY PLAN                                                  
 -------------------------------------------------------------------------------------------------------------
@@ -1267,12 +1262,7 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
    Remote SQL: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE ((datestamp >= '2025-12-05')) AND ((datestamp <= '2025-12-07')) GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
 (4 rows)
 
- datestamp  |                                      string_agg                                      
-------------+--------------------------------------------------------------------------------------
- 2025-12-05 | /users/283434, /users/802683, /search, /users/283434, /users/7392323, /users/7392323
- 2025-12-06 | /users/7392323, /widgets/voluptatem, /users
- 2025-12-07 | /users, /users/802683, /search
-(3 rows)
-
+ERROR:  pg_clickhouse: DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE (datestamp >= '2025-12-05') AND (datestamp <= '2025-12-07') GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST. Maybe you meant: ['mapConcat','arrayConcat']
+DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE ((datestamp >= '2025-12-05')) AND ((datestamp <= '2025-12-07')) GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
 NOTICE:  drop cascades to foreign table agg_bin.hits
 NOTICE:  drop cascades to foreign table agg_http.hits

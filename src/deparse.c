@@ -51,6 +51,9 @@
 #define MAXINT8LEN		25
 #endif
 
+/* Aggregate OIDs absent from fmgroids.h on all PG versions. */
+#define F_STRING_AGG_TEXT_TEXT 3538
+
 /* variable counter */
 static uint32 var_counter = 0;
 
@@ -558,6 +561,11 @@ foreign_expr_walker(Node * node,
 					return false;
 
 				if (agg->aggdistinct && agg->aggfilter)
+					return false;
+
+				/* groupConcat has no ORDER BY; block ordered string_agg */
+				if (agg->aggfnoid == F_STRING_AGG_TEXT_TEXT
+					&& agg->aggorder != NIL)
 					return false;
 
 				/*
@@ -3372,6 +3380,40 @@ deparseAggref(Aggref * node, deparse_expr_cxt * context)
 		appendStringInfoString(buf, "If");
 	}
 
+	/*
+	 * groupConcat(delimiter)(expr): emit delimiter as parameterized arg, then
+	 * only the first non-junk arg (the expression).
+	 */
+	if (context->func && context->func->cf_type == CF_STRING_AGG)
+	{
+		ListCell   *arg;
+
+		/* Emit delimiter (2nd non-junk arg) as parameterized arg. */
+		appendStringInfoChar(buf, '(');
+		foreach(arg, node->args)
+		{
+			TargetEntry *tle = (TargetEntry *) lfirst(arg);
+
+			if (tle->resjunk)
+				continue;
+			if (arg == list_head(node->args))
+				continue;
+			deparseExpr((Expr *) tle->expr, context);
+			break;
+		}
+		appendStringInfoString(buf, ")(");
+
+		/* Emit expression (1st non-junk arg). */
+		if (node->aggdistinct != NIL)
+			appendStringInfoString(buf, "DISTINCT ");
+		deparseExpr((Expr *) ((TargetEntry *) linitial(node->args))->expr,
+					context);
+		appendStringInfoChar(buf, ')');
+
+		context->func = cdef;
+		return;
+	}
+
 	appendStringInfoChar(buf, '(');
 
 	/* Explained below. */
@@ -4069,6 +4111,14 @@ appendFunctionName(Oid funcid, deparse_expr_cxt * context)
 			pfree(cdef);
 			cdef = NULL;
 		}
+	}
+
+	if (funcid == F_STRING_AGG_TEXT_TEXT)
+	{
+		proname = "groupConcat";
+		cdef = palloc0(sizeof(CustomObjectDef));
+		cdef->cf_oid = funcid;
+		cdef->cf_type = CF_STRING_AGG;
 	}
 
 	/* Always print the function name */

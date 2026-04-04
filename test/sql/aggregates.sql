@@ -358,6 +358,40 @@ SELECT max(cost) FROM agg_bin.hits WHERE id < :id_limit;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT max(cost) FROM agg_http.hits WHERE cost < :id_limit;
 SELECT max(cost) FROM agg_http.hits WHERE id < :id_limit;
 
+-- string_agg() → groupConcat()
+\echo -- string_agg pushdown (binary)
+EXPLAIN (VERBOSE, COSTS OFF)
+    SELECT string_agg(path, '|') FROM agg_bin.hits
+    WHERE datestamp = '2025-12-05';
+SELECT string_agg(path, '|') FROM agg_bin.hits
+    WHERE datestamp = '2025-12-05';
+
+\echo -- string_agg pushdown (http)
+EXPLAIN (VERBOSE, COSTS OFF)
+    SELECT string_agg(path, '') FROM agg_http.hits
+    WHERE datestamp = '2025-12-05';
+SELECT string_agg(path, '') FROM agg_http.hits
+    WHERE datestamp = '2025-12-05';
+
+\echo -- string_agg DISTINCT pushdown (binary)
+EXPLAIN (VERBOSE, COSTS OFF)
+    SELECT string_agg(DISTINCT path, ', ') FROM agg_bin.hits
+    WHERE datestamp = '2025-12-05';
+
+\echo -- string_agg with ORDER BY falls back to local execution
+EXPLAIN (VERBOSE, COSTS OFF)
+    SELECT string_agg(path, ', ' ORDER BY path) FROM agg_bin.hits
+    WHERE datestamp = '2025-12-05';
+
+\echo -- string_agg per-group pushdown (binary)
+EXPLAIN (VERBOSE, COSTS OFF)
+    SELECT datestamp, string_agg(path, ', ') FROM agg_bin.hits
+    WHERE datestamp BETWEEN '2025-12-05' AND '2025-12-07'
+    GROUP BY datestamp ORDER BY datestamp;
+SELECT datestamp, string_agg(path, ', ') FROM agg_bin.hits
+    WHERE datestamp BETWEEN '2025-12-05' AND '2025-12-07'
+    GROUP BY datestamp ORDER BY datestamp;
+
 -- Clean up.
 DROP USER MAPPING FOR CURRENT_USER SERVER agg_bin_svr;
 DROP SERVER agg_bin_svr CASCADE;
