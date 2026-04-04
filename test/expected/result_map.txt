@@ -193,4 +193,14 @@ where_sub.sql
 
  ClickHouse | File
 ------------|-----------------
- 22+      | where_sub.out
+ 22+        | where_sub.out
+
+window_functions.sql
+--------------------
+
+ ClickHouse | File
+------------|----------------------------
+ 25.4+      | window_functions.out
+ 24.8-25.3  | window_functions_1.out
+ 24.3       | window_functions_2.out
+ 23         | window_functions_3.out

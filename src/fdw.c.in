@@ -2659,7 +2659,7 @@ add_foreign_window_paths(PlannerInfo * root, RelOptInfo * input_rel,
 										  rows,
 										  startup_cost,
 										  total_cost,
-										  NIL,  /* no pathkeys */
+										  NIL,	/* no pathkeys */
 										  NULL, /* no required_outer */
 										  NULL,
 										  NIL); /* no fdw_private */
@@ -2770,13 +2770,19 @@ add_foreign_ordered_paths(PlannerInfo * root, RelOptInfo * input_rel,
 		if (pathkey_ec->ec_has_volatile)
 			return;
 
-		/* Get the sort expression for the pathkey_ec */
+		/*
+		 * Get the sort expression for the pathkey_ec. Upper rels may have an
+		 * empty reltarget; use the planner's upper target for that stage
+		 * instead.
+		 */
 		sort_expr = chfdw_find_em_expr_for_input_target(root,
 														pathkey_ec,
-														input_rel->reltarget);
+														input_rel->reltarget->exprs != NIL
+														? input_rel->reltarget
+														: root->upper_targets[ifpinfo->stage]);
 
-		/* If it's unsafe to remote, we cannot push down the final sort */
-		if (!chfdw_is_foreign_expr(root, input_rel, sort_expr))
+		if (sort_expr == NULL ||
+			!chfdw_is_foreign_expr(root, input_rel, sort_expr))
 			return;
 	}
 
@@ -3069,8 +3075,7 @@ chfdw_find_em_expr_for_input_target(PlannerInfo * root,
 		i++;
 	}
 
-	elog(ERROR, "could not find pathkey item to sort");
-	return NULL;				/* keep compiler quiet */
+	return NULL;
 }
 
 static List *

@@ -129,6 +129,69 @@ SELECT entity_id, ts_event,
 FROM wf_http.events
 WHERE event_name = 'lead_created';
 
+-- ============================================================
+-- ORDER BY pushdown with window functions
+-- ============================================================
+\echo -- ROW_NUMBER + ORDER BY pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id;
+
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id;
+
+\echo -- ROW_NUMBER + ORDER BY pushdown (http)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_http.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id;
+
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_http.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id;
+
+\echo -- MIN/MAX OVER + ORDER BY pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, ts_event, amount,
+       min(amount) OVER (PARTITION BY entity_id) AS min_amount,
+       max(amount) OVER (PARTITION BY entity_id) AS max_amount
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id, ts_event;
+
+SELECT entity_id, ts_event, amount,
+       min(amount) OVER (PARTITION BY entity_id) AS min_amount,
+       max(amount) OVER (PARTITION BY entity_id) AS max_amount
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id, ts_event;
+
+\echo -- Window + ORDER BY + LIMIT pushdown (binary)
+EXPLAIN (COSTS OFF)
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id, ts_event
+LIMIT 3;
+
+SELECT entity_id, ts_event, amount,
+       row_number() OVER (PARTITION BY entity_id ORDER BY ts_event DESC) AS rn
+FROM wf_bin.events
+WHERE event_name = 'lead_created'
+ORDER BY entity_id, ts_event
+LIMIT 3;
+
 -- Clean up.
 SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS wf_test');
 DROP USER MAPPING FOR CURRENT_USER SERVER wf_bin_svr;

@@ -3946,11 +3946,16 @@ appendOrderByClause(List * pathkeys, bool has_final_sort,
 		{
 			/*
 			 * By construction, context->foreignrel is the input relation to
-			 * the final sort.
+			 * the final sort.  Upper rels may have an empty reltarget; fall
+			 * back to the planner's upper target for that stage.
 			 */
+			PathTarget *target = context->foreignrel->reltarget;
+
+			if (target->exprs == NIL)
+				target = context->root->upper_targets[fpinfo->stage];
 			em_expr = chfdw_find_em_expr_for_input_target(context->root,
 														  pathkey->pk_eclass,
-														  context->foreignrel->reltarget);
+														  target);
 		}
 		else if (IS_JOIN_REL(context->foreignrel) &&
 				 fpinfo->jointype == JOIN_SEMI)
