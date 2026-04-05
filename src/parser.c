@@ -125,8 +125,11 @@ ch_http_read_next(ch_http_read_state * state)
 		return CH_CONT;
 	}
 
-	/* Should be at the end of the line. */
-	Assert(data[state->curpos] == '\n');
+	/* Should be at the end of the line or the file. */
+	if (data[state->curpos] != '\n')
+	{
+		elog(ERROR, "Unexpected byte (%d) after array", data[state->curpos]);
+	}
 
 	state->curpos++;
 	if (state->curpos >= state->datalen)
