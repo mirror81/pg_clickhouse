@@ -50,10 +50,10 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed `NTILE`, `CUME_DIST`, and `PERCENT_RANK` pushdown failing because
     the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that
     ClickHouse rejects for ranking functions.
-*   `string_agg`, `regr_avgx`, `regr_avgy`, `regr_count`,
-    `regr_intercept`, `regr_r2`, `regr_slope`, `regr_sxx`, `regr_sxy`,
-    `regr_syy`, `json_agg_strict`, and `jsonb_agg_strict` now evaluate
-    locally instead of being pushed to ClickHouse where they would fail.
+*   `regr_avgx`, `regr_avgy`, `regr_count`, `regr_intercept`, `regr_r2`,
+    `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`, `json_agg_strict`,
+    and `jsonb_agg_strict` now evaluate locally instead of being pushed to
+    ClickHouse where they would fail.
 
 ### 📔 Notes
 
