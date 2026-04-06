@@ -68,6 +68,16 @@ CREATE FOREIGN TABLE ft1 (
 	c7 char(10) default 'ft1',
 	c8 text
 ) SERVER http_loopback OPTIONS (table_name 't1');
+CREATE FOREIGN TABLE ft1_stream (
+	c1 int NOT NULL,
+	c2 int NOT NULL,
+	c3 text,
+	c4 date,
+	c5 date,
+	c6 varchar(10),
+	c7 char(10) default 'ft1',
+	c8 text
+) SERVER http_loopback OPTIONS (table_name 't1', fetch_size '100');
 ALTER FOREIGN TABLE ft1 DROP COLUMN c0;
 CREATE FOREIGN TABLE ft2 (
 	c1 int NOT NULL,
@@ -141,10 +151,31 @@ SELECT c3, (c3 = '') AS true FROM ft3 WHERE c1 = 3;
 
 INSERT INTO ft4
 	SELECT id,
-	       id + 1,
-	       'AAA' || to_char(id, 'FM000'),
+		   id + 1,
+		   'AAA' || to_char(id, 'FM000'),
 		   (id % 2)::bool
 	FROM generate_series(1, 100) id;
+-- 15 rows with fetch_size 100 bytes forces multiple streaming batches.
+SELECT c1, c3 FROM ft1_stream WHERE c1 <= 15 ORDER BY c1;
+ c1 |  c3   
+----+-------
+  1 | 00001
+  2 | 00002
+  3 | 00003
+  4 | 00004
+  5 | 00005
+  6 | 00006
+  7 | 00007
+  8 | 00008
+  9 | 00009
+ 10 | 00010
+ 11 | 00011
+ 12 | 00012
+ 13 | 00013
+ 14 | 00014
+ 15 | 00015
+(15 rows)
+
 SELECT * FROM ft5 ORDER BY c1 LIMIT 5;
  c1 | c2 |   c3   | c4 
 ----+----+--------+----
@@ -802,6 +833,65 @@ SELECT * FROM bad_name;
 ERROR:  pg_clickhouse: unsupported line ending character in database name
 DETAIL:  Invalid database name: 'http_test
 X-My-Header: 123'
+/* ===== fetch_size option tests ===== */
+/* Server-level fetch_size: set to 0 to disable streaming. */
+CREATE SERVER http_no_stream FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', fetch_size '0');
+CREATE USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
+CREATE FOREIGN TABLE ft_no_stream (
+    c1 int NOT NULL,
+    c2 int NOT NULL,
+    c3 text
+) SERVER http_no_stream OPTIONS (table_name 't1');
+/* Query with streaming disabled (fetch_size = 0). */
+SELECT c3 FROM ft_no_stream ORDER BY c1 LIMIT 3;
+  c3   
+-------
+ 00001
+ 00002
+ 00003
+(3 rows)
+
+/* Table-level fetch_size overrides server-level. */
+CREATE FOREIGN TABLE ft_override_stream (
+    c1 int NOT NULL,
+    c2 int NOT NULL,
+    c3 text
+) SERVER http_no_stream OPTIONS (table_name 't1', fetch_size '100');
+/* Query with table-level streaming override (fetch_size = 100). */
+SELECT c3 FROM ft_override_stream ORDER BY c1 LIMIT 3;
+  c3   
+-------
+ 00001
+ 00002
+ 00003
+(3 rows)
+
+/* Default (no fetch_size set) uses streaming — already tested via ft1. */
+SELECT c3 FROM ft1 ORDER BY c1 LIMIT 3;
+  c3   
+-------
+ 00001
+ 00002
+ 00003
+(3 rows)
+
+/* Negative fetch_size should be rejected. */
+CREATE SERVER http_bad_fetch FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', fetch_size '-1');
+ERROR:  invalid value for option "fetch_size": -1
+HINT:  fetch_size must be greater than or equal to 0
+CREATE FOREIGN TABLE ft_bad_fetch (
+    c1 int NOT NULL,
+    c3 text
+) SERVER http_loopback OPTIONS (table_name 't1', fetch_size '-1');
+ERROR:  invalid value for option "fetch_size": -1
+HINT:  fetch_size must be greater than or equal to 0
+DROP USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
+DROP SERVER http_no_stream CASCADE;
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to foreign table ft_no_stream
+drop cascades to foreign table ft_override_stream
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback;
@@ -816,8 +906,9 @@ NOTICE:  drop cascades to foreign table bad_name
 DROP SERVER http_loopback2 CASCADE;
 NOTICE:  drop cascades to foreign table ft6
 DROP SERVER http_loopback CASCADE;
-NOTICE:  drop cascades to 6 other objects
+NOTICE:  drop cascades to 7 other objects
 DETAIL:  drop cascades to foreign table ft1
+drop cascades to foreign table ft1_stream
 drop cascades to foreign table ft2
 drop cascades to foreign table ft3
 drop cascades to foreign table ft4

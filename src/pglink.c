@@ -18,6 +18,7 @@
 
 #include "fdw.h"
 #include "http.h"
+#include "http_streaming.h"
 #include "binary.hh"
 
 #include <sys/stat.h>
@@ -28,12 +29,21 @@ static bool initialized = false;
 
 static void http_disconnect(void *conn);
 static ch_cursor * http_simple_query(void *conn, const ch_query * query);
+static ch_cursor * http_streaming_query(void *conn, const ch_query * query,
+										int32 fetch_size);
 static void http_simple_insert(void *conn, const ch_query * query);
 static void http_cursor_free(void *);
+static void http_streaming_cursor_free(void *);
 static Datum * http_fetch_row(ChFdwScanRowContext * ctx);
+static Datum * http_streaming_fetch_row(ChFdwScanRowContext * ctx);
+static Datum * http_fetch_row_from_state(ChFdwScanRowContext * ctx,
+										 ch_http_read_state * state);
 static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
 static void char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
+static bool http_value_is_null(const StringInfoData * value);
+static void report_http_stream_query_failure(void *conn, const ch_query * query,
+											 HttpStream * stream);
 
 static libclickhouse_methods http_methods =
 {
@@ -41,7 +51,9 @@ static libclickhouse_methods http_methods =
 		.simple_query = http_simple_query,
 		.fetch_row = http_fetch_row,
 		.prepare_insert = http_prepare_insert,
-		.insert_tuple = http_insert_tuple
+		.insert_tuple = http_insert_tuple,
+		.streaming_query = http_streaming_query,
+		.streaming_fetch_row = http_streaming_fetch_row,
 };
 
 static void binary_disconnect(void *conn);
@@ -64,7 +76,9 @@ static libclickhouse_methods binary_methods =
 		.simple_query = binary_simple_query,
 		.fetch_row = binary_fetch_row,
 		.prepare_insert = binary_prepare_insert,
-		.insert_tuple = binary_insert_tuple
+		.insert_tuple = binary_insert_tuple,
+		.streaming_query = NULL,
+		.streaming_fetch_row = NULL,
 };
 
 static int
@@ -182,6 +196,61 @@ kill_query(void *conn, const char *query_id)
 		ch_http_response_free(resp);
 }
 
+inline static bool
+http_value_is_null(const StringInfoData * value)
+{
+	return value->len == 2
+		&& value->data[0] == '\\'
+		&& value->data[1] == 'N';
+}
+
+static void
+report_http_stream_query_failure(void *conn, const ch_query * query,
+								 HttpStream * stream)
+{
+	long		status = ch_http_stream_status(stream);
+
+	PG_TRY();
+	{
+		if (status == CH_HTTP_STATUS_CANCELED)
+		{
+			char		qid[CH_HTTP_QUERY_ID_LEN];
+
+			memcpy(qid, ch_http_stream_query_id(stream), sizeof(qid));
+			kill_query(conn, qid);
+			ereport(ERROR,
+					(errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+					 errmsg("pg_clickhouse: query was aborted")));
+		}
+		else if (status == CH_HTTP_STATUS_TRANSPORT_ERROR)
+		{
+			const char *err = ch_http_stream_error(stream);
+
+			ereport(ERROR,
+					(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+					 errmsg("pg_clickhouse: communication error: %s",
+							err ? err : "connection error")));
+		}
+		else
+		{
+			char	   *error = pnstrdup(ch_http_stream_buffer(stream),
+										 ch_http_stream_available(stream));
+
+			ereport(ERROR,
+					(errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+					 errmsg("pg_clickhouse: %s", format_error(error)),
+					 status < 404 ? 0 : errdetail_internal("Remote Query: %.64000s",
+														   query->sql),
+					 errcontext("HTTP status code: %li", status)));
+		}
+	}
+	PG_FINALLY();
+	{
+		ch_http_stream_end(stream);
+	}
+	PG_END_TRY();
+}
+
 static ch_cursor *
 http_simple_query(void *conn, const ch_query * query)
 {
@@ -203,7 +272,7 @@ again:
 	}
 
 	attempts++;
-	if (resp->http_status == 419)
+	if (resp->http_status == CH_HTTP_STATUS_TRANSPORT_ERROR)
 	{
 		char	   *error = pnstrdup(resp->data, resp->datasize);
 
@@ -216,7 +285,7 @@ again:
 				(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
 				 errmsg("pg_clickhouse: communication error: %s", error)));
 	}
-	else if (resp->http_status == 418)
+	else if (resp->http_status == CH_HTTP_STATUS_CANCELED)
 	{
 		kill_query(conn, resp->query_id);
 		ch_http_response_free(resp);
@@ -225,7 +294,7 @@ again:
 				(errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
 				 errmsg("pg_clickhouse: query was aborted")));
 	}
-	else if (resp->http_status != 200)
+	else if (resp->http_status != CH_HTTP_STATUS_OK)
 	{
 		char	   *error = pnstrdup(resp->data, resp->datasize);
 		long		status = resp->http_status;
@@ -249,6 +318,7 @@ again:
 	oldcxt = MemoryContextSwitchTo(tempcxt);
 
 	cursor = palloc0(sizeof(ch_cursor));
+	cursor->conn = conn;
 	cursor->query_response = resp;
 	cursor->read_state = palloc0(sizeof(ch_http_read_state));
 	cursor->query = pstrdup(query->sql);
@@ -282,7 +352,7 @@ http_simple_insert(void *conn, const ch_query * query)
 				 errmsg("pg_clickhouse: communication error: %s", error)));
 	}
 
-	if (resp->http_status != 200)
+	if (resp->http_status != CH_HTTP_STATUS_OK)
 	{
 		char	   *error = pnstrdup(resp->data, resp->datasize);
 		long		status = resp->http_status;
@@ -300,35 +370,154 @@ http_simple_insert(void *conn, const ch_query * query)
 	ch_http_response_free(resp);
 }
 
-static void
+inline static void
 http_cursor_free(void *c)
 {
 	ch_http_response_free(((ch_cursor *) c)->query_response);
 }
 
+inline static void
+http_streaming_cursor_free(void *c)
+{
+	if (((ch_cursor *) c)->query_response)
+		ch_http_stream_end(((ch_cursor *) c)->query_response);
+}
+
 /*
- * Fetch a row from the http response and return its values.
- *
- * If ctx->tupdesc is set, ctx->attinmeta must also be set, and ctx->values
- * and ctx->nulls must already be palloc'd with space for ctx->tupdesc->natts
- * values.
- *
- * Use ctx->tupdesc and ctx->attinmeta to convert the values to the
- * appropriate Datums, and store them and the indication of their NULLness in
- * ctx->values and ctx->nulls, respectively, then return ctx->values.
- *
- * If ctx->tupdesc is not set, treat all values as text and return them as
- * text `Datum`s. This is the use case for `chfdw_construct_create_tables()`,
- * which only cares about text.
+ * Create a streaming cursor with row-aligned batches of ~fetch_size bytes
+ * via CURL pause/resume, keeping memory proportional to batch size.
+ */
+static ch_cursor *
+http_streaming_query(void *conn, const ch_query * query, int32 fetch_size)
+{
+	int			attempts = 0;
+	MemoryContext tempcxt = NULL,
+				oldcxt;
+	ch_cursor  *cursor;
+	HttpStream *stream;
+
+	ch_http_set_progress_func(http_progress_callback);
+
+again:
+	stream = ch_http_stream_begin(conn, query, fetch_size);
+	if (stream == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("pg_clickhouse: failed to initialize HTTP stream")));
+
+	attempts++;
+	if (ch_http_stream_status(stream) == CH_HTTP_STATUS_TRANSPORT_ERROR)
+	{
+		if (attempts < 3)
+		{
+			ch_http_stream_end(stream);
+			goto again;
+		}
+	}
+	if (ch_http_stream_status(stream) != CH_HTTP_STATUS_OK)
+		report_http_stream_query_failure(conn, query, stream);
+
+	PG_TRY();
+	{
+		/*
+		 * If any palloc below throws, clean up the stream which is not
+		 * tracked by a memory context yet.
+		 */
+		tempcxt = AllocSetContextCreate(PortalContext,
+										"pg_clickhouse streaming cursor",
+										ALLOCSET_DEFAULT_SIZES);
+		oldcxt = MemoryContextSwitchTo(tempcxt);
+
+		cursor = palloc0(sizeof(ch_cursor));
+		cursor->conn = conn;
+		cursor->query_response = stream;
+		cursor->read_state = palloc0(sizeof(ch_http_read_state));
+		cursor->query = pstrdup(query->sql);
+		cursor->request_time = ch_http_stream_request_time(stream);
+		cursor->total_time = ch_http_stream_total_time(stream);
+
+		ch_http_read_state_init(cursor->read_state,
+								ch_http_stream_buffer(stream),
+								ch_http_stream_available(stream));
+
+		cursor->memcxt = tempcxt;
+		cursor->callback.func = http_streaming_cursor_free;
+		cursor->callback.arg = cursor;
+		MemoryContextRegisterResetCallback(tempcxt, &cursor->callback);
+
+		MemoryContextSwitchTo(oldcxt);
+
+		/* Ownership transferred to the cursor callback */
+		stream = NULL;
+	}
+	PG_CATCH();
+	{
+		if (stream)
+			ch_http_stream_end(stream);
+		if (tempcxt)
+			MemoryContextDelete(tempcxt);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	return cursor;
+}
+
+/*
+ * Streaming variant of http_fetch_row. When the parser exhausts the current
+ * buffer and the transfer isn't done, pump more data from curl and
+ * reinitialize the parser on the refilled buffer.
  */
 static Datum *
-http_fetch_row(ChFdwScanRowContext * ctx)
+http_streaming_fetch_row(ChFdwScanRowContext * ctx)
+{
+	ch_cursor  *cursor = ctx->cursor;
+	ch_http_read_state *state = cursor->read_state;
+	HttpStream *stream = cursor->query_response;
+
+	/* Pump the next batch when the current one has been exhausted. */
+	if (state->done || state->data == NULL)
+	{
+		/* Sync parse position: tell stream how far the parser advanced */
+		ch_http_stream_advance(stream, state->curpos);
+
+		if (ch_http_stream_pump(stream) < 0)
+		{
+			if (ch_http_stream_status(stream) == CH_HTTP_STATUS_CANCELED)
+			{
+				char		qid[CH_HTTP_QUERY_ID_LEN];
+
+				memcpy(qid, ch_http_stream_query_id(stream), sizeof(qid));
+				ch_http_stream_end(stream);
+				cursor->query_response = NULL;
+				kill_query(cursor->conn, qid);
+				ereport(ERROR,
+						(errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+						 errmsg("pg_clickhouse: query was aborted")));
+			}
+			ereport(ERROR,
+					(errcode(ERRCODE_CONNECTION_FAILURE),
+					 errmsg("pg_clickhouse: streaming error - %s",
+							ch_http_stream_error(stream)
+							? ch_http_stream_error(stream)
+							: "unknown")));
+		}
+
+		/* Reinitialize parser on the (possibly compacted) buffer */
+		ch_http_read_state_init(state,
+								ch_http_stream_buffer(stream),
+								ch_http_stream_available(stream));
+	}
+
+	return http_fetch_row_from_state(ctx, state);
+}
+
+static Datum *
+http_fetch_row_from_state(ChFdwScanRowContext * ctx, ch_http_read_state * state)
 {
 	int			rc = CH_CONT;
-	ch_cursor  *cursor = ctx->cursor;
 	size_t		attcount = list_length(ctx->retrieved_attrs);
 	Datum	   *values;
-	ch_http_read_state *state = cursor->read_state;
 
 	/* All rows or empty table. */
 	if (state->done || state->data == NULL)
@@ -339,14 +528,17 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 	{
 		Assert(ctx->values && ctx->nulls);
 		rc = ch_http_read_next(state);
-		if (rc != CH_CONT && state->val.data[0] == '\\' && state->val.data[1] == 'N')
+		if (rc != CH_CONT && http_value_is_null(&state->val))
 		{
 			ctx->nulls[0] = true;
 			ctx->values[0] = (Datum) 0;
 			return ctx->values;
 		}
-		elog(ERROR, "pg_clickhouse: unexpected state: attributes "
-			 "count == 0 and haven't got NULL in the response");
+
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_ERROR),
+				 errmsg("pg_clickhouse: unexpected response for a zero-column result"),
+				 errdetail("Expected a NULL marker (\\N) in the TabSeparated response.")));
 	}
 
 	/*
@@ -375,7 +567,7 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 		for (int idx = 0; idx < attcount; idx++)
 		{
 			rc = ch_http_read_next(state);
-			if (state->val.data[0] == '\\' && state->val.data[1] == 'N')
+			if (http_value_is_null(&state->val))
 				values[idx] = (Datum) 0;
 			else
 				values[idx] = PointerGetDatum(cstring_to_text(state->val.data));
@@ -391,8 +583,31 @@ http_fetch_row(ChFdwScanRowContext * ctx)
 						   "expected column count (%lu).", attcount)));
 	}
 
-
 	return values;
+}
+
+/*
+ * Fetch a row from the http response and return its values.
+ *
+ * If ctx->tupdesc is set, ctx->attinmeta must also be set, and ctx->values
+ * and ctx->nulls must already be palloc'd with space for ctx->tupdesc->natts
+ * values.
+ *
+ * Use ctx->tupdesc and ctx->attinmeta to convert the values to the
+ * appropriate Datums, and store them and the indication of their NULLness in
+ * ctx->values and ctx->nulls, respectively, then return ctx->values.
+ *
+ * If ctx->tupdesc is not set, treat all values as text and return them as
+ * text `Datum`s. This is the use case for `chfdw_construct_create_tables()`,
+ * which only cares about text.
+ */
+static Datum *
+http_fetch_row(ChFdwScanRowContext * ctx)
+{
+	ch_cursor  *cursor = ctx->cursor;
+	ch_http_read_state *state = cursor->read_state;
+
+	return http_fetch_row_from_state(ctx, state);
 }
 
 /*
@@ -676,6 +891,7 @@ binary_simple_query(void *conn, const ch_query * query)
 
 	oldcxt = MemoryContextSwitchTo(tempcxt);
 	cursor = palloc0(sizeof(ch_cursor));
+	cursor->conn = conn;
 	cursor->query_response = resp;
 	state = (ch_binary_read_state_t *) palloc0(sizeof(ch_binary_read_state_t));
 	cursor->query = pstrdup(query->sql);

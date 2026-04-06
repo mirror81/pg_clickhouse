@@ -37,6 +37,17 @@ CREATE FOREIGN TABLE ft1 (
 	c8 text
 ) SERVER http_loopback OPTIONS (table_name 't1');
 
+CREATE FOREIGN TABLE ft1_stream (
+	c1 int NOT NULL,
+	c2 int NOT NULL,
+	c3 text,
+	c4 date,
+	c5 date,
+	c6 varchar(10),
+	c7 char(10) default 'ft1',
+	c8 text
+) SERVER http_loopback OPTIONS (table_name 't1', fetch_size '100');
+
 ALTER FOREIGN TABLE ft1 DROP COLUMN c0;
 
 CREATE FOREIGN TABLE ft2 (
@@ -104,10 +115,13 @@ SELECT c3, (c3 = '') AS true FROM ft3 WHERE c1 = 3;
 
 INSERT INTO ft4
 	SELECT id,
-	       id + 1,
-	       'AAA' || to_char(id, 'FM000'),
+		   id + 1,
+		   'AAA' || to_char(id, 'FM000'),
 		   (id % 2)::bool
 	FROM generate_series(1, 100) id;
+
+-- 15 rows with fetch_size 100 bytes forces multiple streaming batches.
+SELECT c1, c3 FROM ft1_stream WHERE c1 <= 15 ORDER BY c1;
 
 SELECT * FROM ft5 ORDER BY c1 LIMIT 5;
 
@@ -241,6 +255,47 @@ CREATE FOREIGN TABLE bad_name (
 	c3 text
 ) SERVER http_loopback_bad OPTIONS ( table_name 't3' );
 SELECT * FROM bad_name;
+
+/* ===== fetch_size option tests ===== */
+
+/* Server-level fetch_size: set to 0 to disable streaming. */
+CREATE SERVER http_no_stream FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', fetch_size '0');
+CREATE USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
+
+CREATE FOREIGN TABLE ft_no_stream (
+    c1 int NOT NULL,
+    c2 int NOT NULL,
+    c3 text
+) SERVER http_no_stream OPTIONS (table_name 't1');
+
+/* Query with streaming disabled (fetch_size = 0). */
+SELECT c3 FROM ft_no_stream ORDER BY c1 LIMIT 3;
+
+/* Table-level fetch_size overrides server-level. */
+CREATE FOREIGN TABLE ft_override_stream (
+    c1 int NOT NULL,
+    c2 int NOT NULL,
+    c3 text
+) SERVER http_no_stream OPTIONS (table_name 't1', fetch_size '100');
+
+/* Query with table-level streaming override (fetch_size = 100). */
+SELECT c3 FROM ft_override_stream ORDER BY c1 LIMIT 3;
+
+/* Default (no fetch_size set) uses streaming — already tested via ft1. */
+SELECT c3 FROM ft1 ORDER BY c1 LIMIT 3;
+
+/* Negative fetch_size should be rejected. */
+CREATE SERVER http_bad_fetch FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', fetch_size '-1');
+
+CREATE FOREIGN TABLE ft_bad_fetch (
+    c1 int NOT NULL,
+    c3 text
+) SERVER http_loopback OPTIONS (table_name 't1', fetch_size '-1');
+
+DROP USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
+DROP SERVER http_no_stream CASCADE;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;

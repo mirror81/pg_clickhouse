@@ -41,6 +41,18 @@ ch_http_set_progress_func(void *progressfunc)
 	curl_progressfunc = progressfunc;
 }
 
+void	   *
+ch_http_get_progress_func(void)
+{
+	return curl_progressfunc;
+}
+
+long
+ch_http_get_verbose(void)
+{
+	return curl_verbose;
+}
+
 static size_t write_data(void *contents, size_t size, size_t nmemb, void *userp)
 {
 	size_t		realsize = size * nmemb;
@@ -297,12 +309,12 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 
 	if (errcode == CURLE_ABORTED_BY_CALLBACK)
 	{
-		resp->http_status = 418;	/* I'm teapot */
+		resp->http_status = CH_HTTP_STATUS_CANCELED;
 		return resp;
 	}
 	else if (errcode != CURLE_OK)
 	{
-		resp->http_status = 419;	/* illegal http status */
+		resp->http_status = CH_HTTP_STATUS_TRANSPORT_ERROR;
 		resp->data = strdup(errbuffer);
 		if (resp->data == NULL)
 		{
@@ -327,7 +339,7 @@ ch_http_simple_query(ch_http_connection_t * conn, const ch_query * query)
 	 * ok
 	 */
 	curl_easy_getinfo(conn->curl, CURLINFO_RESPONSE_CODE, &resp->http_status);
-	if (curl_verbose && resp->http_status != 200)
+	if (curl_verbose && resp->http_status != CH_HTTP_STATUS_OK)
 		fprintf(stderr, "%s", resp->data);
 
 	return resp;

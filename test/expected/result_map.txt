@@ -147,7 +147,7 @@ json.sql
 ------------|------------
  25.8+      | json.out
  24.8-25.3  | json_2.out
- 22-24.3    | json_3.out
+ 23-24.3    | json_3.out
 
 param.sql
 ---------
@@ -212,6 +212,10 @@ where_sub.sql
 
 window_functions.sql
 --------------------
+
+ Postgres | File
+----------|------------------------
+ 18       | window_functions.out
 
  ClickHouse | File
 ------------|----------------------------

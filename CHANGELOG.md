@@ -34,6 +34,11 @@ All notable changes to this project will be documented in this file. It uses the
 *   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
     current Postgres database rather than to the ClickHouse
     `current_database()` function.
+*   Added result set streaming to the HTTP driver. The new `fetch_size` server
+    and table option specifies the size of each batch to stream and defaults
+    to `50000000`, about 50MB. Set it to `0` to disable streaming altogether.
+    A testing loading a 1GB table reduced memory consumption from over 1GB to
+    73MB peak. Thanks Kaushik Iska for the testing and PR ([#181]).
 
 ### 🐛 Bug Fixes
 
@@ -76,6 +81,8 @@ All notable changes to this project will be documented in this file. It uses the
   [nowInBlock64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64
   [#177]: https://github.com/ClickHouse/pg_clickhouse/pull/177
     "pg_clickhouse#177 clang-tidy static analysis"
+  [#181]: https://github.com/ClickHouse/pg_clickhouse/pull/181
+    "pg_clickhouse#181 HTTP streaming"
 
 ## [v0.1.6] — 2026-04-02
 

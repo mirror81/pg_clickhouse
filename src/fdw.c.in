@@ -5,6 +5,7 @@
 /* PostgreSQL includes. */
 #include "postgres.h"
 #include "catalog/pg_class_d.h"
+#include "commands/defrem.h"
 #include "commands/explain.h"
 #include "foreign/fdwapi.h"
 #include "funcapi.h"
@@ -55,6 +56,9 @@ PG_MODULE_MAGIC;
 /* If no remote estimates, assume a sort costs 20% extra */
 #define DEFAULT_FDW_SORT_MULTIPLIER 1.2
 
+/* Approximate batch size in bytes for HTTP streaming (50 MB). */
+#define DEFAULT_FETCH_SIZE		(50 * 1000 * 1000)
+
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
@@ -68,7 +72,7 @@ enum FdwScanPrivateIndex
 	FdwScanPrivateSelectSql,
 	/* Integer list of attribute numbers retrieved by the SELECT */
 	FdwScanPrivateRetrievedAttrs,
-	/* Integer representing the desired fetch_size */
+	/* Approximate batch size in bytes for HTTP streaming */
 	FdwScanPrivateFetchSize,
 
 	/*
@@ -126,7 +130,8 @@ typedef struct ChFdwScanState
 	MemoryContext batch_cxt;	/* context holding current batch of tuples */
 	MemoryContext temp_cxt;		/* context for per-tuple temporary data */
 
-	int			fetch_size;		/* number of tuples per fetch */
+	int32		fetch_size;		/* approximate batch size in bytes */
+	bool		is_streaming;	/* true when using HTTP streaming */
 }			ChFdwScanState;
 
 /*
@@ -284,8 +289,8 @@ static void add_foreign_final_paths(PlannerInfo * root, RelOptInfo * input_rel,
 static void merge_fdw_options(CHFdwRelationInfo * fpinfo,
 							  const CHFdwRelationInfo * fpinfo_o,
 							  const CHFdwRelationInfo * fpinfo_i);
-
-
+static int	get_fetch_size_option(DefElem * def);
+static DefElem * ch_get_table_or_server_option(CHFdwRelationInfo * fpinfo, char *name);
 
 /* Make one query and close the connection */
 Datum
@@ -317,6 +322,53 @@ time_diff(struct timeval *prior, struct timeval *latter)
 		(double) (latter->tv_sec - prior->tv_sec) * 1000.0L;
 
 	return x;
+}
+
+static int
+get_fetch_size_option(DefElem * def)
+{
+	int			fetch_size = pg_strtoint32(defGetString(def));
+
+	if (fetch_size < 0)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+				 errmsg("invalid value for option \"%s\": %s",
+						def->defname, defGetString(def)),
+				 errhint("fetch_size must be greater than or equal to 0")));
+	}
+
+	return fetch_size;
+}
+
+/*
+ * Utility function to fetch a cascading option definition from `fpinfo`.
+ * Returns the first option that matches in `fpinfo->table->options` or, if
+ * none, then the first found in `fpinfo->server->options`. Returns `NULL`
+ * when none found.
+*/
+static DefElem *
+ch_get_table_or_server_option(CHFdwRelationInfo * fpinfo, char *name)
+{
+	ListCell   *lc;
+
+	foreach(lc, fpinfo->table->options)
+	{
+		DefElem    *def = (DefElem *) lfirst(lc);
+
+		if (strcmp(def->defname, name) == 0)
+			return def;
+	}
+
+	foreach(lc, fpinfo->server->options)
+	{
+		DefElem    *def = (DefElem *) lfirst(lc);
+
+		if (strcmp(def->defname, name) == 0)
+			return def;
+	}
+
+	return NULL;
 }
 
 /*
@@ -358,6 +410,15 @@ clickhouseGetForeignRelSize(PlannerInfo * root,
 	fpinfo->fdw_startup_cost = DEFAULT_FDW_STARTUP_COST;
 	fpinfo->fdw_tuple_cost = DEFAULT_FDW_TUPLE_COST;
 	fpinfo->shippable_extensions = NIL;
+
+	/*
+	 * Extract fetch_size: table option overrides server option, default
+	 * DEFAULT_FETCH_SIZE. Value is approximate batch size in bytes; 0 means
+	 * buffer entire response (disable HTTP streaming).
+	 */
+	DefElem    *def = ch_get_table_or_server_option(fpinfo, "fetch_size");
+
+	fpinfo->fetch_size = def ? get_fetch_size_option(def) : DEFAULT_FETCH_SIZE;
 
 	chfdw_apply_custom_table_options(fpinfo, foreigntableid);
 
@@ -881,9 +942,23 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 		nulls
 	};
 
-	/* in both cases (binary and non binary), NULL means end of tuples */
-	if (fsstate->conn.methods->fetch_row(&ctx) == NULL)
-		goto cleanup;
+	/* In both cases (binary and non binary), NULL means end of tuples. */
+	{
+		cursor_fetch_row_method fetch_fn = fsstate->conn.methods->fetch_row;
+
+		if (fsstate->is_streaming)
+		{
+			Assert(fsstate->conn.methods->streaming_fetch_row != NULL);
+			fetch_fn = fsstate->conn.methods->streaming_fetch_row;
+		}
+
+		if (fetch_fn(&ctx) == NULL)
+		{
+			MemoryContextSwitchTo(oldcontext);
+			MemoryContextReset(fsstate->temp_cxt);
+			return NULL;
+		}
+	}
 
 	MemoryContextSwitchTo(oldcontext);
 
@@ -910,7 +985,6 @@ fetch_tuple(ChFdwScanState * fsstate, TupleDesc tupdesc)
 	HeapTupleHeaderSetXmin(tuple->t_data, InvalidTransactionId);
 	HeapTupleHeaderSetCmin(tuple->t_data, InvalidTransactionId);
 
-cleanup:
 	MemoryContextReset(fsstate->temp_cxt);
 	return tuple;
 }
@@ -955,8 +1029,23 @@ clickhouseIterateForeignScan(ForeignScanState * node)
 								 values);
 		}
 
-		fsstate->ch_cursor = fsstate->conn.methods->simple_query(fsstate->conn.conn,
-																 &query);
+		fsstate->is_streaming = fsstate->fetch_size > 0
+			&& fsstate->conn.methods->streaming_query != NULL;
+
+		if (fsstate->is_streaming)
+		{
+			fsstate->ch_cursor =
+				fsstate->conn.methods->streaming_query(
+													   fsstate->conn.conn, &query,
+													   fsstate->fetch_size);
+		}
+		else
+		{
+			/* Binary still falls back to the simple path for now. */
+			fsstate->ch_cursor =
+				fsstate->conn.methods->simple_query(
+													fsstate->conn.conn, &query);
+		}
 
 		time_used += fsstate->ch_cursor->request_time;
 		MemoryContextSwitchTo(old);
@@ -2006,9 +2095,8 @@ merge_fdw_options(CHFdwRelationInfo * fpinfo,
 			fpinfo_i->use_remote_estimate;
 
 		/*
-		 * Set fetch size to maximum of the joining sides, since we are
-		 * expecting the rows returned by the join to be proportional to the
-		 * relation sizes.
+		 * Set fetch size to maximum of the joining sides, since larger joins
+		 * benefit from bigger batches.
 		 */
 		fpinfo->fetch_size = Max(fpinfo_o->fetch_size, fpinfo_i->fetch_size);
 	}

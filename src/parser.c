@@ -10,13 +10,40 @@
 
 static void ch_http_read_array_string_literal(ch_http_read_state * state);
 static void ch_http_read_array(ch_http_read_state * state);
+static int	ch_http_read_eof(ch_http_read_state * state);
+static void ch_http_parse_error(const char *msg);
+
+/*
+ * The streaming path can pass the parser a bounded slice rather than a
+ * NUL-terminated buffer, so reaching datalen is the equivalent of the old
+ * '\0' checks.
+ */
+inline static int
+ch_http_read_eof(ch_http_read_state * state)
+{
+	state->done = true;
+	return CH_EOF;
+}
+
+inline static void
+ch_http_parse_error(const char *msg)
+{
+	ereport(ERROR,
+			(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+			 errmsg("pg_clickhouse: %s", msg)));
+}
 
 void
 ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen)
 {
 	state->data = datalen > 0 ? data : NULL;
+	state->datalen = datalen;
+	state->curpos = 0;
 	state->done = false;
-	initStringInfo(&state->val);
+	if (state->val.data == NULL)
+		initStringInfo(&state->val);
+	else
+		resetStringInfo(&state->val);
 }
 
 /*
@@ -30,28 +57,32 @@ ch_http_read_next(ch_http_read_state * state)
 {
 	char	   *data = state->data;
 
-	resetStringInfo(&state->val);
 	if (state->done)
 		return CH_EOF;
+	if (data == NULL)
+		return ch_http_read_eof(state);
+
+	resetStringInfo(&state->val);
+	if (state->curpos >= state->datalen)
+		return ch_http_read_eof(state);
 
 	if (data[state->curpos] == '[')
 		/* Parse array literal. */
 		ch_http_read_array(state);
 	else
 	{
-		while (data[state->curpos] != '\0' && data[state->curpos] != '\t' && data[state->curpos] != '\n')
+		while (state->curpos < state->datalen &&
+			   data[state->curpos] != '\t' &&
+			   data[state->curpos] != '\n')
 		{
 			if (data[state->curpos] == '\\')
 			{
 				state->curpos++;
+				if (state->curpos >= state->datalen)
+					return ch_http_read_eof(state);
 				/* unescape some sequences */
 				switch (data[state->curpos])
 				{
-					case '\0':
-						/* unexpected end */
-						state->done = true;
-						state->curpos++;
-						return CH_EOF;
 					case 'n':
 						appendStringInfoChar(&state->val, '\n');
 						break;
@@ -84,6 +115,9 @@ ch_http_read_next(ch_http_read_state * state)
 		}
 	}
 
+	if (state->curpos >= state->datalen)
+		return ch_http_read_eof(state);
+
 	if (data[state->curpos] == '\t')
 	{
 		/* There are more fields. */
@@ -91,14 +125,14 @@ ch_http_read_next(ch_http_read_state * state)
 		return CH_CONT;
 	}
 
-	/* Should be at the end of the line or the file. */
+	/* Should be at the end of the line. */
 	Assert(data[state->curpos] == '\n');
-	int			res = data[state->curpos + 1] == '\0' ? CH_EOF : CH_EOL;
 
-	state->done = (res == CH_EOF);
 	state->curpos++;
+	if (state->curpos >= state->datalen)
+		return ch_http_read_eof(state);
 
-	return res;
+	return CH_EOL;
 }
 
 /*
@@ -121,26 +155,33 @@ ch_http_read_array_string_literal(ch_http_read_state * state)
 	/* Postgres array string is double-quoted. */
 	appendStringInfoChar(&state->val, '"');
 	state->curpos++;
-	char	   *src = state->data + state->curpos;
 
-	while (*src != '\0' && *src != '\'')
+	while (state->curpos < state->datalen &&
+		   state->data[state->curpos] != '\'')
 	{
-		if (*src == '"')
+		char		ch = state->data[state->curpos];
+
+		if (ch == '"')
 		{
 			/* Escape double quotation mark. */
 			appendStringInfoChar(&state->val, '\\');
-			appendStringInfoChar(&state->val, *src);
+			appendStringInfoChar(&state->val, ch);
 			state->curpos++;
 		}
-		else if (*src == '\\')
+		else if (ch == '\\')
 		{
 			/* Emit the escaped character. */
-			++src;
-			switch (*src)
+			state->curpos++;
+			if (state->curpos >= state->datalen)
+				ch_http_parse_error("invalid array string");
+
+			switch (state->data[state->curpos])
 			{
 				case '\\':
-					appendStringInfoChar(&state->val, *src);
-					appendStringInfoChar(&state->val, *src);
+					appendStringInfoChar(&state->val,
+										 state->data[state->curpos]);
+					appendStringInfoChar(&state->val,
+										 state->data[state->curpos]);
 					break;
 				case 'b':
 					appendStringInfoChar(&state->val, '\b');
@@ -162,22 +203,22 @@ ch_http_read_array_string_literal(ch_http_read_state * state)
 					break;
 				default:
 					/* Includes ' and probably no other character. */
-					appendStringInfoChar(&state->val, *src);
+					appendStringInfoChar(&state->val,
+										 state->data[state->curpos]);
 			}
-			state->curpos += 2;
+			state->curpos++;
 		}
 		else
 		{
 			/* Append any other character. */
-			appendStringInfoChar(&state->val, *src);
+			appendStringInfoChar(&state->val, ch);
 			state->curpos++;
 		}
-
-		++src;
 	}
 
-	if (*src != '\'')
-		elog(ERROR, "Invalid array string");
+	if (state->curpos >= state->datalen ||
+		state->data[state->curpos] != '\'')
+		ch_http_parse_error("invalid array string");
 
 	appendStringInfoChar(&state->val, '"');
 	state->curpos++;
@@ -207,7 +248,7 @@ ch_http_read_array(ch_http_read_state * state)
 	appendStringInfoChar(&state->val, '{');
 	state->curpos++;
 
-	while (state->data[state->curpos] != '\0' && balance)
+	while (state->curpos < state->datalen && balance)
 	{
 		switch (state->data[state->curpos])
 		{
@@ -231,5 +272,5 @@ ch_http_read_array(ch_http_read_state * state)
 	}
 
 	if (balance != 0)
-		elog(ERROR, "malformed array literal");
+		ch_http_parse_error("malformed array literal");
 }

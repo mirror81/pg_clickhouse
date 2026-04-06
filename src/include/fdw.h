@@ -49,6 +49,7 @@ typedef struct ch_cursor
 
 	void	   *query_response;
 	void	   *read_state;
+	void	   *conn;
 	char	   *query;
 	double		request_time;
 	double		total_time;
@@ -74,6 +75,9 @@ typedef Datum * (*cursor_fetch_row_method) (ChFdwScanRowContext * ctx);
 typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *,
 										const ch_query *, char *);
 typedef void (*insert_tuple_method) (void *state, TupleTableSlot * slot);
+typedef ch_cursor * (*streaming_query_method) (void *conn,
+											   const ch_query * query,
+											   int32 fetch_size);
 
 typedef struct
 {
@@ -82,6 +86,8 @@ typedef struct
 	cursor_fetch_row_method fetch_row;
 	prepare_insert_method prepare_insert;
 	insert_tuple_method insert_tuple;
+	streaming_query_method streaming_query; /* NULL if not supported */
+	cursor_fetch_row_method streaming_fetch_row;	/* NULL if not supported */
 }			libclickhouse_methods;
 
 typedef struct
@@ -167,7 +173,7 @@ typedef struct CHFdwRelationInfo
 	ForeignServer *server;
 	UserMapping *user;			/* only set in use_remote_estimate mode */
 
-	int			fetch_size;		/* fetch size for this remote table */
+	int32		fetch_size;		/* fetch size for this remote table */
 
 	/*
 	 * Name of the relation while EXPLAINing ForeignScan. It is used for join
