@@ -23,6 +23,7 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/nodes.h"
 #include "nodes/primnodes.h"
@@ -160,6 +161,7 @@ static void deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 static void deparseParam(Param * node, deparse_expr_cxt * context);
 static void deparseSubscriptingRef(SubscriptingRef * node, deparse_expr_cxt * context);
 static void deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context);
+static void deparseSQLValueFunction(SQLValueFunction * node, deparse_expr_cxt * context);
 static void deparseOpExpr(OpExpr * node, deparse_expr_cxt * context);
 static void deparseOperatorName(StringInfo buf, Form_pg_operator opform);
 static void deparseDistinctExpr(DistinctExpr * node, deparse_expr_cxt * context);
@@ -450,6 +452,23 @@ foreign_expr_walker(Node * node,
 				if (!foreign_expr_walker((Node *) fe->args,
 										 glob_cxt))
 					return false;
+			}
+			break;
+		case T_SQLValueFunction:
+			{
+				/* deparseSQLValueFunction() does not support time functions. */
+				SQLValueFunction *svf = (SQLValueFunction *) node;
+
+				switch (svf->op)
+				{
+					case SVFOP_CURRENT_TIME:
+					case SVFOP_CURRENT_TIME_N:
+					case SVFOP_LOCALTIME:
+					case SVFOP_LOCALTIME_N:
+						return false;
+					default:
+						break;
+				}
 			}
 			break;
 		case T_OpExpr:
@@ -1857,6 +1876,9 @@ deparseExpr(Expr * node, deparse_expr_cxt * context)
 		case T_FuncExpr:
 			deparseFuncExpr((FuncExpr *) node, context);
 			break;
+		case T_SQLValueFunction:
+			deparseSQLValueFunction((SQLValueFunction *) node, context);
+			break;
 		case T_OpExpr:
 			deparseOpExpr((OpExpr *) node, context);
 			break;
@@ -2501,114 +2523,138 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	 */
 	cdef = appendFunctionName(node->funcid, context);
 
-	if (cdef && (cdef->cf_type == CF_JSONB_EXTRACT_PATH_TEXT ||
-				 cdef->cf_type == CF_JSONB_EXTRACT_PATH))
+	if (cdef)
 	{
-		deparseJsonbExtractPath(node, context,
-								cdef->cf_type == CF_JSONB_EXTRACT_PATH);
-		return;
-	}
+		/* Special casses. */
+		switch (cdef->cf_type)
+		{
+			case CF_JSONB_EXTRACT_PATH_TEXT:
+			case CF_JSONB_EXTRACT_PATH:
+				{
+					deparseJsonbExtractPath(node, context,
+											cdef->cf_type == CF_JSONB_EXTRACT_PATH);
+					return;
+				}
+			case CF_CURRENT_DATABASE:
+				{
+					SQLValueFunction svf;
 
-	if (cdef && cdef->cf_type == CF_DATE_TRUNC)
-	{
-		Const	   *arg = (Const *) linitial(node->args);
-		char	   *trunctype = TextDatumGetCString(arg->constvalue);
+					svf.op = SVFOP_CURRENT_CATALOG;
+					deparseSQLValueFunction(&svf, context);
+					return;
+				}
+			case CF_CURRENT_SCHEMA:
+				{
+					SQLValueFunction svf;
 
-		CSTRING_TOLOWER(trunctype);
-		int			cast_to_datetime64 = 0;
+					svf.op = SVFOP_CURRENT_SCHEMA;
+					deparseSQLValueFunction(&svf, context);
+					return;
+				}
+			case CF_DATE_TRUNC:
+				{
+					Const	   *arg = (Const *) linitial(node->args);
+					char	   *trunctype = TextDatumGetCString(arg->constvalue);
 
-		if (strcmp(trunctype, "week") == 0)
-		{
-			appendStringInfoString(buf, "toMonday");
-		}
-		else if (strcmp(trunctype, "second") == 0)
-		{
-			cast_to_datetime64 = 1;
-			appendStringInfoString(buf, "toStartOfSecond");
-		}
-		else if (strcmp(trunctype, "minute") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfMinute");
-		}
-		else if (strcmp(trunctype, "hour") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfHour");
-		}
-		else if (strcmp(trunctype, "day") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfDay");
-		}
-		else if (strcmp(trunctype, "month") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfMonth");
-		}
-		else if (strcmp(trunctype, "quarter") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfQuarter");
-		}
-		else if (strcmp(trunctype, "year") == 0)
-		{
-			appendStringInfoString(buf, "toStartOfYear");
-		}
-		else
-		{
-			elog(ERROR, "date_trunc cannot be exported for: %s", trunctype);
-		}
+					CSTRING_TOLOWER(trunctype);
+					int			cast_to_datetime64 = 0;
 
-		pfree(trunctype);
-		if (cast_to_datetime64)
-		{
-			appendStringInfoString(buf, "(toDateTime64(");
-			deparseExpr(list_nth(node->args, 1), context);
-			appendStringInfoString(buf, ", 1))");
+					if (strcmp(trunctype, "week") == 0)
+					{
+						appendStringInfoString(buf, "toMonday");
+					}
+					else if (strcmp(trunctype, "second") == 0)
+					{
+						cast_to_datetime64 = 1;
+						appendStringInfoString(buf, "toStartOfSecond");
+					}
+					else if (strcmp(trunctype, "minute") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfMinute");
+					}
+					else if (strcmp(trunctype, "hour") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfHour");
+					}
+					else if (strcmp(trunctype, "day") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfDay");
+					}
+					else if (strcmp(trunctype, "month") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfMonth");
+					}
+					else if (strcmp(trunctype, "quarter") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfQuarter");
+					}
+					else if (strcmp(trunctype, "year") == 0)
+					{
+						appendStringInfoString(buf, "toStartOfYear");
+					}
+					else
+					{
+						elog(ERROR, "date_trunc cannot be exported for: %s", trunctype);
+					}
+
+					pfree(trunctype);
+					if (cast_to_datetime64)
+					{
+						appendStringInfoString(buf, "(toDateTime64(");
+						deparseExpr(list_nth(node->args, 1), context);
+						appendStringInfoString(buf, ", 1))");
+					}
+					else
+					{
+						appendStringInfoChar(buf, '(');
+						deparseExpr(list_nth(node->args, 1), context);
+						appendStringInfoChar(buf, ')');
+					}
+					return;
+				}
+			case CF_DATE_PART:
+				{
+					Const	   *arg = (Const *) linitial(node->args);
+					char	   *parttype = TextDatumGetCString(arg->constvalue);
+
+					CSTRING_TOLOWER(parttype);
+
+					if (strcmp(parttype, "day") == 0)
+						appendStringInfoString(buf, "toDayOfMonth");
+					else if (strcmp(parttype, "doy") == 0)
+						appendStringInfoString(buf, "toDayOfYear");
+					else if (strcmp(parttype, "dow") == 0)
+						appendStringInfoString(buf, "toDayOfWeek");
+					else if (strcmp(parttype, "year") == 0)
+						appendStringInfoString(buf, "toYear");
+					else if (strcmp(parttype, "month") == 0)
+						appendStringInfoString(buf, "toMonth");
+					else if (strcmp(parttype, "hour") == 0)
+						appendStringInfoString(buf, "toHour");
+					else if (strcmp(parttype, "minute") == 0)
+						appendStringInfoString(buf, "toMinute");
+					else if (strcmp(parttype, "second") == 0)
+						appendStringInfoString(buf, "toSecond");
+					else if (strcmp(parttype, "quarter") == 0)
+						appendStringInfoString(buf, "toQuarter");
+					else if (strcmp(parttype, "isoyear") == 0)
+						appendStringInfoString(buf, "toISOYear");
+					else if (strcmp(parttype, "week") == 0)
+						appendStringInfoString(buf, "toISOWeek");
+					else if (strcmp(parttype, "epoch") == 0)
+						appendStringInfoString(buf, "toUnixTimestamp");
+					else
+						elog(ERROR, "date_part cannot be exported for: %s", parttype);
+
+					pfree(parttype);
+					appendStringInfoChar(buf, '(');
+					deparseExpr(list_nth(node->args, 1), context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
+			default:
+				break;
 		}
-		else
-		{
-			appendStringInfoChar(buf, '(');
-			deparseExpr(list_nth(node->args, 1), context);
-			appendStringInfoChar(buf, ')');
-		}
-		return;
-	}
-	else if (cdef && cdef->cf_type == CF_DATE_PART)
-	{
-		Const	   *arg = (Const *) linitial(node->args);
-		char	   *parttype = TextDatumGetCString(arg->constvalue);
-
-		CSTRING_TOLOWER(parttype);
-
-		if (strcmp(parttype, "day") == 0)
-			appendStringInfoString(buf, "toDayOfMonth");
-		else if (strcmp(parttype, "doy") == 0)
-			appendStringInfoString(buf, "toDayOfYear");
-		else if (strcmp(parttype, "dow") == 0)
-			appendStringInfoString(buf, "toDayOfWeek");
-		else if (strcmp(parttype, "year") == 0)
-			appendStringInfoString(buf, "toYear");
-		else if (strcmp(parttype, "month") == 0)
-			appendStringInfoString(buf, "toMonth");
-		else if (strcmp(parttype, "hour") == 0)
-			appendStringInfoString(buf, "toHour");
-		else if (strcmp(parttype, "minute") == 0)
-			appendStringInfoString(buf, "toMinute");
-		else if (strcmp(parttype, "second") == 0)
-			appendStringInfoString(buf, "toSecond");
-		else if (strcmp(parttype, "quarter") == 0)
-			appendStringInfoString(buf, "toQuarter");
-		else if (strcmp(parttype, "isoyear") == 0)
-			appendStringInfoString(buf, "toISOYear");
-		else if (strcmp(parttype, "week") == 0)
-			appendStringInfoString(buf, "toISOWeek");
-		else if (strcmp(parttype, "epoch") == 0)
-			appendStringInfoString(buf, "toUnixTimestamp");
-		else
-			elog(ERROR, "date_part cannot be exported for: %s", parttype);
-
-		pfree(parttype);
-		appendStringInfoChar(buf, '(');
-		deparseExpr(list_nth(node->args, 1), context);
-		appendStringInfoChar(buf, ')');
-		return;
 	}
 
 	appendStringInfoChar(buf, '(');
@@ -2644,6 +2690,75 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	}
 	else
 		appendStringInfoChar(buf, ')');
+}
+
+/*
+ * Deparse a SQL Value function, which is a (potentially) parameterless
+ * function with special grammar production separate from a regular function.
+ * Some have ClickHouse equivalents; others we generate here in Postgres and
+ * push down as a literal string. See `ExecEvalSQLValueFunction` in the
+ * `src/backend/executor/execExprInterp.c` Postgres source file for reference.
+ */
+static void
+deparseSQLValueFunction(SQLValueFunction * svf, deparse_expr_cxt * context)
+{
+	StringInfo	buf = context->buf;
+
+	LOCAL_FCINFO(fcinfo, 0);
+	Datum		datum;
+
+	switch (svf->op)
+	{
+		case SVFOP_CURRENT_DATE:
+			appendStringInfoString(buf, "today()");
+			break;
+		case SVFOP_CURRENT_TIMESTAMP:
+			appendStringInfoString(buf, "now64()");
+			break;
+		case SVFOP_CURRENT_TIMESTAMP_N:
+			appendStringInfo(buf, "now64(%d)", svf->typmod);
+			break;
+		case SVFOP_LOCALTIMESTAMP:
+		case SVFOP_LOCALTIMESTAMP_N:
+			if (svf->typmod < 0)
+				appendStringInfo(buf, "now(%s)", ch_quote_literal(pg_get_timezone_name(session_timezone)));
+			else
+				appendStringInfo(buf, "now64(%d, %s)", svf->typmod, ch_quote_literal(pg_get_timezone_name(session_timezone)));
+			break;
+		case SVFOP_CURRENT_ROLE:
+		case SVFOP_CURRENT_USER:
+		case SVFOP_USER:
+			InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
+			datum = current_user(fcinfo);
+			if (fcinfo->isnull)
+				appendStringInfoString(buf, "NULL");
+			else
+				appendStringInfoString(buf, ch_quote_literal(DatumGetCString(datum)));
+			break;
+		case SVFOP_SESSION_USER:
+			InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
+			datum = session_user(fcinfo);
+			if (fcinfo->isnull)
+				appendStringInfoString(buf, "NULL");
+			else
+				appendStringInfoString(buf, ch_quote_literal(DatumGetCString(datum)));
+			break;
+		case SVFOP_CURRENT_CATALOG:
+			InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
+			datum = current_database(fcinfo);
+			appendStringInfoString(buf, ch_quote_literal(DatumGetCString(datum)));
+			break;
+		case SVFOP_CURRENT_SCHEMA:
+			InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
+			datum = current_schema(fcinfo);
+			if (fcinfo->isnull)
+				appendStringInfoString(buf, "NULL");
+			else
+				appendStringInfoString(buf, ch_quote_literal(DatumGetCString(datum)));
+			break;
+		default:
+			elog(ERROR, "unknown SQL Value function: %i", svf->op);
+	}
 }
 
 static void

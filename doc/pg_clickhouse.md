@@ -1030,6 +1030,18 @@ maps the following functions:
 *   `statement_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
 *   `transaction_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
 *   `clock_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
+*   `CURRENT_DATE`: [today](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#today)
+*   `CURRENT_TIMESTAMP`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+*   `CURRENT_TIMESTAMP(scale)`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+*   `LOCALTIMESTAMP`: [now](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now)
+*   `LOCALTIMESTAMP(scale)`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+*   `CURRENT_DATABASE`: Passed as value from PostgreSQL function.
+*   `CURRENT_SCHEMA`: Passed as value from PostgreSQL function.
+*   `CURRENT_CATALOG`: Passed as value from PostgreSQL function.
+*   `CURRENT_USER`: Passed as value from PostgreSQL function.
+*   `USER`: Passed as value from PostgreSQL function.
+*   `CURRENT_ROLE`: Passed as value from PostgreSQL function.
+*   `SESSION_USER`: Passed as value from PostgreSQL function.
 
 ### Custom Functions
 

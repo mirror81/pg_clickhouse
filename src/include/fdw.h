@@ -306,6 +306,8 @@ typedef enum
 	CF_JSONB_EXTRACT_PATH,		/* jsonb_extract_path() →
 								 * toJSONString(col."k1"."k2") */
 	CF_STRING_AGG,				/* string_agg → groupConcat(delim)(expr) */
+	CF_CURRENT_DATABASE,		/* CURRENT_DATABASE → string literal */
+	CF_CURRENT_SCHEMA,			/* CF_CURRENT_SCHEMA → string literal */
 }			custom_object_type;
 
 typedef enum

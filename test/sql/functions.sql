@@ -321,7 +321,7 @@ SELECT * FROM t6 WHERE to_timestamp(i64) = to_timestamp(2042323443);
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
 SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
 
--- Check current date/time functions.
+-- Check current_*-type functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < NOW();
 SELECT * FROM t1 WHERE c < NOW() ORDER BY a LIMIT 2;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
@@ -330,6 +330,78 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
+
+-- Check SQL Value functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;
+SELECT * FROM t1 WHERE c < CURRENT_DATE ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP;
+SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3);
+SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3) ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP;
+SELECT * FROM t1 WHERE c < LOCALTIMESTAMP ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3);
+SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
+
+-- Use a DO block to test functions that push down a locally-generated literal.
+\unset ECHO
+DO $$
+DECLARE
+	op TEXT;
+	output JSONB;
+BEGIN
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_USER' INTO output;
+	RAISE NOTICE 'CURRENT_USER PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', current_user);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> USER' INTO output;
+	RAISE NOTICE 'USER PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', USER);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_ROLE' INTO output;
+	RAISE NOTICE 'CURRENT_ROLE PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_ROLE);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> SESSION_USER' INTO output;
+	RAISE NOTICE 'SESSION_USER PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', SESSION_USER);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA' INTO output;
+	RAISE NOTICE 'CURRENT_SCHEMA PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_SCHEMA);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA()' INTO output;
+	RAISE NOTICE 'CURRENT_SCHEMA() PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_SCHEMA());
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_CATALOG' INTO output;
+	RAISE NOTICE 'CURRENT_CATALOG PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_CATALOG);
+
+	EXECUTE 'EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM t4 WHERE val <> CURRENT_DATABASE()' INTO output;
+	RAISE NOTICE 'CURRENT_DATABASE() PUSHED DOWN: %', jsonb_path_query(
+		output, '$[0].Plan'
+	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_DATABASE());
+
+END;
+$$;
+\set ECHO all
+
+SELECT * FROM t4 WHERE val <> CURRENT_USER;
+SELECT * FROM t4 WHERE val <> USER;
+SELECT * FROM t4 WHERE val <> CURRENT_ROLE;
+SELECT * FROM t4 WHERE val <> SESSION_USER;
+SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA;
+SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA();
+SELECT * FROM t4 WHERE val <> CURRENT_CATALOG;
+SELECT * FROM t4 WHERE val <> CURRENT_DATABASE();
 
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');

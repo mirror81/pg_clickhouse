@@ -29,6 +29,11 @@ All notable changes to this project will be documented in this file. It uses the
     them locally. Thanks Kaushik Iska for the PR ([#175]).
 *   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as
     `groupBitOr`, and `string_agg` as `groupConcat` to ClickHouse.
+*   Added mapping sot push down the Postgres "SQL Value Functions", including
+    `CURRENT_TIMESTAMP`, `CURRENT_USER`, and `CURRENT_DATABASE`.
+*   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
+    current Postgres database rather than to the ClickHouse
+    `current_database()` function.
 
 ### 🐛 Bug Fixes
 

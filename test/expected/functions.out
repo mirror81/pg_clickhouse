@@ -1461,7 +1461,7 @@ SELECT * FROM t6 WHERE to_timestamp(f64) = to_timestamp(2042323443);
  2042323443 | 2042323443.232
 (1 row)
 
--- Check current date/time functions.
+-- Check current_*-type functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < NOW();
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
@@ -1520,6 +1520,148 @@ SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
 ---+---+---------------------
  1 | 1 | 2019-01-01 02:00:00
  2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+-- Check SQL Value functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < today()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < CURRENT_DATE ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64()))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3);
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(3)))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3) ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP;
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now('America/Los_Angeles')))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < LOCALTIMESTAMP ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3);
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(3, 'America/Los_Angeles')))
+(3 rows)
+
+SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
+-- Use a DO block to test functions that push down a locally-generated literal.
+\unset ECHO
+NOTICE:  CURRENT_USER PUSHED DOWN: t
+NOTICE:  USER PUSHED DOWN: t
+NOTICE:  CURRENT_ROLE PUSHED DOWN: t
+NOTICE:  SESSION_USER PUSHED DOWN: t
+NOTICE:  CURRENT_SCHEMA PUSHED DOWN: t
+NOTICE:  CURRENT_SCHEMA() PUSHED DOWN: t
+NOTICE:  CURRENT_CATALOG PUSHED DOWN: t
+NOTICE:  CURRENT_DATABASE() PUSHED DOWN: t
+SELECT * FROM t4 WHERE val <> CURRENT_USER;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> USER;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> CURRENT_ROLE;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> SESSION_USER;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA();
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> CURRENT_CATALOG;
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+SELECT * FROM t4 WHERE val <> CURRENT_DATABASE();
+ val  
+------
+ val1
+ val2
 (2 rows)
 
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
