@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.7] — Unreleased
+## [v0.1.10] — 2026-04-06
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
@@ -27,8 +31,9 @@ All notable changes to this project will be documented in this file. It uses the
     `LAG`, `FIRST_VALUE`, `LAST_VALUE`, `NTH_VALUE`, `NTILE`, `CUME_DIST`,
     `PERCENT_RANK`, `MIN`/`MAX OVER`) to ClickHouse instead of computing
     them locally. Thanks Kaushik Iska for the PR ([#175]).
-*   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as
-    `groupBitOr`, and `string_agg` as `groupConcat` to ClickHouse.
+*   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as `groupBitOr`,
+    and `string_agg` as `groupConcat` to ClickHouse. Thanks Philip Dubé for
+    the PR ([#184]).
 *   Added mapping sot push down the Postgres "SQL Value Functions", including
     `CURRENT_TIMESTAMP`, `CURRENT_USER`, and `CURRENT_DATABASE`.
 *   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
@@ -48,12 +53,12 @@ All notable changes to this project will be documented in this file. It uses the
     aggregates on `AggregateFunction` columns. Thanks to Philip Dubé for the
     PR ([#179]).
 *   Fixed `NTILE`, `CUME_DIST`, and `PERCENT_RANK` pushdown failing because
-    the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that
-    ClickHouse rejects for ranking functions.
+    the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that ClickHouse
+    rejects for ranking functions. Thanks Philip Dubé for the PR ([#184]).
 *   `regr_avgx`, `regr_avgy`, `regr_count`, `regr_intercept`, `regr_r2`,
-    `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`, `json_agg_strict`,
-    and `jsonb_agg_strict` now evaluate locally instead of being pushed to
-    ClickHouse where they would fail.
+    `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`, `json_agg_strict`, and
+    `jsonb_agg_strict` now evaluate locally instead of being pushed to
+    ClickHouse where they would fail. Thanks Philip Dubé for the PR ([#184]).∑
 
 ### 📔 Notes
 
@@ -83,12 +88,10 @@ All notable changes to this project will be documented in this file. It uses the
     "pg_clickhouse#177 clang-tidy static analysis"
   [#181]: https://github.com/ClickHouse/pg_clickhouse/pull/181
     "pg_clickhouse#181 HTTP streaming"
+  [#184]: https://github.com/ClickHouse/pg_clickhouse/pull/184
+    "pg_clickhouse#184 More function support fixes"
 
 ## [v0.1.6] — 2026-04-02
-
-This release makes binary-only changes. Once installed, any existing use of
-pg_clickhouse v0.1 will get its benefits on reload without needing to
-`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 

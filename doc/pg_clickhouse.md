@@ -1,5 +1,5 @@
-pg_clickhouse 0.1.7
-===================
+pg_clickhouse 0.1.10
+====================
 
 ## Synopsis
 
