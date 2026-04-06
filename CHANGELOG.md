@@ -7,6 +7,12 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.1.11] — Unreleased
+
+
+
+  [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
+
 ## [v0.1.10] — 2026-04-06
 
 This release makes binary-only changes. Once installed, any existing use of
@@ -67,8 +73,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Introduced clang-tidy and integrated it into `make lint` and for use in
     CI. Thanks to Philip Dubé for the PR ([#177]).
 
-  [v0.1.7]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.7
-  https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
+  [v0.1.10]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.10
+  [sub-column syntax]: https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
     "ClickHouse Docs: Reading JSON paths as sub-columns"
   [#169]: https://github.com/ClickHouse/pg_clickhouse/pull/169
     "pg_clickhouse#169 Push down jsonb -> and ->> operators as ClickHouse dot notation"
