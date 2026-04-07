@@ -29,10 +29,10 @@ $$);
 CREATE SCHEMA json_bin;
 CREATE SCHEMA json_http;
 IMPORT FOREIGN SCHEMA "json_test" FROM SERVER binary_json_loopback INTO json_bin;
-ERROR:  pg_clickhouse: could not map things.data type <'json')>
+ERROR:  pg_clickhouse: could not map things.data type <Object('json')>
 \d json_bin.things
 IMPORT FOREIGN SCHEMA "json_test" FROM SERVER http_json_loopback INTO json_http;
-ERROR:  pg_clickhouse: could not map things.data type <'json')>
+ERROR:  pg_clickhouse: could not map things.data type <Object('json')>
 \d json_http.things
 -- Fails pending https://github.com/ClickHouse/clickhouse-cpp/issues/422
 INSERT INTO json_bin.things VALUES

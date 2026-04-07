@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, customer-*]
     tags: ["v*"]
+  pull_request:
 
 permissions:
   contents: write
@@ -116,6 +117,7 @@ jobs:
           fi
 
       - name: Create or Update Release
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}

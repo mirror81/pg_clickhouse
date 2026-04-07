@@ -1175,8 +1175,9 @@ static char *str_types_map[][2] = {
 };
 
 static char *
-parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, List * *options)
+parse_type(char *table_name, char *colname, char *part, bool *is_nullable, List * *options)
 {
+	char	   *typepart = part;
 	char	   *pos = strstr(typepart, "(");
 
 	if (pos != NULL)
@@ -1263,7 +1264,7 @@ parse_type(char *table_name, char *colname, char *typepart, bool *is_nullable, L
 
 	ereport(ERROR, (errmsg(
 						   "pg_clickhouse: could not map %s.%s type <%s>",
-						   quote_identifier(table_name), quote_identifier(colname), typepart
+						   quote_identifier(table_name), quote_identifier(colname), part
 						   )));
 }
 

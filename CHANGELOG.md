@@ -25,6 +25,15 @@ All notable changes to this project will be documented in this file. It uses the
     in Postgres versions prior to 18, and without having to load
     pg_clickhouse, first.
 
+### ⬆️ Dependency Updates
+
+*   Updated vendored clickhouse-cpp library to v2.6.1.
+
+### 🐞 Bug Fixes
+
+*   Fixed a malformed type name in the error message when the http driver is
+    unable to map a ClickHouse type to a Postgres type.
+
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
 
 ## [v0.1.10] — 2026-04-06
