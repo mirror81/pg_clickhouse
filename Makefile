@@ -17,11 +17,8 @@ OS 	        ?= $(shell uname -s | tr A-Z a-z)
 ARCH         = $(shell uname -m)
 
 # Collect all the C++ and C files to compile into MODULE_big.
-OBJS = $(sort \
-    $(subst .cpp,.o, $(wildcard src/*.cpp src/*/*.cpp)) \
-    $(subst .c.in,.o, $(wildcard src/*.c.in src/*/*.c)) \
-    $(subst .c,.o, $(wildcard src/*.c src/*/*.c)) \
-)
+OBJS = $(subst .cpp,.o, $(wildcard src/*.cpp src/*/*.cpp)) \
+       $(subst .c,.o, $(wildcard src/*.c src/*/*.c))
 
 # Build static on Darwin by default.
 ifndef CH_BUILD
@@ -73,7 +70,7 @@ ifneq ($(OS),darwin)
 endif
 
 # Clean up the clickhouse-cpp build directory and generated files.
-EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c compile_commands.json test/schedule $(EXTENSION)-$(DISTVERSION).zip
+EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/include/version.h compile_commands.json test/schedule $(EXTENSION)-$(DISTVERSION).zip
 ifndef NO_VENDOR_CLEAN
 	EXTRA_CLEAN += $(CH_CPP_BUILD_DIR)
 endif
@@ -101,8 +98,8 @@ $(shlib): $(CH_CPP_LIB) $(OBJS)
 $(CH_CPP_DIR)/CMakeLists.txt:
 	git submodule update --init
 
-# Require the vendored clickhouse-cpp.
-$(OBJS): $(CH_CPP_DIR)/CMakeLists.txt
+# Require the vendored clickhouse-cpp and the version header.
+$(OBJS): $(CH_CPP_DIR)/CMakeLists.txt src/include/version.h
 
 # Build clickhouse-cpp.
 $(CH_CPP_LIB): export CXXFLAGS=-fPIC
@@ -112,14 +109,14 @@ $(CH_CPP_LIB): $(CH_CPP_DIR)/CMakeLists.txt # Sync with "Reset Vendor Timestamp"
 	cmake --build $(CH_CPP_BUILD_DIR) --parallel $$(nproc) --target all
 
 # Require the versioned C source and SQL script.
-all: sql/$(EXTENSION)--$(EXTVERSION).sql src/fdw.c
+all: sql/$(EXTENSION)--$(EXTVERSION).sql
 
 # Versioned SQL script.
 sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 	cp $< $@
 
 # Versioned source file.
-src/fdw.c: src/fdw.c.in
+src/include/version.h: src/include/version.h.in
 	sed -e 's,__VERSION__,$(DISTVERSION),g' $< > $@
 
 # Configure install/uninstall of the clickhouse-cpp library.

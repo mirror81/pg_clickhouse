@@ -39,10 +39,11 @@
 #include "binary.hh"
 #include "internal.h"
 #include "fdw.h"
+#include "version.h"
 
 /* Extension metadata for the server. */
 #ifdef PG_MODULE_MAGIC_EXT
-PG_MODULE_MAGIC_EXT(.name = "pg_clickhouse",.version = "__VERSION__");
+PG_MODULE_MAGIC_EXT(.name = "pg_clickhouse",.version = PGCH_VERSION);
 #else
 PG_MODULE_MAGIC;
 #endif
@@ -188,6 +189,7 @@ PG_FUNCTION_INFO_V1(clickhouse_raw_query);
 PG_FUNCTION_INFO_V1(clickhouse_op_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_noop);
+PG_FUNCTION_INFO_V1(pgch_version);
 static double time_used = 0;
 
 /*
@@ -3272,4 +3274,13 @@ clickhouse_push_fail(PG_FUNCTION_ARGS)
 			errcode(ERRCODE_FDW_ERROR),
 			errmsg("pg_clickhouse: failed to push down %s()", name)
 		);
+}
+
+/*
+ * Function returns the full pg_clickhouse library version.
+*/
+Datum
+pgch_version(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_TEXT_P(cstring_to_text(PGCH_VERSION));
 }

@@ -1,5 +1,5 @@
-pg_clickhouse 0.1.10
-====================
+pg_clickhouse 0.2.0
+===================
 
 ## Synopsis
 
@@ -56,7 +56,8 @@ Once installed, PostgreSQL tracks two variations of the version:
 
 *   The library version (defined by `PG_MODULE_MAGIC` on PostgreSQL 18 and
     higher) includes the full semantic version, visible in the output of the
-    `pg_get_loaded_modules()` function.
+    `pgch_version()` function or the Postgres [`pg_get_loaded_modules()`]
+    function.
 *   The extension version (defined in the control file) includes only the
     major and minor versions, visible in the `pg_catalog.pg_extension` table,
     the output of the `pg_available_extension_versions()` function, and `\dx
@@ -1173,6 +1174,8 @@ Copyright (c) 2025-2026, ClickHouse.
   [ClickHouse]: https://clickhouse.com/clickhouse
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
+  [`pg_get_loaded_modules()`]: https://pgpedia.info/g/pg_get_loaded_modules.html
+    "pgPedia: pg_get_loaded_modules()"
   [DDL]: https://en.wikipedia.org/wiki/Data_definition_language
     "Wikipedia: Data definition language"
   [CREATE EXTENSION]: https://www.postgresql.org/docs/current/sql-createextension.html

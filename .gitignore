@@ -11,7 +11,7 @@ regression.out
 .vscode/
 _build/
 /release-notes.md
-/src/fdw.c
+src/include/version.h
 /sql/*--*.sql
 !/sql/*--*--*.sql
 compile_commands.json

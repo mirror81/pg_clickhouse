@@ -1,6 +1,11 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_clickhouse" to load this file. \quit
 
+-- Utility function.
+CREATE FUNCTION pgch_version() RETURNS TEXT
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT;
+
 -- Set up the FDW.
 CREATE FUNCTION clickhouse_fdw_handler()
 RETURNS fdw_handler

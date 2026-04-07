@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.1.11] — Unreleased
+## [v0.2.0] — Unreleased
 
 ### ⚡ Improvements
 
@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file. It uses the
         `transaction_timestamp()` => `nowInBlock64(n, TZ)`
 *   Added pushdown for the `CURRENT_TIME` and `LOCALTIME` SQL Value Functions
     to `toTime64(now64(9, TZ), 9)`, supported by ClickHouse 25.8+.
+*   Added `pgch_version()`, which returns the full semantic version.
+    This is the same value visible in `pg_get_loaded_modules()`, but available
+    in Postgres versions prior to 18, and without having to load
+    pg_clickhouse, first.
 
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
 

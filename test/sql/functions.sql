@@ -1,5 +1,7 @@
 SET datestyle = 'ISO';
 
+SELECT pgch_version() ~ '^\d+\.\d+\.\d+$';
+
 CREATE SERVER functions_loopback FOREIGN DATA WRAPPER clickhouse_fdw
     OPTIONS(dbname 'functions_test', driver 'binary');
 CREATE USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
