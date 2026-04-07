@@ -9,7 +9,17 @@ All notable changes to this project will be documented in this file. It uses the
 
 ## [v0.1.11] — Unreleased
 
+### ⚡ Improvements
 
+*   Changed the pushdown mappings for the current date and timestamp functions
+    to account for the session time zone and maximum precision, as follows:
+    *   `CURRENT_DATE` -> `toDate(now(TZ))`
+    *   `CURRENT_TIMESTAMP` and `LOCALTIMESTAMP` => `now64(9, TZ)`
+    *   `CURRENT_TIMESTAMP(n)` and `LOCALTIMESTAMP(n)` => `now64(n, TZ)`
+    *   `clock_timestamp()`, `statement_timestamp()` &
+        `transaction_timestamp()` => `nowInBlock64(n, TZ)`
+*   Added pushdown for the `CURRENT_TIME` and `LOCALTIME` SQL Value Functions
+    to `toTime64(now64(9, TZ), 9)`, supported by ClickHouse 25.8+.
 
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
 

@@ -1033,15 +1033,19 @@ maps the following functions:
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
-*   `now`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
-*   `statement_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
-*   `transaction_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
-*   `clock_timestamp`: [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
-*   `CURRENT_DATE`: [today](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#today)
-*   `CURRENT_TIMESTAMP`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
-*   `CURRENT_TIMESTAMP(scale)`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
-*   `LOCALTIMESTAMP`: [now](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now)
-*   `LOCALTIMESTAMP(scale)`: [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+*   `statement_timestamp`, `transaction_timestamp`, & `clock_timestamp`:
+    [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
+    (`nowInBlock64(9, $session_timezone)`)
+*   `CURRENT_DATE`:
+    [now](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now) and
+    [toDate](https://clickhouse.com/docs/sql-reference/functions/type-conversion-functions#toDate)
+    (`toDate(now($session_timezone))`)
+*   `now`, `CURRENT_TIMESTAMP`, & `LOCALTIMESTAMP`:
+    [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+    (`now64(9, $session_timezone)`)
+*   `CURRENT_TIMESTAMP(n)` & `LOCALTIMESTAMP(n)`:
+    [now64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64)
+    (`now64(n, $session_timezone)`)
 *   `CURRENT_DATABASE`: Passed as value from PostgreSQL function.
 *   `CURRENT_SCHEMA`: Passed as value from PostgreSQL function.
 *   `CURRENT_CATALOG`: Passed as value from PostgreSQL function.

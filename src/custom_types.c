@@ -333,7 +333,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_TRANSACTION_TIMESTAMP:
 			case F_CLOCK_TIMESTAMP:
 				{
-					strcpy(entry->custom_name, "nowInBlock64");
+					entry->cf_type = CF_CLOCK_TIMESTAMP;
+					entry->custom_name[0] = '\1';
 					break;
 				}
 			case F_CURRENT_SCHEMA:

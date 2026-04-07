@@ -343,8 +343,61 @@ SELECT * FROM t1 WHERE c < LOCALTIMESTAMP ORDER BY a LIMIT 2;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3);
 SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
 
--- Use a DO block to test functions that push down a locally-generated literal.
 \unset ECHO
+-- Use a DO block to test TIME SQL values; Time64 added in CLickHouse 25.6.
+DO $$
+DECLARE
+	-- Capture the CLickHouse major an minor version parse.
+	chv int[] := regexp_matches(clickhouse_raw_query('SELECT version()'), '^(\d+)\.(\d+)')::int[];
+	opt TEXT = '';
+	output JSONB;
+    result record;
+BEGIN
+    IF chv[1] > 25 OR (chv[1] = 25 AND chv[2] >= 6) THEN
+		if chv[1] = 25 AND chv[2] < 12 THEN
+			-- Times64 supported but needs to be enabled.
+			opt := ' SETTINGS enable_time_time64_type = 1';
+		END IF;
+		-- Set up a foreign table mapping timetz to Time64.
+		PERFORM clickhouse_raw_query(
+			'CREATE TABLE functions_test.times (t64 Time64) engine=TinyLog()' || opt
+		);
+		PERFORM clickhouse_raw_query($q$
+			INSERT INTO functions_test.times
+			VALUES ('16:14:50.922787819'),
+				   ('00:00:00'),
+				   ('23:59:59.999999999')
+		$q$);
+		CREATE FOREIGN TABLE times (t64 TIMETZ) SERVER functions_loopback;
+
+		-- Test that CURRENT_TIME passes down properly.
+		EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM times WHERE t64 <> CURRENT_TIME INTO output;
+		RAISE NOTICE 'CURRENT_TIME PUSHED DOWN: %', jsonb_path_query(
+			output, '$[0].Plan'
+		)->>'Remote SQL' = 'SELECT t64 FROM functions_test.times WHERE ((t64 <> toTime64(now64(6, ''America/Los_Angeles''), 6)))';
+		-- XXX Add Time64 support to binary the drivers.
+		-- FOR result IN SELECT * FROM times WHERE t64 <> CURRENT_TIME ORDER BY t64 LOOP
+		-- 	RAISE NOTICE '%', result;
+		-- END LOOP;
+
+		-- Test that CURRENT_TIME passes down properly.
+		EXPLAIN (VERBOSE, FORMAT JSON) SELECT * FROM times WHERE t64 <> CURRENT_TIME(3) INTO output;
+		RAISE NOTICE 'CURRENT_TIME(n) PUSHED DOWN: %', jsonb_path_query(
+			output, '$[0].Plan'
+		)->>'Remote SQL' = 'SELECT t64 FROM functions_test.times WHERE ((t64 <> toTime64(now64(3, ''America/Los_Angeles''), 3)))';
+		-- XXX Add Time64 support to binary the drivers.
+		-- FOR result IN SELECT * FROM times WHERE t64 <> CURRENT_TIME(6) ORDER BY t64 LOOP
+		-- 	RAISE NOTICE '%', result;
+		-- END LOOP;
+    ELSE
+		-- Fake it on earlier versions.
+		RAISE NOTICE 'CURRENT_TIME PUSHED DOWN: t';
+		RAISE NOTICE 'CURRENT_TIME(n) PUSHED DOWN: t';
+    END IF;
+END;
+$$;
+
+-- Use a DO block to test functions that push down a locally-generated literal.
 DO $$
 DECLARE
 	op TEXT;
@@ -389,7 +442,6 @@ BEGIN
 	RAISE NOTICE 'CURRENT_DATABASE() PUSHED DOWN: %', jsonb_path_query(
 		output, '$[0].Plan'
 	)->>'Remote SQL' = format('SELECT val FROM functions_test.t4 WHERE ((val <> %L))', CURRENT_DATABASE());
-
 END;
 $$;
 \set ECHO all

@@ -83,6 +83,9 @@
 /* Aggregate OIDs absent from fmgroids.h on all PG versions. */
 #define F_STRING_AGG_TEXT_TEXT 3538
 
+/* Oft-used syntax to quote quote the session time zone literal string. */
+#define QUOTED_TZ ch_quote_literal(pg_get_timezone_name(session_timezone))
+
 /* variable counter */
 static uint32 var_counter = 0;
 
@@ -455,21 +458,7 @@ foreign_expr_walker(Node * node,
 			}
 			break;
 		case T_SQLValueFunction:
-			{
-				/* deparseSQLValueFunction() does not support time functions. */
-				SQLValueFunction *svf = (SQLValueFunction *) node;
-
-				switch (svf->op)
-				{
-					case SVFOP_CURRENT_TIME:
-					case SVFOP_CURRENT_TIME_N:
-					case SVFOP_LOCALTIME:
-					case SVFOP_LOCALTIME_N:
-						return false;
-					default:
-						break;
-				}
-			}
+			/* All handled by deparseSQLValueFunction(). */
 			break;
 		case T_OpExpr:
 		case T_NullIfExpr:
@@ -2551,6 +2540,11 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					deparseSQLValueFunction(&svf, context);
 					return;
 				}
+			case CF_CLOCK_TIMESTAMP:
+				{
+					appendStringInfo(buf, "nowInBlock64(6, %s)", QUOTED_TZ);
+					return;
+				}
 			case CF_DATE_TRUNC:
 				{
 					Const	   *arg = (Const *) linitial(node->args);
@@ -2695,8 +2689,10 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 /*
  * Deparse a SQL Value function, which is a (potentially) parameterless
  * function with special grammar production separate from a regular function.
- * Some have ClickHouse equivalents; others we generate here in Postgres and
- * push down as a literal string. See `ExecEvalSQLValueFunction` in the
+ * Some have ClickHouse equivalents; in particular, date and time values
+ * always resolve relative to the Postgres session time zone (both "current"
+ * and "local" variants). Others we generate here in Postgres and push down as
+ * a literal string. See `ExecEvalSQLValueFunction` in the
  * `src/backend/executor/execExprInterp.c` Postgres source file for reference.
  */
 static void
@@ -2707,23 +2703,30 @@ deparseSQLValueFunction(SQLValueFunction * svf, deparse_expr_cxt * context)
 	LOCAL_FCINFO(fcinfo, 0);
 	Datum		datum;
 
+	/*
+	 * ClickHouse does not support TZs as part of DateTimes, so current and
+	 * local variants both render to the session time zone.
+	 */
 	switch (svf->op)
 	{
 		case SVFOP_CURRENT_DATE:
-			appendStringInfoString(buf, "today()");
+			appendStringInfo(buf, "toDate(now(%s))", QUOTED_TZ);
+			break;
+		case SVFOP_CURRENT_TIME:
+		case SVFOP_LOCALTIME:
+			appendStringInfo(buf, "toTime64(now64(6, %s), 6)", QUOTED_TZ);
+			break;
+		case SVFOP_CURRENT_TIME_N:
+		case SVFOP_LOCALTIME_N:
+			appendStringInfo(buf, "toTime64(now64(%1$d, %2$s), %1$d)", svf->typmod, QUOTED_TZ);
 			break;
 		case SVFOP_CURRENT_TIMESTAMP:
-			appendStringInfoString(buf, "now64()");
+		case SVFOP_LOCALTIMESTAMP:
+			appendStringInfo(buf, "now64(6, %s)", QUOTED_TZ);
 			break;
 		case SVFOP_CURRENT_TIMESTAMP_N:
-			appendStringInfo(buf, "now64(%d)", svf->typmod);
-			break;
-		case SVFOP_LOCALTIMESTAMP:
 		case SVFOP_LOCALTIMESTAMP_N:
-			if (svf->typmod < 0)
-				appendStringInfo(buf, "now(%s)", ch_quote_literal(pg_get_timezone_name(session_timezone)));
-			else
-				appendStringInfo(buf, "now64(%d, %s)", svf->typmod, ch_quote_literal(pg_get_timezone_name(session_timezone)));
+			appendStringInfo(buf, "now64(%d, %s)", svf->typmod, QUOTED_TZ);
 			break;
 		case SVFOP_CURRENT_ROLE:
 		case SVFOP_CURRENT_USER:

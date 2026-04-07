@@ -1478,45 +1478,45 @@ SELECT * FROM t1 WHERE c < NOW() ORDER BY a LIMIT 2;
 (2 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
-                                    QUERY PLAN                                    
-----------------------------------------------------------------------------------
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
-                                    QUERY PLAN                                    
-----------------------------------------------------------------------------------
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
-                                    QUERY PLAN                                    
-----------------------------------------------------------------------------------
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64()))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64() ORDER BY a ASC NULLS LAST LIMIT 2
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64())) ORDER BY a ASC NULLS LAST LIMIT 2
+ERROR:  pg_clickhouse: DB::Exception: Unknown function nowInBlock64. Maybe you meant: ['nowInBlock']: While processing SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2
+DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 -- Check SQL Value functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;
-                                QUERY PLAN                                 
----------------------------------------------------------------------------
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < today()))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < toDate(now('America/Los_Angeles'))))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < CURRENT_DATE ORDER BY a LIMIT 2;
@@ -1527,11 +1527,11 @@ SELECT * FROM t1 WHERE c < CURRENT_DATE ORDER BY a LIMIT 2;
 (2 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP;
-                                QUERY PLAN                                 
----------------------------------------------------------------------------
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64()))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(6, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP ORDER BY a LIMIT 2;
@@ -1542,11 +1542,11 @@ SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP ORDER BY a LIMIT 2;
 (2 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3);
-                                 QUERY PLAN                                 
-----------------------------------------------------------------------------
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(3)))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(3, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3) ORDER BY a LIMIT 2;
@@ -1557,11 +1557,11 @@ SELECT * FROM t1 WHERE c < CURRENT_TIMESTAMP(3) ORDER BY a LIMIT 2;
 (2 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP;
-                                          QUERY PLAN                                          
-----------------------------------------------------------------------------------------------
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now('America/Los_Angeles')))
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((c < now64(6, 'America/Los_Angeles')))
 (3 rows)
 
 SELECT * FROM t1 WHERE c < LOCALTIMESTAMP ORDER BY a LIMIT 2;
@@ -1586,8 +1586,9 @@ SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
  2 | 2 | 2019-01-02 02:00:00
 (2 rows)
 
--- Use a DO block to test functions that push down a locally-generated literal.
 \unset ECHO
+NOTICE:  CURRENT_TIME PUSHED DOWN: t
+NOTICE:  CURRENT_TIME(n) PUSHED DOWN: t
 NOTICE:  CURRENT_USER PUSHED DOWN: t
 NOTICE:  USER PUSHED DOWN: t
 NOTICE:  CURRENT_ROLE PUSHED DOWN: t

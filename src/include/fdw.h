@@ -314,6 +314,7 @@ typedef enum
 	CF_STRING_AGG,				/* string_agg → groupConcat(delim)(expr) */
 	CF_CURRENT_DATABASE,		/* CURRENT_DATABASE → string literal */
 	CF_CURRENT_SCHEMA,			/* CF_CURRENT_SCHEMA → string literal */
+	CF_CLOCK_TIMESTAMP,			/* clock_timestamp → nowInBlock64(6, $TZ) */
 }			custom_object_type;
 
 typedef enum
