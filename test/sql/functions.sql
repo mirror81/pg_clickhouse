@@ -345,6 +345,13 @@ SELECT * FROM t1 WHERE c < LOCALTIMESTAMP ORDER BY a LIMIT 2;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3);
 SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
 
+-- Use with other functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
+SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a LIMIT 2;
+SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a;
+
 \unset ECHO
 -- Use a DO block to test TIME SQL values; Time64 added in CLickHouse 25.6.
 DO $$

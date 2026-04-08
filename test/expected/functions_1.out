@@ -1599,6 +1599,41 @@ SELECT * FROM t1 WHERE c < LOCALTIMESTAMP(3) ORDER BY a LIMIT 2;
  2 | 2 | 2019-01-02 02:00:00
 (2 rows)
 
+-- Use with other functions.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toYear(c) < toYear(cast(toDate(now('America/Los_Angeles')), 'Nullable(DateTime)'))))
+(3 rows)
+
+SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+ 2 | 2 | 2019-01-02 03:00:00
+ 2 | 3 | 2019-01-02 02:00:00
+(4 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a LIMIT 2;
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toStartOfDay(c) < (toStartOfDay(now64(6, 'America/Los_Angeles')) - 86400))) ORDER BY a ASC NULLS LAST LIMIT 2
+(3 rows)
+
+SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a;
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+ 2 | 2 | 2019-01-02 03:00:00
+ 2 | 3 | 2019-01-02 02:00:00
+(4 rows)
+
 \unset ECHO
 NOTICE:  CURRENT_TIME PUSHED DOWN: t
 NOTICE:  CURRENT_TIME(n) PUSHED DOWN: t
