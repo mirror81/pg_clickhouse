@@ -1032,6 +1032,7 @@ maps the following functions:
 *   `btrim`: [trimBoth](https://clickhouse.com/docs/sql-reference/functions/string-functions#trimboth)
 *   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
 *   `statement_timestamp`, `transaction_timestamp`, & `clock_timestamp`:
@@ -1159,6 +1160,43 @@ rejects frame specifications on these functions.
   [window functions]: https://www.postgresql.org/docs/current/functions-window.html
     "PostgreSQL Docs: Window Functions"
 
+## Compatibility Notes
+
+### Regular Expressions
+
+While pg_clickhouse pushes down regular expressions to ClickHouse equivalents,
+be aware of the differences between the two.
+
+*   PostgreSQL supports [POSIX Regular Expressions] while ClickHouse supports
+    [RE2 Regular Expressions]. Beware of differences in behavior: write RE2
+    when the regular expression will be evaluated by ClickHouse (e.g., in a
+    `WHERE` clause) and POSIX when it will be evaluated by Postgres (e.g., in
+    a `SELECT` clause).
+*   pg_clickhouse pushes down the Postgres [Regex flags] by prepending them
+    to ClikHouse regular expression inside `(?)`. For example:
+
+    ``` sql
+    regexp_like(val, '^VAL\d', 'i')
+    ```
+
+    Becomes
+
+    ```sql
+    match(val, concat('(?i)', '^VAL\\d'))
+    ```
+
+  The only flags both support, and therefore can be used when evaluated by
+  ClickHouse, are:
+
+  RE2 supports only these flags; don't use any other [Postgres flags]
+
+  *   `i`: case-insensitive
+  *   `m`: multi-line mode:
+  *   `s`: let `.` match `\n`
+
+Postgres parser will reject the one other RE2 flag, `U`, and specifying any
+other [Postgres flags] will trigger an error from ClickHouse.
+
 ## Authors
 
 *   [David E. Wheeler](https://justatheory.com/)
@@ -1256,3 +1294,8 @@ Copyright (c) 2025-2026, ClickHouse.
     "ClickHouse Docs: String"
   [TEXT]: https://www.postgresql.org/docs/current/datatype-character.html
     "PostgreSQL Docs: Character Types"
+  [POSIX Regular Expressions]: https://www.postgresql.org/docs/18/functions-matching.html#FUNCTIONS-POSIX-REGEXP
+    "PostgreSQL Docs: POSIX Regular Expressions"
+  [Postgres flags]: https://www.postgresql.org/docs/18/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
+    "PostgreSQL Docs: ARE Embedded-Option Letters"
+  [RE2 Regular Expressions]: https://github.com/google/re2/wiki/Syntax "RE2 Syntax"

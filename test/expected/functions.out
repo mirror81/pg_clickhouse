@@ -88,6 +88,12 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t7(dt Date) engine=Tiny
  
 (1 row)
 
+SELECT clickhouse_raw_query('CREATE TABLE functions_test.t8(val String) engine=TinyLog();');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
 		('2025-10-15T20:12:25'),
@@ -136,6 +142,7 @@ CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
 CREATE FOREIGN TABLE t7 (ts date) SERVER functions_loopback;
+CREATE FOREIGN TABLE t8 (val text) SERVER functions_loopback;
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
 	SELECT number+1, number+2
@@ -160,6 +167,18 @@ SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t4
 	SELECT 'val' || toString(number+1)
 	  FROM numbers(2);
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+	INSERT INTO functions_test.t8
+	VALUES ('a,b,c'),
+		   ('foo,bar,baz'),
+		   ('sleep   no   more'),
+		   ('aa-T-bb-t-cc')
 $$);
  clickhouse_raw_query 
 ----------------------
@@ -1379,7 +1398,7 @@ SELECT ts FROM t5 WHERE date_trunc('quarter', ts) = '2027-10-01'::date;
 (1 row)
 
 -- check regexp_like.
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like('^val\d', val);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like(val, '^val\d');
                                   QUERY PLAN                                   
 -------------------------------------------------------------------------------
  Foreign Scan on public.t4
@@ -1387,12 +1406,70 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like('^val\d', val)
    Remote SQL: SELECT val FROM functions_test.t4 WHERE (match(val, '^val\\d'))
 (3 rows)
 
-SELECT val FROM t4 WHERE regexp_like('^val\d', val);
+SELECT val FROM t4 WHERE regexp_like(val, '^val\d');
  val  
 ------
  val1
  val2
 (2 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like(val, '^VAL\d', 'i');
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t4 WHERE (match(val, concat('(?i)', '^VAL\\d')))
+(3 rows)
+
+SELECT val FROM t4 WHERE regexp_like(val, '^VAL\d', 'i');
+ val  
+------
+ val1
+ val2
+(2 rows)
+
+-- Check regexp_split_to_array.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t8
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t8 WHERE ((splitByRegexp(',', val) = ['a','b','c']))
+(3 rows)
+
+SELECT val FROM t8 WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+  val  
+-------
+ a,b,c
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t8
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t8 WHERE ((splitByRegexp('\\s+', val) = ['sleep','no','more']))
+(3 rows)
+
+SELECT val FROM t8 WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
+        val        
+-------------------
+ sleep   no   more
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t8
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t8 WHERE ((splitByRegexp(concat('(?i)', '-t-'), val) = ['aa','bb','cc']))
+(3 rows)
+
+SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
+     val      
+--------------
+ aa-T-bb-t-cc
+(1 row)
 
 -- Check hashing functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
@@ -1714,7 +1791,7 @@ SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 (1 row)
 
 DROP SERVER functions_loopback CASCADE;
-NOTICE:  drop cascades to 9 other objects
+NOTICE:  drop cascades to 10 other objects
 DETAIL:  drop cascades to foreign table t1
 drop cascades to foreign table t2
 drop cascades to foreign table t3
@@ -1723,4 +1800,5 @@ drop cascades to foreign table t4
 drop cascades to foreign table t5
 drop cascades to foreign table t6
 drop cascades to foreign table t7
+drop cascades to foreign table t8
 drop cascades to foreign table times

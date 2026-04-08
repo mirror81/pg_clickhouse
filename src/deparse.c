@@ -206,6 +206,7 @@ static void deparseCoalesceExpr(CoalesceExpr * node, deparse_expr_cxt * context)
 static void deparseMinMaxExpr(MinMaxExpr * node, deparse_expr_cxt * context);
 static void deparseRowExpr(RowExpr * node, deparse_expr_cxt * context);
 static void deparseNullIfExpr(NullIfExpr * node, deparse_expr_cxt * context);
+static void appendRegex(List * args, deparse_expr_cxt * context);
 
 /*
  * Helper functions
@@ -2467,6 +2468,34 @@ deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
 }
 
 /*
+ * Utility function used by the regular expression functions to generate the
+ * regular expression argument. It expects the second item in `args` to be the
+ * regular expression, and the third, optional item to be the flags. If there
+ * are no flags it simply appends the regexp expression. If there are flags,
+ * it emits the regular expression as `concat('(?$flags), $regexp)`. This is
+ * safe to do because the Postgres parser validates the flags, which must be a
+ * string constant.
+*/
+static void
+appendRegex(List * args, deparse_expr_cxt * context)
+{
+	if (list_length(args) <= 2)
+	{
+		/* No flags argument, just append the regexp expression. */
+		deparseExpr((Expr *) list_nth(args, 1), context);
+		return;
+	}
+
+	/* Concatenate the flags with the regexp expression. */
+	Const	   *arg = (Const *) list_nth(args, 2);
+	char	   *flags = TextDatumGetCString(arg->constvalue);
+
+	appendStringInfo(context->buf, "concat('(?%s)', ", flags);
+	deparseExpr((Expr *) list_nth(args, 1), context);
+	appendStringInfoChar(context->buf, ')');
+}
+
+/*
  * Deparse a function call.
  */
 static void
@@ -2646,21 +2675,42 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoChar(buf, ')');
 					return;
 				}
+			case CF_TIMEZONE:
+				{
+					/* Arguments are reversed. */
+					appendStringInfoChar(buf, '(');
+					deparseExpr((Expr *) list_nth(node->args, 1), context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
+			case CF_MATCH:
+				{
+					/* match(haystack, pattern) */
+					appendStringInfoChar(buf, '(');
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					appendRegex(node->args, context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
+			case CF_SPLIT_BY_REGEXP:
+				{
+					/* splitByRegexp(regexp, s) */
+					appendStringInfoChar(buf, '(');
+					appendRegex(node->args, context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
 			default:
 				break;
 		}
 	}
 
 	appendStringInfoChar(buf, '(');
-	if (cdef && (cdef->cf_type == CF_TIMEZONE || cdef->cf_type == CF_MATCH))
-	{
-		deparseExpr((Expr *) list_nth(node->args, 1), context);
-		appendStringInfoString(buf, ", ");
-		deparseExpr((Expr *) linitial(node->args), context);
-		appendStringInfoChar(buf, ')');
-		return;
-	}
-
 	old_cdef = context->func;
 
 	/* ... and all the arguments */

@@ -24,6 +24,10 @@ All notable changes to this project will be documented in this file. It uses the
     This is the same value visible in `pg_get_loaded_modules()`, but available
     in Postgres versions prior to 18, and without having to load
     pg_clickhouse, first.
+*   Added support for pushing down the flags passed to `regexp_like()` by
+    prepending them to the regular expression (e.g., `(?i)foo`).
+*   Added pushdown for `regexp_split_to_array()` to `splitByRegexp()`,
+    including flags.
 
 ### ⬆️ Dependency Updates
 
@@ -33,6 +37,8 @@ All notable changes to this project will be documented in this file. It uses the
 
 *   Fixed a malformed type name in the error message when the http driver is
     unable to map a ClickHouse type to a Postgres type.
+*   Fixed reversal of the arguments passed to the ClickHouse `match()`
+    function by the mapping from `regexp_like()`.
 
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
 

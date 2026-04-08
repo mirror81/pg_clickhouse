@@ -40,6 +40,8 @@
 #define F_ARRAY_AGG_ANYNONARRAY 2335
 #define F_TO_TIMESTAMP_FLOAT8 1158
 #define F_TRANSACTION_TIMESTAMP 2647
+#define F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT 2767
+#define F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT 2768
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -52,6 +54,7 @@
 /* regexp_like was added in Postgres 15; Mock it for earlier versions. */
 #if PG_VERSION_NUM < 150000
 #define F_REGEXP_LIKE_TEXT_TEXT 6263
+#define F_REGEXP_LIKE_TEXT_TEXT_TEXT 6264
 #endif
 
 #define STR_STARTS_WITH(str, sub) strncmp(str, sub, strlen(sub)) == 0
@@ -197,6 +200,9 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_BTRIM_TEXT_TEXT:
 			case F_BTRIM_TEXT:
 			case F_REGEXP_LIKE_TEXT_TEXT:
+			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
+			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
+			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
 			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
 			case F_ARRAY_AGG_ANYNONARRAY:
@@ -274,9 +280,17 @@ chfdw_check_for_custom_function(Oid funcid)
 					break;
 				}
 			case F_REGEXP_LIKE_TEXT_TEXT:
+			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
 				{
 					entry->cf_type = CF_MATCH;
 					strcpy(entry->custom_name, "match");
+					break;
+				}
+			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
+			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
+				{
+					entry->cf_type = CF_SPLIT_BY_REGEXP;
+					strcpy(entry->custom_name, "splitByRegexp");
 					break;
 				}
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
