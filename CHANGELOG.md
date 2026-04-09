@@ -28,6 +28,14 @@ All notable changes to this project will be documented in this file. It uses the
     prepending them to the regular expression (e.g., `(?i)foo`).
 *   Added pushdown for `regexp_split_to_array()` to `splitByRegexp()`,
     including flags.
+*   Added pushdown mappings for array functions: `array_cat`, `array_append`,
+    `array_remove`, `array_to_string`, `cardinality`, `array_length`,
+    `array_prepend`, `string_to_array`, `trim_array`, `array_fill`,
+    `array_reverse`, `array_shuffle`, `array_sample`, `array_sort`.
+*   Added pushdown for array operators: `@>` (`hasAll`), `<@` (`hasAll`),
+    `&&` (`hasAny`).
+*   Array slice syntax (`arr[L:U]`, `arr[:U]`, `arr[L:]`) now pushes down
+    as `arraySlice()`.
 
 ### ⬆️ Dependency Updates
 
@@ -39,6 +47,10 @@ All notable changes to this project will be documented in this file. It uses the
     unable to map a ClickHouse type to a Postgres type.
 *   Fixed reversal of the arguments passed to the ClickHouse `match()`
     function by the mapping from `regexp_like()`.
+*   `array_dims`, `array_ndims`, `array_lower`, `array_upper`, `array_replace`,
+    `array_positions`, `array_fill (3-arg)`, `array_sort (3-arg)`, and
+    `string_to_array(3-arg)` now evaluate locally instead of being pushed to
+    ClickHouse where they would fail.
 
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
 

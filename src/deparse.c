@@ -2382,45 +2382,56 @@ static void
 deparseSubscriptingRef(SubscriptingRef * node, deparse_expr_cxt * context)
 {
 	StringInfo	buf = context->buf;
-	ListCell   *lowlist_item;
-	ListCell   *uplist_item;
 
-	/* Always parenthesize the expression. */
-	appendStringInfoChar(buf, '(');
-
-	/*
-	 * Deparse referenced array expression first. If that expression includes
-	 * a cast, we have to parenthesize to prevent the array subscript from
-	 * being taken as typename decoration. We can avoid that in the typical
-	 * case of subscripting a Var, but otherwise do it.
-	 */
-	if (IsA(node->refexpr, Var))
+	if (node->reflowerindexpr != NIL)
 	{
+		/*
+		 * Slice: CH doesn't support [L:U] syntax, emit arraySlice(). PG slice
+		 * is inclusive both ends, CH arraySlice takes (arr, offset, length).
+		 * Only 1D arrays are supported (enforced elsewhere).
+		 */
+		Expr	   *lower = (Expr *) linitial(node->reflowerindexpr);
+		Expr	   *upper = (Expr *) linitial(node->refupperindexpr);
+
+		appendStringInfoString(buf, "arraySlice(");
 		deparseExpr(node->refexpr, context);
+		appendStringInfoString(buf, ", ");
+
+		if (lower)
+			deparseExpr(lower, context);
+		else
+			appendStringInfoChar(buf, '1');
+
+		if (upper)
+		{
+			appendStringInfoString(buf, ", (");
+			deparseExpr(upper, context);
+			appendStringInfoString(buf, ") - (");
+			if (lower)
+				deparseExpr(lower, context);
+			else
+				appendStringInfoChar(buf, '1');
+			appendStringInfoString(buf, ") + 1");
+		}
+
+		appendStringInfoChar(buf, ')');
 	}
 	else
 	{
+		/* Single element: emit arr[idx] */
 		appendStringInfoChar(buf, '(');
-		deparseExpr(node->refexpr, context);
-		appendStringInfoChar(buf, ')');
-	}
-
-	/* Deparse subscript expressions. */
-	lowlist_item = list_head(node->reflowerindexpr);	/* could be NULL */
-	foreach(uplist_item, node->refupperindexpr)
-	{
-		appendStringInfoChar(buf, '[');
-		if (lowlist_item)
+		if (IsA(node->refexpr, Var))
+			deparseExpr(node->refexpr, context);
+		else
 		{
-			deparseExpr(lfirst(lowlist_item), context);
-			appendStringInfoChar(buf, ':');
-			lowlist_item = lnext_compat(node->reflowerindexpr, lowlist_item);
+			appendStringInfoChar(buf, '(');
+			deparseExpr(node->refexpr, context);
+			appendStringInfoChar(buf, ')');
 		}
-		deparseExpr(lfirst(uplist_item), context);
-		appendStringInfoChar(buf, ']');
+		appendStringInfoChar(buf, '[');
+		deparseExpr((Expr *) linitial(node->refupperindexpr), context);
+		appendStringInfoString(buf, "])");
 	}
-
-	appendStringInfoChar(buf, ')');
 }
 
 /*
@@ -2537,8 +2548,20 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	}
 
 	/*
-	 * Normal function: display as proname(args).
+	 * Normal function: display as proname(args). CF_ARRAY_SORT_DESC name
+	 * depends on boolean arg, resolve before printing.
 	 */
+	cdef = chfdw_check_for_custom_function(node->funcid);
+	if (cdef && cdef->cf_type == CF_ARRAY_SORT_DESC)
+	{
+		Expr	   *desc_arg = (Expr *) list_nth(node->args, 1);
+
+		if (IsA(desc_arg, Const) && !((Const *) desc_arg)->constisnull
+			&& DatumGetBool(((Const *) desc_arg)->constvalue))
+			strcpy(cdef->custom_name, "arrayReverseSort");
+		else
+			strcpy(cdef->custom_name, "arraySort");
+	}
 	cdef = appendFunctionName(node->funcid, context);
 
 	if (cdef)
@@ -2676,6 +2699,8 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					return;
 				}
 			case CF_TIMEZONE:
+			case CF_ARRAY_PREPEND:
+			case CF_STRING_TO_ARRAY:
 				{
 					/* Arguments are reversed. */
 					appendStringInfoChar(buf, '(');
@@ -2705,6 +2730,35 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoChar(buf, ')');
 					return;
 				}
+			case CF_ARRAY_LENGTH:
+				appendStringInfoChar(buf, '(');
+				deparseExpr((Expr *) linitial(node->args), context);
+				appendStringInfoChar(buf, ')');
+				return;
+			case CF_TRIM_ARRAY:
+				/* arrayResize(arr, length(arr) - n) */
+				appendStringInfoChar(buf, '(');
+				deparseExpr((Expr *) linitial(node->args), context);
+				appendStringInfoString(buf, ", length(");
+				deparseExpr((Expr *) linitial(node->args), context);
+				appendStringInfoString(buf, ") - ");
+				deparseExpr((Expr *) list_nth(node->args, 1), context);
+				appendStringInfoChar(buf, ')');
+				return;
+			case CF_ARRAY_SORT_DESC:
+				/* name resolved before appendFunctionName, drop boolean arg */
+				appendStringInfoChar(buf, '(');
+				deparseExpr((Expr *) linitial(node->args), context);
+				appendStringInfoChar(buf, ')');
+				return;
+			case CF_ARRAY_FILL:
+				/* arrayWithConstant(n, val): swap args */
+				appendStringInfoChar(buf, '(');
+				deparseExpr((Expr *) list_nth(node->args, 1), context);
+				appendStringInfoString(buf, ", ");
+				deparseExpr((Expr *) linitial(node->args), context);
+				appendStringInfoChar(buf, ')');
+				return;
 			default:
 				break;
 		}
@@ -3023,6 +3077,36 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 						elog(ERROR, "pg_clickhouse supports hstore fetchval "
 							 "only for scalars");
 
+					goto cleanup;
+				}
+				break;
+			case CF_ARRAY_CONTAINS:
+				{
+					appendStringInfoString(buf, "hasAll(");
+					deparseExpr(linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr(lsecond(node->args), context);
+					appendStringInfoChar(buf, ')');
+					goto cleanup;
+				}
+				break;
+			case CF_ARRAY_CONTAINED_BY:
+				{
+					appendStringInfoString(buf, "hasAll(");
+					deparseExpr(lsecond(node->args), context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr(linitial(node->args), context);
+					appendStringInfoChar(buf, ')');
+					goto cleanup;
+				}
+				break;
+			case CF_ARRAY_OVERLAP:
+				{
+					appendStringInfoString(buf, "hasAny(");
+					deparseExpr(linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					deparseExpr(lsecond(node->args), context);
+					appendStringInfoChar(buf, ')');
 					goto cleanup;
 				}
 				break;

@@ -287,13 +287,13 @@ Use [CREATE FOREIGN TABLE] to create a foreign table that can query data from
 a ClickHouse database:
 
 ```sql
-CREATE FOREIGN TABLE uact (
+CREATE FOREIGN TABLE acts (
     user_id    bigint NOT NULL,
     page_views int,
     duration   smallint,
     sign       smallint
 ) SERVER taxi_srv OPTIONS(
-    table_name 'uact',
+    table_name 'acts',
     engine 'CollapsingMergeTree'
 );
 ```
@@ -325,8 +325,6 @@ option:
 
 Example:
 
-(aggregatefunction 'sum')
-
 ```sql
 CREATE FOREIGN TABLE test (
     column1 bigint  OPTIONS(AggregateFunction 'uniq'),
@@ -354,14 +352,14 @@ TABLE].
 Use [DROP FOREIGN TABLE] to remove a foreign table:
 
 ```sql
-DROP FOREIGN TABLE uact;
+DROP FOREIGN TABLE acts;
 ```
 
 This command fails if there are any objects that depend on the foreign table.
 Use the `CASCADE` clause to drop them, too:
 
 ```sql
-DROP FOREIGN TABLE uact CASCADE;
+DROP FOREIGN TABLE acts CASCADE;
 ```
 
 ## DML SQL Reference
@@ -422,7 +420,7 @@ like any other tables:
 try=# SELECT start_at, duration, resource FROM logs WHERE req_id = 4117909262;
           start_at          | duration |    resource
 ----------------------------+----------+----------------
- 2025-12-05 15:07:32.944188 |      175 | /widgets/totam
+ 2025-12-05 15:07:32.944188 |      175 | /widgets/totem
 (1 row)
 ```
 
@@ -922,7 +920,7 @@ SELECT c1, encode(c2::bytea, 'hex'), encode(c3::bytea, 'hex') FROM texts ORDER B
 
 The text columns will be correct:
 
-```pgdsql
+```pgsql
 
  c1 |                          encode                          |              encode
 ----+----------------------------------------------------------+----------------------------------
@@ -1029,6 +1027,19 @@ maps the following functions:
     *   `date_trunc('quarter')`: [toStartOfQuarter](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toStartOfQuarter)
     *   `date_trunc('year')`: [toStartOfYear](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toStartOfYear)
 *   `array_position`: [indexOf](https://clickhouse.com/docs/sql-reference/functions/array-functions#indexOf)
+*   `array_cat`: [arrayConcat](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayConcat)
+*   `array_append`: [arrayPushBack](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayPushBack)
+*   `array_prepend`: [arrayPushFront](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayPushFront)
+*   `array_remove`: [arrayRemove](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayRemove)
+*   `array_length` & `cardinality`: [length](https://clickhouse.com/docs/sql-reference/functions/array-functions#length)
+*   `array_to_string`: [arrayStringConcat](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayStringConcat)
+*   `string_to_array`: [splitByString](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByString)
+*   `trim_array`: [arrayResize](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayResize)
+*   `array_fill`: [arrayWithConstant](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayWithConstant)
+*   `array_reverse`: [arrayReverse](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayReverse)
+*   `array_shuffle`: [arrayShuffle](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayShuffle)
+*   `array_sample`: [arrayRandomSample](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayRandomSample)
+*   `array_sort`: [arraySort](https://clickhouse.com/docs/sql-reference/functions/array-functions#arraySort) / [arrayReverseSort](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayReverseSort)
 *   `btrim`: [trimBoth](https://clickhouse.com/docs/sql-reference/functions/string-functions#trimboth)
 *   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
@@ -1055,6 +1066,19 @@ maps the following functions:
 *   `USER`: Passed as value from PostgreSQL function.
 *   `CURRENT_ROLE`: Passed as value from PostgreSQL function.
 *   `SESSION_USER`: Passed as value from PostgreSQL function.
+
+### Pushdown Operators
+
+*   Array slice (`arr[L:U]`): [arraySlice](https://clickhouse.com/docs/sql-reference/functions/array-functions#arraySlice)
+*   `@>` (array contains): [hasAll](https://clickhouse.com/docs/sql-reference/functions/array-functions#hasAll)
+*   `<@` (array contained by): [hasAll](https://clickhouse.com/docs/sql-reference/functions/array-functions#hasAll)
+*   `&&` (array overlap): [hasAny](https://clickhouse.com/docs/sql-reference/functions/array-functions#hasAny)
+*   `~` (regexp match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `!~` (regexp not match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `~*` (case insensitive regexp no match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `!~*` (case insensitive regexp not match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `->` (JSON extract element): [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `->>` (JSON extract element as text): [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 
 ### Custom Functions
 

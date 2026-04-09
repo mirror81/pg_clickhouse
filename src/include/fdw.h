@@ -316,6 +316,19 @@ typedef enum
 	CF_CURRENT_DATABASE,		/* CURRENT_DATABASE → string literal */
 	CF_CURRENT_SCHEMA,			/* CF_CURRENT_SCHEMA → string literal */
 	CF_CLOCK_TIMESTAMP,			/* clock_timestamp → nowInBlock64(6, $TZ) */
+	CF_ARRAY_LENGTH,			/* array_length → length, drop dim arg */
+	CF_ARRAY_PREPEND,			/* array_prepend → arrayPushFront, swap args */
+	CF_STRING_TO_ARRAY,			/* string_to_array → splitByString, swap
+								 * args */
+	CF_TRIM_ARRAY,				/* trim_array → arrayResize(arr,
+								 * length(arr)-n) */
+	CF_ARRAY_SORT_DESC,			/* array_sort(arr,desc) →
+								 * arrayReverseSort/arraySort */
+	CF_ARRAY_FILL,				/* array_fill → arrayWithConstant,
+								 * swap+extract */
+	CF_ARRAY_CONTAINS,			/* @> → hasAll(left, right) */
+	CF_ARRAY_CONTAINED_BY,		/* <@ → hasAll(right, left) */
+	CF_ARRAY_OVERLAP,			/* && → hasAny(left, right) */
 }			custom_object_type;
 
 typedef enum

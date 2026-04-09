@@ -4,6 +4,7 @@
 #include "access/htup.h"
 #include "access/htup_details.h"
 #include "catalog/dependency.h"
+#include "catalog/pg_operator_d.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
@@ -50,11 +51,31 @@
 #define F_EXTRACT_TEXT_TIMESTAMP 6202
 #define F_EXTRACT_TEXT_TIMESTAMPTZ 6203
 #define F_EXTRACT_TEXT_DATE 6199
+#define F_TRIM_ARRAY 6172
+#define F_STRING_TO_ARRAY_TEXT_TEXT 394
+#define F_STRING_TO_ARRAY_TEXT_TEXT_TEXT 376
+#define F_ARRAY_TO_STRING_ANYARRAY_TEXT 395
+#define F_ARRAY_TO_STRING_ANYARRAY_TEXT_TEXT 384
+#define F_ARRAY_FILL_ANYELEMENT__INT4 F_ARRAY_FILL
+#define F_ARRAY_FILL_ANYELEMENT__INT4__INT4 F_ARRAY_FILL_WITH_LOWER_BOUNDS
+#define F_CARDINALITY F_ARRAY_CARDINALITY
 #endif
-/* regexp_like was added in Postgres 15; Mock it for earlier versions. */
+/* regexp_like was added in Postgres 15 */
 #if PG_VERSION_NUM < 150000
 #define F_REGEXP_LIKE_TEXT_TEXT 6263
 #define F_REGEXP_LIKE_TEXT_TEXT_TEXT 6264
+#endif
+/* array_shuffle, array_sample added in Postgres 16 */
+#if PG_VERSION_NUM < 160000
+#define F_ARRAY_SHUFFLE 6215
+#define F_ARRAY_SAMPLE 6216
+#endif
+/* array_reverse, array_sort added in Postgres 18 */
+#if PG_VERSION_NUM < 180000
+#define F_ARRAY_REVERSE 6381
+#define F_ARRAY_SORT_ANYARRAY 6388
+#define F_ARRAY_SORT_ANYARRAY_BOOL 6389
+#define F_ARRAY_SORT_ANYARRAY_BOOL_BOOL 6390
 #endif
 
 #define STR_STARTS_WITH(str, sub) strncmp(str, sub, strlen(sub)) == 0
@@ -217,6 +238,34 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_CLOCK_TIMESTAMP:
 			case F_CURRENT_SCHEMA:
 			case F_CURRENT_DATABASE:
+				/* array functions: simple mappings */
+			case F_ARRAY_CAT:
+			case F_ARRAY_APPEND:
+			case F_ARRAY_REMOVE:
+			case F_ARRAY_TO_STRING_ANYARRAY_TEXT:
+			case F_CARDINALITY:
+			case F_ARRAY_REVERSE:
+			case F_ARRAY_SORT_ANYARRAY:
+			case F_ARRAY_SHUFFLE:
+			case F_ARRAY_SAMPLE:
+				/* array functions: arg rewriting */
+			case F_ARRAY_LENGTH:
+			case F_ARRAY_PREPEND:
+			case F_STRING_TO_ARRAY_TEXT_TEXT:
+			case F_TRIM_ARRAY:
+			case F_ARRAY_FILL_ANYELEMENT__INT4:
+			case F_ARRAY_SORT_ANYARRAY_BOOL:
+				/* array functions: unshippable */
+			case F_ARRAY_DIMS:
+			case F_ARRAY_NDIMS:
+			case F_ARRAY_LOWER:
+			case F_ARRAY_UPPER:
+			case F_ARRAY_REPLACE:
+			case F_ARRAY_POSITIONS:
+			case F_ARRAY_TO_STRING_ANYARRAY_TEXT_TEXT:
+			case F_STRING_TO_ARRAY_TEXT_TEXT_TEXT:
+			case F_ARRAY_FILL_ANYELEMENT__INT4__INT4:
+			case F_ARRAY_SORT_ANYARRAY_BOOL_BOOL:
 				special_builtin = true;
 				break;
 			default:
@@ -363,6 +412,69 @@ chfdw_check_for_custom_function(Oid funcid)
 					entry->custom_name[0] = '\1';
 					break;
 				}
+				/* array functions: unshippable */
+			case F_ARRAY_DIMS:
+			case F_ARRAY_NDIMS:
+			case F_ARRAY_LOWER:
+			case F_ARRAY_UPPER:
+			case F_ARRAY_REPLACE:
+			case F_ARRAY_POSITIONS:
+			case F_ARRAY_TO_STRING_ANYARRAY_TEXT_TEXT:
+			case F_STRING_TO_ARRAY_TEXT_TEXT_TEXT:
+			case F_ARRAY_FILL_ANYELEMENT__INT4__INT4:
+			case F_ARRAY_SORT_ANYARRAY_BOOL_BOOL:
+				entry->cf_type = CF_UNSHIPPABLE;
+				break;
+				/* array functions: simple mappings */
+			case F_ARRAY_CAT:
+				strcpy(entry->custom_name, "arrayConcat");
+				break;
+			case F_ARRAY_APPEND:
+				strcpy(entry->custom_name, "arrayPushBack");
+				break;
+			case F_ARRAY_REMOVE:
+				strcpy(entry->custom_name, "arrayRemove");
+				break;
+			case F_ARRAY_TO_STRING_ANYARRAY_TEXT:
+				strcpy(entry->custom_name, "arrayStringConcat");
+				break;
+			case F_CARDINALITY:
+			case F_ARRAY_LENGTH:
+				entry->cf_type = CF_ARRAY_LENGTH;
+				strcpy(entry->custom_name, "length");
+				break;
+			case F_ARRAY_REVERSE:
+				strcpy(entry->custom_name, "arrayReverse");
+				break;
+			case F_ARRAY_SORT_ANYARRAY:
+				strcpy(entry->custom_name, "arraySort");
+				break;
+			case F_ARRAY_SHUFFLE:
+				strcpy(entry->custom_name, "arrayShuffle");
+				break;
+			case F_ARRAY_SAMPLE:
+				strcpy(entry->custom_name, "arrayRandomSample");
+				break;
+			case F_ARRAY_PREPEND:
+				entry->cf_type = CF_ARRAY_PREPEND;
+				strcpy(entry->custom_name, "arrayPushFront");
+				break;
+			case F_STRING_TO_ARRAY_TEXT_TEXT:
+				entry->cf_type = CF_STRING_TO_ARRAY;
+				strcpy(entry->custom_name, "splitByString");
+				break;
+			case F_TRIM_ARRAY:
+				entry->cf_type = CF_TRIM_ARRAY;
+				strcpy(entry->custom_name, "arrayResize");
+				break;
+			case F_ARRAY_FILL_ANYELEMENT__INT4:
+				entry->cf_type = CF_ARRAY_FILL;
+				strcpy(entry->custom_name, "arrayWithConstant");
+				break;
+			case F_ARRAY_SORT_ANYARRAY_BOOL:
+				entry->cf_type = CF_ARRAY_SORT_DESC;
+				entry->custom_name[0] = '\1';
+				break;
 		}
 
 		if (special_builtin)
@@ -426,39 +538,42 @@ chfdw_check_for_custom_type(Oid typeoid)
 	return entry;
 }
 
-/*
- * Operator-name to custom_object_type mapping table, searched linearly by
- * classify_builtin_operator().  Keep in sync with the CF_* enum in fdw.h.
- */
-typedef struct
-{
-	const char *oprname;
-	custom_object_type ctype;
-}			BuiltinOperatorMap;
-
-static const BuiltinOperatorMap builtin_operator_map[] = {
-	{"~", CF_REGEX_MATCH},
-	{"!~", CF_REGEX_NO_MATCH},
-	{"~*", CF_REGEX_ICASE_MATCH},
-	{"!~*", CF_REGEX_ICASE_NO_MATCH},
-	{"->", CF_JSONB_FETCHVAL},
-	{"->>", CF_JSONB_FETCHVAL_TEXT},
-};
+/* pg_operator_d.h only has oid_symbol for some operators */
+#define OID_TEXT_REGEX_NE_OP		642
+#define OID_TEXT_IREGEX_NE_OP		1229
+#define OID_JSONB_FETCHVAL_OP		3211
+#define OID_JSONB_FETCHVAL_TEXT_OP	3477
 
 /*
- * Map a builtin operator name to its custom_object_type.  Returns CF_USUAL
- * when the operator needs no special handling and should follow the normal
- * builtin shortcut (i.e. be presumed shippable with no rewrite).
+ * Map a builtin operator OID to its custom_object_type. Returns CF_USUAL
+ * when the operator needs no special handling.
  */
 static custom_object_type
-classify_builtin_operator(const char *oprname)
+classify_builtin_operator(Oid opoid)
 {
-	for (int i = 0; i < lengthof(builtin_operator_map); i++)
+	switch (opoid)
 	{
-		if (strcmp(oprname, builtin_operator_map[i].oprname) == 0)
-			return builtin_operator_map[i].ctype;
+		case OID_TEXT_REGEXEQ_OP:
+			return CF_REGEX_MATCH;
+		case OID_TEXT_REGEX_NE_OP:
+			return CF_REGEX_NO_MATCH;
+		case OID_TEXT_ICREGEXEQ_OP:
+			return CF_REGEX_ICASE_MATCH;
+		case OID_TEXT_IREGEX_NE_OP:
+			return CF_REGEX_ICASE_NO_MATCH;
+		case OID_JSONB_FETCHVAL_OP:
+			return CF_JSONB_FETCHVAL;
+		case OID_JSONB_FETCHVAL_TEXT_OP:
+			return CF_JSONB_FETCHVAL_TEXT;
+		case OID_ARRAY_CONTAINS_OP:
+			return CF_ARRAY_CONTAINS;
+		case OID_ARRAY_CONTAINED_OP:
+			return CF_ARRAY_CONTAINED_BY;
+		case OID_ARRAY_OVERLAP_OP:
+			return CF_ARRAY_OVERLAP;
+		default:
+			return CF_USUAL;
 	}
-	return CF_USUAL;
 }
 
 CustomObjectDef *
@@ -474,31 +589,10 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 
 	if (chfdw_is_builtin(opoid))
 	{
-		switch (opoid)
+		ctype = classify_builtin_operator(opoid);
+		if (ctype == CF_USUAL && opoid != F_TIMESTAMPTZ_PL_INTERVAL)
 		{
-				/* timestamptz + interval */
-			case F_TIMESTAMPTZ_PL_INTERVAL:
-				break;
-			default:
-
-				/* Look up the operator name so we can classify it. */
-				if (!form)
-				{
-					tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(opoid));
-					if (!HeapTupleIsValid(tuple))
-						ereport(ERROR,
-								errcode(ERRCODE_INTERNAL_ERROR),
-								errmsg("pg_clickhouse: cache lookup failed for operator %u", opoid));
-					form = (Form_pg_operator) GETSTRUCT(tuple);
-				}
-
-				ctype = classify_builtin_operator(NameStr(form->oprname));
-				if (ctype != CF_USUAL)
-					break;		/* fall through to cache + classify below */
-
-				if (tuple)
-					ReleaseSysCache(tuple);
-				return NULL;
+			return NULL;
 		}
 	}
 
@@ -516,10 +610,11 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form)
 		entry = hash_search(custom_objects_cache, (void *) &opoid, HASH_ENTER, NULL);
 		init_custom_entry(entry);
 
+		ctype = classify_builtin_operator(opoid);
 		if (opoid == F_TIMESTAMPTZ_PL_INTERVAL)
 			entry->cf_type = CF_TIMESTAMPTZ_PL_INTERVAL;
-		else if (form && classify_builtin_operator(NameStr(form->oprname)) != CF_USUAL)
-			entry->cf_type = classify_builtin_operator(NameStr(form->oprname));
+		else if (ctype != CF_USUAL)
+			entry->cf_type = ctype;
 		else
 		{
 			Oid			extoid = getExtensionOfObject(OperatorRelationId, opoid);
