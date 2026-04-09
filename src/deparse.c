@@ -421,7 +421,7 @@ foreign_expr_walker(Node * node,
 				 * can't be sent to remote because it might have incompatible
 				 * semantics on remote side.
 				 */
-				if (!chfdw_is_shippable(fe->funcid, ProcedureRelationId, fpinfo, &cdef))
+				if (!chfdw_is_shippable(node, fe->funcid, ProcedureRelationId, fpinfo, &cdef))
 					return false;
 
 				/*
@@ -472,7 +472,7 @@ foreign_expr_walker(Node * node,
 				 * (If the operator is shippable, we assume its underlying
 				 * function is too.)
 				 */
-				if (!chfdw_is_shippable(oe->opno, OperatorRelationId, fpinfo, NULL))
+				if (!chfdw_is_shippable(node, oe->opno, OperatorRelationId, fpinfo, NULL))
 					return false;
 
 				/*
@@ -589,7 +589,7 @@ foreign_expr_walker(Node * node,
 					return false;
 
 				/* As usual, it must be shippable. */
-				if (!chfdw_is_shippable(agg->aggfnoid, ProcedureRelationId, fpinfo, NULL))
+				if (!chfdw_is_shippable(node, agg->aggfnoid, ProcedureRelationId, fpinfo, NULL))
 					return false;
 
 				/* Features that ClickHouse doesn't support */
@@ -661,7 +661,7 @@ foreign_expr_walker(Node * node,
 					return false;
 
 				/* The window function must be shippable */
-				if (!chfdw_is_shippable(wfunc->winfnoid, ProcedureRelationId, fpinfo, NULL))
+				if (!chfdw_is_shippable(node, wfunc->winfnoid, ProcedureRelationId, fpinfo, NULL))
 					return false;
 
 				/* FILTER is not supported in ClickHouse window functions */
@@ -742,7 +742,7 @@ foreign_expr_walker(Node * node,
 	 * If result type of given expression is not shippable, it can't be sent
 	 * to remote because it might have incompatible semantics on remote side.
 	 */
-	if (check_type && !chfdw_is_shippable(exprType(node), TypeRelationId, fpinfo, NULL))
+	if (check_type && !chfdw_is_shippable(node, exprType(node), TypeRelationId, fpinfo, NULL))
 	{
 		return false;
 	}
@@ -2552,16 +2552,6 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 	 * depends on boolean arg, resolve before printing.
 	 */
 	cdef = chfdw_check_for_custom_function(node->funcid);
-	if (cdef && cdef->cf_type == CF_ARRAY_SORT_DESC)
-	{
-		Expr	   *desc_arg = (Expr *) list_nth(node->args, 1);
-
-		if (IsA(desc_arg, Const) && !((Const *) desc_arg)->constisnull
-			&& DatumGetBool(((Const *) desc_arg)->constvalue))
-			strcpy(cdef->custom_name, "arrayReverseSort");
-		else
-			strcpy(cdef->custom_name, "arraySort");
-	}
 	cdef = appendFunctionName(node->funcid, context);
 
 	if (cdef)
@@ -2746,11 +2736,17 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 				appendStringInfoChar(buf, ')');
 				return;
 			case CF_ARRAY_SORT_DESC:
-				/* name resolved before appendFunctionName, drop boolean arg */
-				appendStringInfoChar(buf, '(');
-				deparseExpr((Expr *) linitial(node->args), context);
-				appendStringInfoChar(buf, ')');
-				return;
+				{
+					/* Determine function name reverse boolean arg. */
+					Const	   *desc_arg = (Const *) list_nth(node->args, 1);
+
+					appendStringInfoString(buf, !desc_arg->constisnull && DatumGetBool(desc_arg->constvalue) ? "arrayReverseSort" : "arraySort");
+					appendStringInfoChar(buf, '(');
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
+
 			case CF_ARRAY_FILL:
 				/* arrayWithConstant(n, val): swap args */
 				appendStringInfoChar(buf, '(');

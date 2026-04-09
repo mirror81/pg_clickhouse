@@ -130,7 +130,14 @@ DECLARE
           "where": "array_sort(vals, true) = vals",
           "push": "((arraySort(vals) = vals))"
         }$_$,
-        -- PG18+ 'array_sort(vals, true) = ARRAY[30,20,10]'
+        -- PG18+ unshippable: 'array_sort(vals, dynamic) = ARRAY[30,20,10]'
+        -- Keep before array_sort(vals, const) to ensure function names not
+        -- replaced.
+        $_${
+          "func": "array_sort(x, dynamic)",
+          "where": "array_sort(vals, (select true)) = ARRAY[30,20,10]"
+        }$_$,
+        -- PG18+ 'array_sort(vals, const) = ARRAY[30,20,10]'
         $_${
           "func": "array_sort(x, true)",
           "where": "array_sort(vals, true) = ARRAY[30,20,10]",
@@ -166,6 +173,8 @@ BEGIN
         RAISE NOTICE '(1,"{10,20,30}","{a,b,c}",aa-bb-cc)';
         RAISE NOTICE 'array_sort PUSHED DOWN: f';
         RAISE NOTICE '(3,{60},{f},"Edit -> Insert -> Line Break")';
+        RAISE NOTICE 'array_sort(x, dynamic) NOT PUSHED DOWN: t';
+        RAISE NOTICE '(1,"{10,20,30}","{a,b,c}",aa-bb-cc)';
         RAISE NOTICE 'array_sort(x, true) PUSHED DOWN: t';
         RAISE NOTICE '(1,"{10,20,30}","{a,b,c}",aa-bb-cc)';
         RAISE NOTICE 'array_sort(x, true, true) NOT PUSHED DOWN: t';

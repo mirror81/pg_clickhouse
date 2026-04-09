@@ -371,7 +371,7 @@ extern Datum ch_timestamp_out(PG_FUNCTION_ARGS);
 extern Datum ch_date_out(PG_FUNCTION_ARGS);
 extern Datum ch_time_out(PG_FUNCTION_ARGS);
 
-extern bool chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
+extern bool chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 							   CustomObjectDef * *outcdef);
 extern double time_diff(struct timeval *prior, struct timeval *latter);
 

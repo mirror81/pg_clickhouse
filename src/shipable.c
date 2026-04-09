@@ -161,7 +161,7 @@ chfdw_is_builtin(Oid objectId)
  *	   Is this object (function/operator/type) shippable to foreign server?
  */
 bool
-chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
+chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 				   CustomObjectDef * *outcdef)
 {
 	ShippableCacheKey key;
@@ -192,6 +192,19 @@ chfdw_is_shippable(Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 		{
 			if (outcdef != NULL)
 				*outcdef = cdef;
+
+			if (cdef->cf_type == CF_ARRAY_SORT_DESC)
+			{
+				/*
+				 * If the boolean argument passed to array_sort(arr, bool) is
+				 * dynamic, we can't push it down.
+				 */
+				Expr	   *desc_arg = (Expr *) list_nth(((FuncExpr *) node)->args, 1);
+
+				if (!IsA(desc_arg, Const))
+					/* No support for a dynamic value here. */
+					return false;
+			}
 			return (cdef->cf_type != CF_UNSHIPPABLE);
 		}
 	}

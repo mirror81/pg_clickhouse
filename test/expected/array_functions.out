@@ -201,6 +201,8 @@ NOTICE:  array_reverse PUSHED DOWN: t
 NOTICE:  (1,"{10,20,30}","{a,b,c}",aa-bb-cc)
 NOTICE:  array_sort PUSHED DOWN: f
 NOTICE:  (3,{60},{f},"Edit -> Insert -> Line Break")
+NOTICE:  array_sort(x, dynamic) NOT PUSHED DOWN: t
+NOTICE:  (1,"{10,20,30}","{a,b,c}",aa-bb-cc)
 NOTICE:  array_sort(x, true) PUSHED DOWN: t
 NOTICE:  (1,"{10,20,30}","{a,b,c}",aa-bb-cc)
 NOTICE:  array_sort(x, true, true) NOT PUSHED DOWN: t
