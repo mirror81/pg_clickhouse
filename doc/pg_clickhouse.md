@@ -1044,6 +1044,7 @@ maps the following functions:
 *   `btrim`: [trimBoth](https://clickhouse.com/docs/sql-reference/functions/string-functions#trimboth)
 *   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `regexp_replace`: [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne) or [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll) when the `g` flag is present
 *   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
@@ -1197,8 +1198,9 @@ be aware of the differences between the two.
     when the regular expression will be evaluated by ClickHouse (e.g., in a
     `WHERE` clause) and POSIX when it will be evaluated by Postgres (e.g., in
     a `SELECT` clause).
+
 *   pg_clickhouse pushes down the Postgres [Regex flags] by prepending them
-    to ClikHouse regular expression inside `(?)`. For example:
+    to ClickHouse regular expression inside `(?)`. For example:
 
     ``` sql
     regexp_like(val, '^VAL\d', 'i')
@@ -1210,17 +1212,26 @@ be aware of the differences between the two.
     match(val, concat('(?i)', '^VAL\\d'))
     ```
 
-  The only flags both support, and therefore can be used when evaluated by
-  ClickHouse, are:
+*   The only flags both support, and therefore can be used when evaluated by
+    ClickHouse, are:
 
-  RE2 supports only these flags; don't use any other [Postgres flags]
+    RE2 supports only these flags; don't use any other [Postgres flags]
 
-  *   `i`: case-insensitive
-  *   `m`: multi-line mode:
-  *   `s`: let `.` match `\n`
+    *   `i`: case-insensitive
+    *   `m`: multi-line mode:
+    *   `s`: let `.` match `\n`
 
-Postgres parser will reject the one other RE2 flag, `U`, and specifying any
-other [Postgres flags] will trigger an error from ClickHouse.
+*   The exception is `regexp_replace()`, which also supports the `g` flag.
+    When `g` is set, pg_clickhouse uses `replaceRegexpAll()` instead of
+    `replaceRegexpOne()` and removes the flag before prepending other flags.
+
+*   Postgres parser will reject the one other RE2 flag, `U`, and specifying
+    any other [Postgres flags] will trigger an error from ClickHouse.
+
+*   The replacement argument to Postgres `regexp_replace()` supports `\&` to
+    refer to the entire match, while in ClickHouse supports `\0` for the
+    entire match. Be sure to use `\0` when the function pushes down to
+    ClickHouse.
 
 ## Authors
 

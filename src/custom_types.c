@@ -43,6 +43,8 @@
 #define F_TRANSACTION_TIMESTAMP 2647
 #define F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT 2767
 #define F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT 2768
+#define F_REGEXP_REPLACE_TEXT_TEXT_TEXT 2284
+#define F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT 2285
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -225,6 +227,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
+			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
+			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
 			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
 			case F_ARRAY_AGG_ANYNONARRAY:
@@ -342,6 +346,13 @@ chfdw_check_for_custom_function(Oid funcid)
 				{
 					entry->cf_type = CF_SPLIT_BY_REGEXP;
 					strcpy(entry->custom_name, "splitByRegexp");
+					break;
+				}
+			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
+			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
+				{
+					entry->cf_type = CF_REPLACE_REGEXP;
+					entry->custom_name[0] = '\1';
 					break;
 				}
 			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:

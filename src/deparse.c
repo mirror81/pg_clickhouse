@@ -2728,6 +2728,61 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoChar(buf, ')');
 					return;
 				}
+			case CF_REPLACE_REGEXP:
+				{
+					/* replaceRegexpOne() or replaceRegexpAll() */
+					char	   *flags = NULL;
+
+					if (list_length(node->args) >= 4)
+					{
+						/* Determine function name from "g" in flags. */
+						/* XXX May not be a constant. Enforce elsewhere. */
+						Const	   *arg = (Const *) list_nth(node->args, 3);
+
+						flags = TextDatumGetCString(arg->constvalue);
+						char	   *c = strchr(flags, 'g');
+
+						if (c)
+						{
+							appendStringInfoString(buf, "replaceRegexpAll");
+							/* Remove any and all g flags. */
+							while (c[0])
+							{
+								while (c[1] == 'g')
+									++c;
+								c[0] = c[1];
+								++c;
+							}
+						}
+						else
+							appendStringInfoString(buf, "replaceRegexpOne");
+					}
+					else
+						appendStringInfoString(buf, "replaceRegexpOne");
+
+					appendStringInfoChar(buf, '(');
+
+					/* Emit the first string to search ("haystack"). */
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+
+					/* Emit the regular expression. */
+					if (flags && strlen(flags))
+					{
+						/* Concatenate flags. */
+						appendStringInfo(context->buf, "concat('(?%s)', ", flags);
+						deparseExpr((Expr *) list_nth(node->args, 1), context);
+						appendStringInfoChar(buf, ')');
+					}
+					else
+						deparseExpr((Expr *) list_nth(node->args, 1), context);
+
+					/* Emit the replacement string and finish. */
+					appendStringInfoString(buf, ", ");
+					deparseExpr((Expr *) list_nth(node->args, 2), context);
+					appendStringInfoChar(buf, ')');
+					return;
+				}
 			case CF_ARRAY_LENGTH:
 				appendStringInfoChar(buf, '(');
 				deparseExpr((Expr *) linitial(node->args), context);

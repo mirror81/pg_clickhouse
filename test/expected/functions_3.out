@@ -1471,6 +1471,102 @@ SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::
  aa-T-bb-t-cc
 (1 row)
 
+-- Check regexp_replace().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpOne(val, '[0,1]$', '_xyz') = 'val_xyz'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+ key1 | key2 | val  
+------+------+------
+    1 | key1 | val1
+(1 row)
+
+-- No replace returns unmodified string.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpOne(val, '^x', 'y') = 'val4'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
+ key1 | key2 | val  
+------+------+------
+    4 | key4 | val4
+(1 row)
+
+-- Case-insensitive, refer to capture.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpOne(val, concat('(?i)', 'VAL([0,1])$'), 'x-\\1') = 'x-1'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+ key1 | key2 | val  
+------+------+------
+    1 | key1 | val1
+(1 row)
+
+-- Case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+                                                              QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpOne(val, concat('(?i)', '[VL]'), 'x') = 'xal1'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+ key1 | key2 | val  
+------+------+------
+    1 | key1 | val1
+(1 row)
+
+-- Replace all case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpAll(val, concat('(?ii)', '[VL]'), 'x') = 'xax1'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+ key1 | key2 | val  
+------+------+------
+    1 | key1 | val1
+(1 row)
+
+-- Refer to full match.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((replaceRegexpOne(val, concat('(?i)', '^val'), 'x-\\0') = 'x-val1'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+ key1 | key2 | val  
+------+------+------
+    1 | key1 | val1
+(1 row)
+
 -- Check hashing functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
                                                            QUERY PLAN                                                            

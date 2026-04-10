@@ -329,6 +329,31 @@ SELECT val FROM t8 WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::
 EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
 SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
 
+-- Check regexp_replace().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+-- No replace returns unmodified string.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
+SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
+-- Case-insensitive, refer to capture.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+-- Case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+-- Replace all case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+-- Refer to full match.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+
 -- Check hashing functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;
 SELECT key1 FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;

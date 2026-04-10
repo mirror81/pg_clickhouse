@@ -37,6 +37,9 @@ All notable changes to this project will be documented in this file. It uses the
     `&&` (`hasAny`).
 *   Array slice syntax (`arr[L:U]`, `arr[:U]`, `arr[L:]`) now pushes down
     as `arraySlice()`.
+*   Added mapping for `regexp_replace(4-arg)` to pushdown to
+    `replaceRegexpAll()` when the `g` flag is set, and to prepend the flags to
+    the pushed down expression.
 
 ### ⬆️ Dependency Updates
 
@@ -52,6 +55,8 @@ All notable changes to this project will be documented in this file. It uses the
     `array_positions`, `array_fill (3-arg)`, `array_sort (3-arg)`, and
     `string_to_array(3-arg)` now evaluate locally instead of being pushed to
     ClickHouse where they would fail.
+*   Changed pushdown for `regexp_replace(3-arg)` from `replaceRegexpAll()` to
+    `replaceRegexpOne()`.
 
 ### 📔 Notes
 
