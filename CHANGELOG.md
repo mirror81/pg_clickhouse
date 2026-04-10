@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file. It uses the
     `array_remove`, `array_to_string`, `cardinality`, `array_length`,
     `array_prepend`, `string_to_array`, `trim_array`, `array_fill`,
     `array_reverse`, `array_shuffle`, `array_sample`, `array_sort`.
+*   Added mapping for `split_part()` to pushdown `splitByString()[n]`.
 *   Added pushdown for array operators: `@>` (`hasAll`), `<@` (`hasAll`),
     `&&` (`hasAny`).
 *   Array slice syntax (`arr[L:U]`, `arr[:U]`, `arr[L:]`) now pushes down

@@ -54,6 +54,7 @@
 #define F_TRIM_ARRAY 6172
 #define F_STRING_TO_ARRAY_TEXT_TEXT 394
 #define F_STRING_TO_ARRAY_TEXT_TEXT_TEXT 376
+#define F_SPLIT_PART 2088
 #define F_ARRAY_TO_STRING_ANYARRAY_TEXT 395
 #define F_ARRAY_TO_STRING_ANYARRAY_TEXT_TEXT 384
 #define F_ARRAY_FILL_ANYELEMENT__INT4 F_ARRAY_FILL
@@ -252,6 +253,7 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_ARRAY_LENGTH:
 			case F_ARRAY_PREPEND:
 			case F_STRING_TO_ARRAY_TEXT_TEXT:
+			case F_SPLIT_PART:
 			case F_TRIM_ARRAY:
 			case F_ARRAY_FILL_ANYELEMENT__INT4:
 			case F_ARRAY_SORT_ANYARRAY_BOOL:
@@ -461,6 +463,10 @@ chfdw_check_for_custom_function(Oid funcid)
 				break;
 			case F_STRING_TO_ARRAY_TEXT_TEXT:
 				entry->cf_type = CF_STRING_TO_ARRAY;
+				strcpy(entry->custom_name, "splitByString");
+				break;
+			case F_SPLIT_PART:
+				entry->cf_type = CF_STRING_TO_ARRAY_PART;
 				strcpy(entry->custom_name, "splitByString");
 				break;
 			case F_TRIM_ARRAY:

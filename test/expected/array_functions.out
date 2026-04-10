@@ -194,6 +194,37 @@ SELECT * FROM t1 WHERE string_to_array(list, ' -> ') = ARRAY['Edit','Insert', 'L
   3 | {60} | {f}  | Edit -> Insert -> Line Break
 (1 row)
 
+-- split_part → splitByString
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE split_part(list, '-', 2) = 'bb';
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Foreign Scan on arr_test.t1
+   Output: id, vals, tags, list
+   Remote SQL: SELECT id, vals, tags, list FROM arr_test.t1 WHERE ((splitByString('-', list)[2] = 'bb'))
+(3 rows)
+
+SELECT * FROM t1 WHERE split_part(list, '-', 2) = 'bb';
+ id |    vals    |  tags   |   list   
+----+------------+---------+----------
+  1 | {10,20,30} | {a,b,c} | aa-bb-cc
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE split_part(list, '-', -1) = 'cc';
+                                                 QUERY PLAN                                                 
+------------------------------------------------------------------------------------------------------------
+ Foreign Scan on arr_test.t1
+   Output: id, vals, tags, list
+   Remote SQL: SELECT id, vals, tags, list FROM arr_test.t1 WHERE ((splitByString('-', list)[(-1)] = 'cc'))
+(3 rows)
+
+SELECT * FROM t1 WHERE split_part(list, '-', -1) = 'cc';
+ id |    vals    |  tags   |   list   
+----+------------+---------+----------
+  1 | {10,20,30} | {a,b,c} | aa-bb-cc
+(1 row)
+
 \unset ECHO
 NOTICE:  trim_array PUSHED DOWN: t
 NOTICE:  (1,"{10,20,30}","{a,b,c}",aa-bb-cc)

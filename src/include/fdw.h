@@ -320,6 +320,7 @@ typedef enum
 	CF_ARRAY_PREPEND,			/* array_prepend → arrayPushFront, swap args */
 	CF_STRING_TO_ARRAY,			/* string_to_array → splitByString, swap
 								 * args */
+	CF_STRING_TO_ARRAY_PART,	/* split_part → splitByString()[n] */
 	CF_TRIM_ARRAY,				/* trim_array → arrayResize(arr,
 								 * length(arr)-n) */
 	CF_ARRAY_SORT_DESC,			/* array_sort(arr,desc) →

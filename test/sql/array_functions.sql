@@ -88,6 +88,14 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t1 WHERE string_to_array(list, ' -> ') = ARRAY['aa','bb','cc'];
 SELECT * FROM t1 WHERE string_to_array(list, ' -> ') = ARRAY['Edit','Insert', 'Line Break'];
 
+-- split_part → splitByString
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE split_part(list, '-', 2) = 'bb';
+SELECT * FROM t1 WHERE split_part(list, '-', 2) = 'bb';
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE split_part(list, '-', -1) = 'cc';
+SELECT * FROM t1 WHERE split_part(list, '-', -1) = 'cc';
+
 \unset ECHO
 -- Use DO to test functions available in Postgres 14+
 -- trim_array → arrayResize(arr, length(arr) - n)

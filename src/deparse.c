@@ -2691,6 +2691,7 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 			case CF_TIMEZONE:
 			case CF_ARRAY_PREPEND:
 			case CF_STRING_TO_ARRAY:
+			case CF_STRING_TO_ARRAY_PART:
 				{
 					/* Arguments are reversed. */
 					appendStringInfoChar(buf, '(');
@@ -2698,6 +2699,13 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoString(buf, ", ");
 					deparseExpr((Expr *) linitial(node->args), context);
 					appendStringInfoChar(buf, ')');
+					if (cdef->cf_type == CF_STRING_TO_ARRAY_PART)
+					{
+						/* Use array subscript to extract item. */
+						appendStringInfoChar(buf, '[');
+						deparseExpr((Expr *) list_nth(node->args, 2), context);
+						appendStringInfoChar(buf, ']');
+					}
 					return;
 				}
 			case CF_MATCH:
@@ -2737,7 +2745,7 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 				return;
 			case CF_ARRAY_SORT_DESC:
 				{
-					/* Determine function name reverse boolean arg. */
+					/* Determine function name from reverse boolean arg. */
 					Const	   *desc_arg = (Const *) list_nth(node->args, 1);
 
 					appendStringInfoString(buf, !desc_arg->constisnull && DatumGetBool(desc_arg->constvalue) ? "arrayReverseSort" : "arraySort");
