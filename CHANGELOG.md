@@ -52,7 +52,14 @@ All notable changes to this project will be documented in this file. It uses the
     `string_to_array(3-arg)` now evaluate locally instead of being pushed to
     ClickHouse where they would fail.
 
+### 📔 Notes
+
+*   Added tests to ensure that `concat_ws()` successfully pushes down to the
+    compatible function of the same name (an alias for [concatWithSeparator]).
+
   [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
+  [concatWithSeparator]: https://clickhouse.com/docs/sql-reference/functions/string-functions#concatWithSeparator
+
 
 ## [v0.1.10] — 2026-04-06
 

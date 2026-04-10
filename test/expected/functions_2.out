@@ -1773,6 +1773,37 @@ SELECT * FROM t4 WHERE val <> CURRENT_DATABASE();
  val2
 (2 rows)
 
+-- Test concat_ws.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE concat_ws('/', key2, val) = 'key4/val4';
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t3_map
+   Output: key1, key2, val
+   Remote SQL: SELECT key1, key2, val FROM functions_test.t3_map WHERE ((concat_ws('/', key2, val) = 'key4/val4'))
+(3 rows)
+
+SELECT * FROM t3_map WHERE concat_ws('/', key2, val) = 'key4/val4';
+ key1 | key2 | val  
+------+------+------
+    4 | key4 | val4
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00'))
+(3 rows)
+
+SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
+ a | b |          c          
+---+---+---------------------
+ 2 | 3 | 2019-01-02 02:00:00
+(1 row)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 

@@ -484,6 +484,15 @@ SELECT * FROM t4 WHERE val <> CURRENT_SCHEMA();
 SELECT * FROM t4 WHERE val <> CURRENT_CATALOG;
 SELECT * FROM t4 WHERE val <> CURRENT_DATABASE();
 
+-- Test concat_ws.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t3_map WHERE concat_ws('/', key2, val) = 'key4/val4';
+SELECT * FROM t3_map WHERE concat_ws('/', key2, val) = 'key4/val4';
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
+SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 DROP SERVER functions_loopback CASCADE;
