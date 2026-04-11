@@ -326,8 +326,10 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 					/* all good */
 					break;
 				default:
-					elog(ERROR, "pg_clickhouse: could not cast value from %s to %s",
-						 format_type_be(intype), format_type_be(outtype));
+					ereport(ERROR,
+							(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+							 errmsg("pg_clickhouse: could not cast value from %s to %s",
+									format_type_be(intype), format_type_be(outtype))));
 			}
 		}
 	}
@@ -383,8 +385,10 @@ init_output_convert_state(ch_convert_output_state * state)
 			state->func = NULL;
 			return;
 		default:
-			elog(ERROR, "pg_clickhouse: could not find a casting path from %s to %s",
-				 format_type_be(state->intype), format_type_be(state->outtype));
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+					 errmsg("pg_clickhouse: could not find a casting path from %s to %s",
+							format_type_be(state->intype), format_type_be(state->outtype))));
 	}
 }
 
@@ -484,7 +488,9 @@ ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 				array_iter	iter;
 
 				if (AARR_NDIM(v) > 1)
-					elog(ERROR, "pg_clickhouse: inserted array should have one dimension");
+					ereport(ERROR,
+							(errcode(ERRCODE_DATATYPE_MISMATCH),
+							 errmsg("pg_clickhouse: inserted array should have one dimension")));
 
 				arr = palloc(sizeof(ch_binary_array_t));
 				arr->len = ArrayGetNItems(AARR_NDIM(v), AARR_DIMS(v));

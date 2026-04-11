@@ -687,7 +687,9 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo * fpinfo, Oid relid)
 				char		sign[CH_ESCAPED_NAMEDATALEN];
 
 				if (end - start - 1 > (CH_ESCAPED_NAMEDATALEN - 1))
-					elog(ERROR, "pg_clickhouse: invalid engine parameter");
+					ereport(ERROR,
+							(errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+							 errmsg("pg_clickhouse: invalid engine parameter")));
 
 				fpinfo->ch_table_engine = CH_COLLAPSING_MERGE_TREE;
 				strncpy(sign, start + 1, end - start - 1);

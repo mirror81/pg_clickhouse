@@ -962,8 +962,10 @@ binary_fetch_row(ChFdwScanRowContext * ctx)
 			goto ok;
 		}
 		else
-			elog(ERROR, "pg_clickhouse: unexpected state: attributes "
-				 "count == 0 and haven't got NULL in the response");
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_ERROR),
+					 errmsg("pg_clickhouse: unexpected state: attributes "
+							"count == 0 and haven't got NULL in the response")));
 	}
 	else if (attcount != state->resp->columns_count)
 	{
@@ -1063,7 +1065,9 @@ binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
 				oldcxt;
 
 	if (table_name == NULL)
-		elog(ERROR, "expected table name");
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_ERROR),
+				 errmsg("expected table name")));
 
 	tempcxt = AllocSetContextCreate(CurrentMemoryContext,
 									"pg_clickhouse binary insert state", ALLOCSET_DEFAULT_SIZES);
@@ -1187,8 +1191,10 @@ parse_type(char *table_name, char *colname, char *part, bool *is_nullable, List 
 		if (strncmp(typepart, "Decimal", strlen("Decimal")) == 0)
 		{
 			if (strstr(insidebr, ",") == NULL)
-				elog(ERROR, "pg_clickhouse: could not import Decimal field, "
-					 "should be two parameters on definition");
+				ereport(ERROR,
+						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+						 errmsg("pg_clickhouse: could not import Decimal field, "
+								"should be two parameters on definition")));
 
 			return psprintf("NUMERIC(%s)", insidebr);
 		}
@@ -1215,7 +1221,9 @@ parse_type(char *table_name, char *colname, char *part, bool *is_nullable, List 
 		else if (strncmp(typepart, "Nullable", strlen("Nullable")) == 0)
 		{
 			if (is_nullable == NULL)
-				elog(ERROR, "pg_clickhouse: nested Nullable is not supported");
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("pg_clickhouse: nested Nullable is not supported")));
 
 			*is_nullable = true;
 			return parse_type(table_name, colname, insidebr, NULL, options);
@@ -1234,7 +1242,9 @@ parse_type(char *table_name, char *colname, char *part, bool *is_nullable, List 
 				/* Detect COUNT with no params. */
 				if (strncmp(insidebr, "count", strlen("count")) == 0)
 					return "BIGINT";
-				elog(ERROR, "pg_clickhouse: expected comma in AggregateFunction");
+				ereport(ERROR,
+						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+						 errmsg("pg_clickhouse: expected comma in AggregateFunction")));
 			}
 
 			char	   *func = pnstrdup(pos + 1, strstr(pos + 1, ",") - pos - 1);

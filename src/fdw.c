@@ -1146,10 +1146,14 @@ clickhousePlanForeignModify(PlannerInfo * root,
 			table_name = chfdw_deparse_insert_sql(&sql, rte, resultRelation, rel, targetAttrs);
 			break;
 		case CMD_UPDATE:
-			elog(ERROR, "ClickHouse does not support updates");
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("ClickHouse does not support updates")));
 			break;
 		case CMD_DELETE:
-			elog(ERROR, "ClickHouse does not support deletes");
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("ClickHouse does not support deletes")));
 			break;
 		default:
 			elog(ERROR, "unexpected operation: %d", (int) operation);

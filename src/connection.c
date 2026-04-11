@@ -59,7 +59,9 @@ clickhouse_connect(ForeignServer * server, UserMapping * user)
 		return chfdw_binary_connect(&details);
 	}
 	else
-		elog(ERROR, "invalid ClickHouse connection driver");
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+				 errmsg("invalid ClickHouse connection driver")));
 }
 
 ch_connection

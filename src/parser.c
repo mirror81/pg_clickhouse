@@ -128,7 +128,9 @@ ch_http_read_next(ch_http_read_state * state)
 	/* Should be at the end of the line or the file. */
 	if (data[state->curpos] != '\n')
 	{
-		elog(ERROR, "Unexpected byte (%d) after array", data[state->curpos]);
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("unexpected byte (%d) after array", data[state->curpos])));
 	}
 
 	state->curpos++;
