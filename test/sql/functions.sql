@@ -469,6 +469,25 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
 SELECT * FROM t1 WHERE concat_ws(',', a, b, 'foo', c) = '2,3,foo,2019-01-02 10:00:00';
 
+-- Test fuzzystrmatch pushdown.
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+
+-- soundex pushes down with same name.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t4 WHERE soundex(val) = 'V400';
+SELECT * FROM t4 WHERE soundex(val) = 'V400';
+
+-- 2-arg levenshtein pushes down as editDistance.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t4 WHERE levenshtein(val, 'val1') <= 1;
+SELECT * FROM t4 WHERE levenshtein(val, 'val1') <= 1;
+
+-- 5-arg levenshtein (custom costs) evaluates locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t4 WHERE levenshtein(val, 'val1', 1, 1, 2) <= 1;
+
+DROP EXTENSION fuzzystrmatch;
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 DROP SERVER functions_loopback CASCADE;

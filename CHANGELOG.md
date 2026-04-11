@@ -14,11 +14,15 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added pushdown for [re2 extension] functions, if available, to their
     ClickHouse equivalents (e.g., `re2match` → `match`, `re2extractall` →
     `extractAll`). Thanks to Philip Dubé for the PR ([#204]).
+*   Added pushdown for [fuzzystrmatch] functions `soundex()` and
+    `levenshtein()` (2-arg, mapped to `editDistance`).  Thanks to
+    Philip Dubé for the PR ([#210]).
 
 ### 📚 Documentation
 
 *   Added "Extensions Pushdown" section to the [reference
-    docs](doc/pg_clickhouse.md), covering re2 and intarray support.
+    docs](doc/pg_clickhouse.md), covering re2, intarray, and fuzzystrmatch
+    support.
 *   Added recommendation to the [reference docs](doc/pg_clickhouse.md) to
     consider using the [re2 extension] and disabling Postgres regular
     expression pushdown.
@@ -30,6 +34,8 @@ All notable changes to this project will be documented in this file. It uses the
   [v0.2.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.2.0...v0.2.1
   [re2 extension]: https://github.com/ClickHouse/pg_re2
     "pg_re2: ClickHouse-compatible regex functions using RE2"
+  [fuzzystrmatch]: https://www.postgresql.org/docs/current/fuzzystrmatch.html
+    "PostgreSQL Docs: fuzzystrmatch"
 
 ## [v0.2.0] — 2026-04-13
 

@@ -1134,6 +1134,13 @@ One [intarray] function pushes down to ClickHouse:
 
 *   `idx` → [indexOf](https://clickhouse.com/docs/sql-reference/functions/array-functions#indexOf)
 
+#### fuzzystrmatch
+
+Two [fuzzystrmatch] functions push down to ClickHouse:
+
+*   `soundex`: [soundex](https://clickhouse.com/docs/sql-reference/functions/string-functions#soundex)
+*   `levenshtein` (2-arg): [editDistance](https://clickhouse.com/docs/sql-reference/functions/string-functions#editDistance)
+
 ### Pushdown Casts
 
 pg_clickhouse pushes down casts such as `CAST(x AS bigint)` for compatible
@@ -1399,3 +1406,5 @@ Copyright (c) 2025-2026, ClickHouse.
     "pg_re2: ClickHouse-compatible regex functions using RE2"
   [intarray]: https://www.postgresql.org/docs/current/intarray.html
     "PostgreSQL Docs: intarray"
+  [fuzzystrmatch]: https://www.postgresql.org/docs/current/fuzzystrmatch.html
+    "PostgreSQL Docs: fuzzystrmatch"

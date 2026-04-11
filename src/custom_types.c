@@ -560,6 +560,16 @@ chfdw_check_for_custom_function(Oid funcid)
 				entry->cf_type = CF_CH_FUNCTION;
 				strlcpy(entry->custom_name, re2_func_name(proname), NAMEDATALEN);
 			}
+			else if (STR_EQUAL(extname, "fuzzystrmatch"))
+			{
+				if (STR_EQUAL(proname, "levenshtein") &&
+					procform->pronargs == 2)
+					strcpy(entry->custom_name, "editDistance");
+				else if (STR_EQUAL(proname, "soundex"))
+					strcpy(entry->custom_name, "soundex");
+				else
+					entry->cf_type = CF_UNSHIPPABLE;
+			}
 			else if (STR_EQUAL(extname, "pg_clickhouse"))
 			{
 				/* pg_clickhouse custom functions. */
