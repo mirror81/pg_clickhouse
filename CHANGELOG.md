@@ -7,23 +7,33 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.2.0] — Unreleased
+## [v0.2.0] — 2026-04-13
+
+This release makes binary-compatible changes to the v0.1 releases. Once
+installed, any existing use of pg_clickhouse v0.1 will benefit from its
+improvements on reload. The only new feature that requires an upgrade is the
+`pgch_version()` function. Run this command to add it to the extension:
+
+```sql
+ALTER EXTENSION pg_clickhouse UPDATE TO '0.2';
+```
 
 ### ⚡ Improvements
 
 *   Changed the pushdown mappings for the current date and timestamp functions
-    to account for the session time zone and maximum precision, as follows:
+    to account for the session time zone and Postgres-standard millisecond
+    precision, as follows:
     *   `CURRENT_DATE` -> `toDate(now(TZ))`
     *   `CURRENT_TIMESTAMP` and `LOCALTIMESTAMP` => `now64(9, TZ)`
     *   `CURRENT_TIMESTAMP(n)` and `LOCALTIMESTAMP(n)` => `now64(n, TZ)`
     *   `clock_timestamp()`, `statement_timestamp()` &
         `transaction_timestamp()` => `nowInBlock64(n, TZ)`
 *   Added pushdown for the `CURRENT_TIME` and `LOCALTIME` SQL Value Functions
-    to `toTime64(now64(9, TZ), 9)`, supported by ClickHouse 25.8+.
+    to `toTime64(now64(6, TZ), 6)`, supported by ClickHouse 25.8+.
 *   Added `pgch_version()`, which returns the full semantic version.
     This is the same value visible in `pg_get_loaded_modules()`, but available
     in Postgres versions prior to 18, and without having to load
-    pg_clickhouse, first.
+    pg_clickhouse in advance.
 *   Added support for pushing down the flags passed to `regexp_like()` by
     prepending them to the regular expression (e.g., `(?i)foo`). If any of the
     flags cannot be pushed down, the regular expression function will not be
@@ -45,7 +55,8 @@ All notable changes to this project will be documented in this file. It uses the
     compatible.
 *   All regular expression functions with compatible flags and all regular
     expression operators now push down prepended with `(?-s)` unless the `s`
-    flag is set, so that the behavior mimics that of Postgres.
+    flag is set, so that the behavior more closely approximates that of
+    Postgres.
 *   Added the `pg_clickhouse.pushdown_regex` setting to prevent regular
     expressions from being pushed down.
 
@@ -71,7 +82,7 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added tests to ensure that `concat_ws()` successfully pushes down to the
     compatible function of the same name (an alias for [concatWithSeparator]).
 
-  [v0.1.11]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.1.11
+  [v0.2.0]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.10...v0.2.0
   [concatWithSeparator]: https://clickhouse.com/docs/sql-reference/functions/string-functions#concatWithSeparator
 
 
@@ -160,6 +171,10 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
     "pg_clickhouse#184 More function support fixes"
 
 ## [v0.1.6] — 2026-04-02
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 

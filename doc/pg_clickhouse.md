@@ -679,9 +679,12 @@ pg_clickhouse parameters before executing queries that depend on them.
 
 ### SET
 
-Use [SET] to set the the `pg_clickhouse.session_settings` runtime parameter.
-This parameter configures [ClickHouse settings] to be set on subsequent
-queries. Example:
+Use [SET] to set the the pg_clickhouse custom configuration parameters.
+
+#### `pg_clickhouse.session_settings`
+
+The `pg_clickhouse.session_settings` parameter configures [ClickHouse
+settings] to be set on subsequent queries. Example:
 
 ```sql
 SET pg_clickhouse.session_settings = 'join_use_nulls 1, final 1';
@@ -745,6 +748,18 @@ version.
 Note that pg_clickhouse must be loaded before setting
 `pg_clickhouse.session_settings`; either use [shared library preloading] or
 simply use one of the objects in the extension to ensure it loads.
+
+#### `pg_clickhouse.pushdown_regex`
+
+The `pg_clickhouse.pushdown_regex` parameter controls whether pg_clickhouse
+pushes down regular expression functions and operators. It does so by default;
+set this parameter to false to prevent them from being pushed down:
+
+```sql
+SET pg_clickhouse.pushdown_regex = 'false';
+```
+
+See [Regular Expressions](#regular-expressions) for details.
 
 ### ALTER ROLE
 
@@ -1190,9 +1205,10 @@ rejects frame specifications on these functions.
 
 ### Regular Expressions
 
-While pg_clickhouse pushes down regular expressions to ClickHouse equivalents,
-and makes an effort to ensure a basic level of compatibility, be aware of the
-differences between the two and how pg_clickhouse handles them.
+While pg_clickhouse pushes down regular expressions to ClickHouse equivalents
+when [pg_clickhouse.pushdown_regex](pg_clickhousepushdown_regex) is true (the
+default), and makes an effort to ensure a basic level of compatibility, be
+aware of the differences between the two and how pg_clickhouse handles them.
 
 *   PostgreSQL supports [POSIX Regular Expressions] while ClickHouse supports
     [RE2 Regular Expressions]. Beware of differences in behavior: write RE2
