@@ -22,6 +22,7 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "catalog/pg_operator.h"
+#include "utils/builtins.h"
 #include "utils/hsearch.h"
 #include "utils/inval.h"
 #include "utils/syscache.h"
@@ -156,6 +157,36 @@ chfdw_is_builtin(Oid objectId)
 	return (objectId < FirstUnpinnedObjectId);
 }
 
+static bool
+regex_flags_ok(char *flags, bool global_ok)
+{
+	while (*flags)
+	{
+		switch (*flags)
+		{
+			case 't':			/* Removed by appendRegexFlags() */
+			case 'p':			/* Removed by appendRegexFlags() */
+			case 's':
+			case 'i':
+			case 'm':
+				/* Pass through as-is. */
+				break;
+			case 'g':
+				if (global_ok)
+					/* Pass through as-is; deparseFuncExpr will remove it. */
+					break;
+				return false;
+			default:
+				/* Cannot pass down any other flags */
+				return false;
+		}
+		flags++;
+	}
+
+	/* All good. */
+	return true;
+}
+
 /*
  * chfdw_is_shippable
  *	   Is this object (function/operator/type) shippable to foreign server?
@@ -193,17 +224,66 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 			if (outcdef != NULL)
 				*outcdef = cdef;
 
-			if (cdef->cf_type == CF_ARRAY_SORT_DESC)
+			/*
+			 * Evaluate certain special functions whose arguments prevent
+			 * pushdown.
+			 */
+			switch (cdef->cf_type)
 			{
-				/*
-				 * If the boolean argument passed to array_sort(arr, bool) is
-				 * dynamic, we can't push it down.
-				 */
-				Expr	   *desc_arg = (Expr *) list_nth(((FuncExpr *) node)->args, 1);
+				case CF_ARRAY_SORT_DESC:
+					{
+						/*
+						 * If the boolean argument passed to array_sort(arr,
+						 * bool) is dynamic, we can't push it down.
+						 */
+						Expr	   *desc_arg = (Expr *) list_nth(((FuncExpr *) node)->args, 1);
 
-				if (!IsA(desc_arg, Const))
-					/* No support for a dynamic value here. */
-					return false;
+						if (!IsA(desc_arg, Const))
+							/* No support for a dynamic value here. */
+							return false;
+					}
+					break;
+				case CF_MATCH:
+				case CF_SPLIT_BY_REGEX:
+				case CF_REPLACE_REGEX:
+					{
+						/* Unshippable if using unsupported or dynamic flags */
+						FuncExpr   *fn = (FuncExpr *) node;
+						int			flags_idx = cdef->cf_type == CF_REPLACE_REGEX ? 3 : 2;
+
+						if ((list_length(fn->args) >= flags_idx + 1))
+						{
+							Expr	   *arg = (Expr *) list_nth(((FuncExpr *) node)->args, flags_idx);
+
+							if (!IsA(arg, Const))
+								/* No support for a dynamic value here. */
+								return false;
+
+							if (!regex_flags_ok(
+												TextDatumGetCString(((Const *) arg)->constvalue),
+												cdef->cf_type == CF_REPLACE_REGEX
+												))
+								/* Using flags unsupported by ClickHouse. */
+								return false;
+						}
+
+						/*
+						 * XXX Additional checks: Examine the regex and:
+						 *
+						 * - don't ship if it starts with "***"
+						 *
+						 * - use a substring function if starts with "***="
+						 *
+						 * - don't ship if it contains (?xyz) with unsupported
+						 * flags
+						 *
+						 * Also applies to CF_REGEX_MATCH, CF_REGEX_NO_MATCH,
+						 * CF_REGEX_ICASE_MATCH, and CF_REGEX_ICASE_NO_MATCH.
+						 */
+					}
+					break;
+				default:
+					break;
 			}
 			return (cdef->cf_type != CF_UNSHIPPABLE);
 		}

@@ -25,9 +25,11 @@ All notable changes to this project will be documented in this file. It uses the
     in Postgres versions prior to 18, and without having to load
     pg_clickhouse, first.
 *   Added support for pushing down the flags passed to `regexp_like()` by
-    prepending them to the regular expression (e.g., `(?i)foo`).
+    prepending them to the regular expression (e.g., `(?i)foo`). If any of the
+    flags cannot be pushed down, the regular expression function will not be
+    pushed own.
 *   Added pushdown for `regexp_split_to_array()` to `splitByRegexp()`,
-    including flags.
+    including pushdown of applicable flags.
 *   Added pushdown mappings for array functions: `array_cat`, `array_append`,
     `array_remove`, `array_to_string`, `cardinality`, `array_length`,
     `array_prepend`, `string_to_array`, `trim_array`, `array_fill`,
@@ -38,8 +40,12 @@ All notable changes to this project will be documented in this file. It uses the
 *   Array slice syntax (`arr[L:U]`, `arr[:U]`, `arr[L:]`) now pushes down
     as `arraySlice()`.
 *   Added mapping for `regexp_replace(4-arg)` to pushdown to
-    `replaceRegexpAll()` when the `g` flag is set, and to prepend the flags to
-    the pushed down expression.
+    `replaceRegexpAll()` when the `g` flag is set, and to prepend compatible
+    flags to the pushed down expression, or not to push down if any are not
+    compatible.
+*   All regular expression functions with compatible flags and all regular
+    expression operators now push down prepended with `(?-s)` unless the `s`
+    flag is set, so that the behavior mimics that of Postgres.
 
 ### ⬆️ Dependency Updates
 

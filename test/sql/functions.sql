@@ -35,7 +35,6 @@ SELECT clickhouse_raw_query('CREATE TABLE functions_test.t4 (val String) engine=
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t5 (ts DateTime) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t6 (i64 Int64, f64 Float64) engine=TinyLog();');
 SELECT clickhouse_raw_query('CREATE TABLE functions_test.t7(dt Date) engine=TinyLog();');
-SELECT clickhouse_raw_query('CREATE TABLE functions_test.t8(val String) engine=TinyLog();');
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t5 VALUES
@@ -73,7 +72,6 @@ CREATE FOREIGN TABLE t4 (val text) SERVER functions_loopback;
 CREATE FOREIGN TABLE t5 (ts timestamp) SERVER functions_loopback;
 CREATE FOREIGN TABLE t6 (i64 BIGINT, f64 FLOAT8) SERVER functions_loopback;
 CREATE FOREIGN TABLE t7 (ts date) SERVER functions_loopback;
-CREATE FOREIGN TABLE t8 (val text) SERVER functions_loopback;
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t3
@@ -91,14 +89,6 @@ SELECT clickhouse_raw_query($$
 	INSERT INTO functions_test.t4
 	SELECT 'val' || toString(number+1)
 	  FROM numbers(2);
-$$);
-
-SELECT clickhouse_raw_query($$
-	INSERT INTO functions_test.t8
-	VALUES ('a,b,c'),
-		   ('foo,bar,baz'),
-		   ('sleep   no   more'),
-		   ('aa-T-bb-t-cc')
 $$);
 
 SELECT clickhouse_raw_query($$
@@ -314,45 +304,6 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_trunc('week', ts) = '2
 SELECT ts FROM t5 WHERE date_trunc('week', ts) = '2028-01-17'::date;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE date_trunc('quarter', ts) = '2027-10-01'::date;
 SELECT ts FROM t5 WHERE date_trunc('quarter', ts) = '2027-10-01'::date;
-
--- check regexp_like.
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like(val, '^val\d');
-SELECT val FROM t4 WHERE regexp_like(val, '^val\d');
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t4 WHERE regexp_like(val, '^VAL\d', 'i');
-SELECT val FROM t4 WHERE regexp_like(val, '^VAL\d', 'i');
-
--- Check regexp_split_to_array.
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
-SELECT val FROM t8 WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
-SELECT val FROM t8 WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
-EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
-SELECT val FROM t8 WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
-
--- Check regexp_replace().
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
-SELECT * FROM t3_map WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
--- No replace returns unmodified string.
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
-SELECT * FROM t3_map WHERE regexp_replace(val, '^x', 'y') = 'val4';
--- Case-insensitive, refer to capture.
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
-SELECT * FROM t3_map WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
--- Case-insensitive.
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
-SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
--- Replace all case-insensitive.
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
-SELECT * FROM t3_map WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
--- Refer to full match.
-EXPLAIN (VERBOSE, COSTS OFF)
-SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
-SELECT * FROM t3_map WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
 
 -- Check hashing functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT key1, val FROM t3_map WHERE md5(val) LIKE 'a%' ORDER BY key1;

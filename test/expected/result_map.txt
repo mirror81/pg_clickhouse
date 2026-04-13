@@ -81,17 +81,16 @@ functions.sql
 
  Postgres | File
 ----------|---------------
- 15-18    | functions.out
- 14       | functions_1.out
- 13       | functions_2.out
+ 14-18    | functions.out
+ 13       | functions_1.out
 
  ClickHouse | File
 ------------|-----------------
  25.8+      | functions.out
- 25.3       | functions_3.out
- 24.8       | functions_4.out
- 24.3       | functions_5.out
- 23         | functions_6.out
+ 25.3       | functions_2.out
+ 24.8       | functions_3.out
+ 24.3       | functions_4.out
+ 23         | functions_5.out
 
 http.sql
 --------
@@ -121,6 +120,17 @@ http_inserts.sql
 ------------|--------------------
  24+        | http_inserts.out
  23         | http_inserts_2.out
+
+ilike_regex.sql
+---------------
+ Postgres | File
+----------|-----------------
+ 13-18    | ilike_regex.out
+
+ ClickHouse | File
+------------|-------------------
+ 25+        | ilike_regex.out
+ 23-24      | ilike_regex_1.out
 
 import_schema.sql
 -----------------
@@ -162,8 +172,19 @@ param.sql
 ------------|-----------
  23+        | param.out
 
+regex.sql
+---------
+ Postgres | File
+----------|-----------
+ 13-18    | regex.out
+
+ ClickHouse | File
+------------|-------------
+ 25+        | regex.out
+ 23-24      | regex_1.out
+
 subquery_eq.sql
----------------------
+----------------
 
  Postgres | File
 ----------|-------------------

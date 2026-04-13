@@ -1,0 +1,181 @@
+\unset ECHO
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+NOTICE:  regexp_like PUSHED DOWN: t
+NOTICE:  (val1)
+NOTICE:  (val2)
+NOTICE:  case-insensitive regexp_like PUSHED DOWN: t
+NOTICE:  (val1)
+NOTICE:  (val2)
+NOTICE:  regexp_like with unsupported flag NOT PUSHED DOWN: t
+NOTICE:  (val1)
+NOTICE:  (val2)
+NOTICE:  regexp_like with t flag PUSHED DOWN: t
+NOTICE:  (val1)
+NOTICE:  (val2)
+-- Check regexp_split_to_array.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((splitByRegexp(concat('(?-s)', ','), val) = ['a','b','c']))
+(3 rows)
+
+SELECT val FROM strings WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+  val  
+-------
+ a,b,c
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((splitByRegexp(concat('(?-s)', '\\s+'), val) = ['sleep','no','more']))
+(3 rows)
+
+SELECT val FROM strings WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
+        val        
+-------------------
+ sleep   no   more
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((splitByRegexp(concat('(?i-s)', '-t-'), val) = ['aa','bb','cc']))
+(3 rows)
+
+SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
+     val      
+--------------
+ aa-T-bb-t-cc
+(1 row)
+
+-- Check regexp_replace().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpOne(val, '[0,1]$', '_xyz') = 'val_xyz'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, '[0,1]$', '_xyz') = 'val_xyz';
+ val  
+------
+ val1
+(1 row)
+
+-- No replace returns unmodified string.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, '^x', 'y') = 'val2';
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpOne(val, '^x', 'y') = 'val2'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, '^x', 'y') = 'val2';
+ val  
+------
+ val2
+(1 row)
+
+-- Case-insensitive, refer to capture.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpOne(val, concat('(?i)', 'VAL([0,1])$'), 'x-\\1') = 'x-1'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, 'VAL([0,1])$', 'x-\1', 'i') = 'x-1';
+ val  
+------
+ val1
+(1 row)
+
+-- Case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpOne(val, concat('(?i)', '[VL]'), 'x') = 'xal1'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, '[VL]', 'x', 'i') = 'xal1';
+ val  
+------
+ val1
+(1 row)
+
+-- Replace all case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpAll(val, concat('(?ii)', '[VL]'), 'x') = 'xax1'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
+ val  
+------
+ val1
+(1 row)
+
+-- Refer to full match.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((replaceRegexpOne(val, concat('(?i)', '^val'), 'x-\\0') = 'x-val1'))
+(3 rows)
+
+SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+ val  
+------
+ val1
+(1 row)
+
+DROP USER MAPPING FOR CURRENT_USER SERVER regex_loopback;
+SELECT clickhouse_raw_query('DROP DATABASE regex_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+DROP SERVER regex_loopback CASCADE;
+NOTICE:  drop cascades to foreign table strings

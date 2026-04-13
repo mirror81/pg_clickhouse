@@ -344,14 +344,14 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
 				{
-					entry->cf_type = CF_SPLIT_BY_REGEXP;
+					entry->cf_type = CF_SPLIT_BY_REGEX;
 					strcpy(entry->custom_name, "splitByRegexp");
 					break;
 				}
 			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
 			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
 				{
-					entry->cf_type = CF_REPLACE_REGEXP;
+					entry->cf_type = CF_REPLACE_REGEX;
 					entry->custom_name[0] = '\1';
 					break;
 				}

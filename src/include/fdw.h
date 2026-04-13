@@ -302,8 +302,8 @@ typedef enum
 	CF_INTARRAY_IDX,
 	CF_CH_FUNCTION,				/* adapted clickhouse function */
 	CF_MATCH,					/* regexp_match function */
-	CF_SPLIT_BY_REGEXP,			/* regexp_split_to_array → splitByRegexp */
-	CF_REPLACE_REGEXP,			/* regexp_replace → replaceRegexpOne or
+	CF_SPLIT_BY_REGEX,			/* regexp_split_to_array → splitByRegexp */
+	CF_REPLACE_REGEX,			/* regexp_replace → replaceRegexpOne or
 								 * replaceRegexpAll */
 	CF_REGEX_MATCH,				/* ~ POSIX regex operator */
 	CF_REGEX_NO_MATCH,			/* !~ POSIX regex operator */

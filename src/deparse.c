@@ -2479,6 +2479,46 @@ deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
 }
 
 /*
+ * Utility function to append regular expression flags to `context->buf`. All
+ * flags have already been vetted by `regex_flags_ok()`; this function ignores
+ * `t` and always passes `-s` unless `p` or `s` is present.
+*/
+static void
+appendRegexFlags(Const * arg, deparse_expr_cxt * context)
+{
+	if (!arg)
+	{
+		appendStringInfoString(context->buf, "-s");
+		return;
+	}
+
+	char	   *flags = TextDatumGetCString(arg->constvalue);
+	bool		got_s = false;
+
+	while (*flags)
+	{
+		switch (*flags)
+		{
+			case 's':
+			case 'p':
+				got_s = true;	/* ClickHouse enables s by default */
+			case 't':
+				break;
+			default:
+				appendStringInfoChar(context->buf, *flags);
+		}
+		flags++;
+	}
+
+	/*
+	 * Append -s because ClickHouse enables s by default.
+	 * https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match
+	 */
+	if (!got_s)
+		appendStringInfoString(context->buf, "-s");
+}
+
+/*
  * Utility function used by the regular expression functions to generate the
  * regular expression argument. It expects the second item in `args` to be the
  * regular expression, and the third, optional item to be the flags. If there
@@ -2490,18 +2530,14 @@ deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
 static void
 appendRegex(List * args, deparse_expr_cxt * context)
 {
-	if (list_length(args) <= 2)
-	{
-		/* No flags argument, just append the regexp expression. */
-		deparseExpr((Expr *) list_nth(args, 1), context);
-		return;
-	}
-
 	/* Concatenate the flags with the regexp expression. */
-	Const	   *arg = (Const *) list_nth(args, 2);
-	char	   *flags = TextDatumGetCString(arg->constvalue);
+	appendStringInfoString(context->buf, "concat('(?");
+	if (list_length(args) <= 2)
+		appendRegexFlags(NULL, context);
+	else
+		appendRegexFlags((Const *) list_nth(args, 2), context);
 
-	appendStringInfo(context->buf, "concat('(?%s)', ", flags);
+	appendStringInfoString(context->buf, ")', ");
 	deparseExpr((Expr *) list_nth(args, 1), context);
 	appendStringInfoChar(context->buf, ')');
 }
@@ -2718,7 +2754,7 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoChar(buf, ')');
 					return;
 				}
-			case CF_SPLIT_BY_REGEXP:
+			case CF_SPLIT_BY_REGEX:
 				{
 					/* splitByRegexp(regexp, s) */
 					appendStringInfoChar(buf, '(');
@@ -2728,7 +2764,7 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoChar(buf, ')');
 					return;
 				}
-			case CF_REPLACE_REGEXP:
+			case CF_REPLACE_REGEX:
 				{
 					/* replaceRegexpOne() or replaceRegexpAll() */
 					char	   *flags = NULL;
@@ -3092,14 +3128,9 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 						appendStringInfoString(buf, "(NOT ");
 					appendStringInfoString(buf, "match(");
 					deparseExpr(linitial(node->args), context);
-					if (icase)
-						appendStringInfoString(buf, ", concat('(?i)', ");
-					else
-						appendStringInfoString(buf, ", ");
+					appendStringInfo(buf, ", concat('(?%s-s)', ", icase ? "i" : "");
 					deparseExpr(lsecond(node->args), context);
-					if (icase)
-						appendStringInfoChar(buf, ')');
-					appendStringInfoChar(buf, ')');
+					appendStringInfoString(buf, "))");
 					if (negated)
 						appendStringInfoChar(buf, ')');
 					goto cleanup;

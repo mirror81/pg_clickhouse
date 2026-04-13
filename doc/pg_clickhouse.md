@@ -1191,7 +1191,8 @@ rejects frame specifications on these functions.
 ### Regular Expressions
 
 While pg_clickhouse pushes down regular expressions to ClickHouse equivalents,
-be aware of the differences between the two.
+and makes an effort to ensure a basic level of compatibility, be aware of the
+differences between the two and how pg_clickhouse handles them.
 
 *   PostgreSQL supports [POSIX Regular Expressions] while ClickHouse supports
     [RE2 Regular Expressions]. Beware of differences in behavior: write RE2
@@ -1209,8 +1210,14 @@ be aware of the differences between the two.
     Becomes
 
     ```sql
-    match(val, concat('(?i)', '^VAL\\d'))
+    match(val, concat('(?i-s)', '^VAL\\d'))
     ```
+
+    Note the inclusion of `-s`; this aligns the behavior with Postgres regular
+    expressions by disabling `s`, which ClickHouse enables by default.
+    pg_clickhouse will not include `-s` if the flags in the Postgres function
+    call include `s`. Unfortunately, this behavior breaks the compatibility of
+    some regular expression in Postgres 24 and earlier.
 
 *   The only flags both support, and therefore can be used when evaluated by
     ClickHouse, are:
@@ -1220,13 +1227,15 @@ be aware of the differences between the two.
     *   `i`: case-insensitive
     *   `m`: multi-line mode:
     *   `s`: let `.` match `\n`
+    *   `p`: partial newline-sensitive matching (treated the same as `s`)
+    *   `t`: tight syntax (the default, removed by pg_clickhouse)
+
+*   Any other flags passed to regular expression functions will cause the
+    function not to be pushed down.
 
 *   The exception is `regexp_replace()`, which also supports the `g` flag.
     When `g` is set, pg_clickhouse uses `replaceRegexpAll()` instead of
     `replaceRegexpOne()` and removes the flag before prepending other flags.
-
-*   Postgres parser will reject the one other RE2 flag, `U`, and specifying
-    any other [Postgres flags] will trigger an error from ClickHouse.
 
 *   The replacement argument to Postgres `regexp_replace()` supports `\&` to
     refer to the entire match, while in ClickHouse supports `\0` for the

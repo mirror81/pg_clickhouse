@@ -298,7 +298,7 @@ SELECT count(*) FROM ilike_regex_bin.events WHERE name ~ '_view$';
 SELECT count(*) FROM ilike_regex_bin.events WHERE name ~ '_view$';
  count 
 -------
-     1
+     0
 (1 row)
 
 -- ~ with path column (test regex with slashes)
