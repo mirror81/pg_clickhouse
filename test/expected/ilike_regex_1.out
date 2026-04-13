@@ -418,6 +418,44 @@ SELECT id, name FROM ilike_regex_http.events WHERE name ~* '^page' ORDER BY id;
   3 | PAGE_VIEW
 (3 rows)
 
+-- Ensure no regular expression pushdown when we disable it.
+SET pg_clickhouse.pushdown_regex = 'false';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name ~ '^page' ORDER BY id;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_bin.events
+   Output: id, name, path
+   Filter: (events.name ~ '^page'::text)
+   Remote SQL: SELECT id, name, path FROM ilike_regex_test.events ORDER BY id ASC NULLS LAST
+(4 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name !~ '^page' ORDER BY id;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_bin.events
+   Output: id, name, path
+   Filter: (events.name !~ '^page'::text)
+   Remote SQL: SELECT id, name, path FROM ilike_regex_test.events ORDER BY id ASC NULLS LAST
+(4 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name ~* '^page' ORDER BY id;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_bin.events
+   Output: id, name, path
+   Filter: (events.name ~* '^page'::text)
+   Remote SQL: SELECT id, name, path FROM ilike_regex_test.events ORDER BY id ASC NULLS LAST
+(4 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name !~* '^page' ORDER BY id;
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Foreign Scan on ilike_regex_bin.events
+   Output: id, name, path
+   Filter: (events.name !~* '^page'::text)
+   Remote SQL: SELECT id, name, path FROM ilike_regex_test.events ORDER BY id ASC NULLS LAST
+(4 rows)
+
 -- Cleanup
 SELECT clickhouse_raw_query('DROP DATABASE ilike_regex_test');
  clickhouse_raw_query 

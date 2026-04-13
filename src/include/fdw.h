@@ -235,6 +235,7 @@ extern void chfdw_report_error(int elevel, ch_connection conn,
 
 /* in option.c */
 extern kv_list * chfdw_get_session_settings(void);
+bool		chfdw_pushdown_regex_ok(void);
 
 extern void
 			chfdw_extract_options(List * defelems, char **driver, char **host, int *port,

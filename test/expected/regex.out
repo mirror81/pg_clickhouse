@@ -170,6 +170,28 @@ SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
  val1
 (1 row)
 
+-- Ensure no pushdown when we disable it.
+SET pg_clickhouse.pushdown_regex = 'false';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Filter: (regexp_split_to_array(strings.val, ','::text) = '{a,b,c}'::text[])
+   Remote SQL: SELECT val FROM regex_test.strings
+(4 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_replace(val, '^x', 'y') = 'val2';
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Foreign Scan on public.strings
+   Output: val
+   Filter: (regexp_replace(strings.val, '^x'::text, 'y'::text) = 'val2'::text)
+   Remote SQL: SELECT val FROM regex_test.strings
+(4 rows)
+
+\unset ECHO
+NOTICE:  regexp_like: SELECT val FROM regex_test.strings
 DROP USER MAPPING FOR CURRENT_USER SERVER regex_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE regex_test');
  clickhouse_raw_query 

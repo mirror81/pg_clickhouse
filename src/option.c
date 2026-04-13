@@ -70,6 +70,7 @@ static const ChFdwOption ch_options[] =
  */
 static char *ch_session_settings = NULL;
 static kv_list * ch_session_settings_list = NULL;
+static bool ch_pushdown_regex = true;
 
 /*
  * Helper functions
@@ -509,6 +510,15 @@ chfdw_get_session_settings()
 }
 
 /*
+ * Return the current value of the `pushdown_regex` GUC.
+ */
+bool
+chfdw_pushdown_regex_ok()
+{
+	return ch_pushdown_regex;
+}
+
+/*
  * Validates the provided settings key/value pairs.
  */
 static bool
@@ -581,6 +591,23 @@ _PG_init(void)
 							   chfdw_check_settings_guc,
 							   chfdw_settings_assign_hook,
 							   NULL);
+
+	DefineCustomBoolVariable("pg_clickhouse.pushdown_regex",
+							 "Whether to push down regular expression operations.",
+							 "By default, pg_clickhouse attempts to push down regular "
+							 "expression functions and operations, which is fine for "
+							 "simple expressions. However, ClickHouse and Postgres use "
+							 "fundamentally different regular expression engines, so it "
+							 "may not make sense to push them all down. Set this option "
+							 "to false to prevent the Postgres regular expression functions "
+							 "and operators from pushing down to ClickHouse.",
+							 &ch_pushdown_regex,
+							 true,
+							 PGC_USERSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 
 #if PG_VERSION_NUM >= 150000
 	MarkGUCPrefixReserved("pg_clickhouse");

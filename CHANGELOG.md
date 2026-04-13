@@ -46,6 +46,8 @@ All notable changes to this project will be documented in this file. It uses the
 *   All regular expression functions with compatible flags and all regular
     expression operators now push down prepended with `(?-s)` unless the `s`
     flag is set, so that the behavior mimics that of Postgres.
+*   Added the `pg_clickhouse.pushdown_regex` setting to prevent regular
+    expressions from being pushed down.
 
 ### ⬆️ Dependency Updates
 

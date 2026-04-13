@@ -122,6 +122,29 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
 SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
 
+-- Ensure no pushdown when we disable it.
+SET pg_clickhouse.pushdown_regex = 'false';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_replace(val, '^x', 'y') = 'val2';
+
+\unset ECHO
+-- Use DO to test functions available in Postgres 15+
+-- PG15+: trim_array → match()
+DO $_$
+DECLARE
+	output JSONB;
+BEGIN
+    IF current_setting('server_version_num')::int >= 150000 THEN
+        EXECUTE format($$EXPLAIN (VERBOSE, FORMAT JSON) SELECT val FROM strings WHERE regexp_like(val, '^val\d')$$) INTO output;
+        RAISE NOTICE 'regexp_like: %', jsonb_path_query(output, '$[0].Plan')->>'Remote SQL';
+    ELSE
+        -- Fake it on earlier versions.
+        RAISE NOTICE 'regexp_like: SELECT val FROM regex_test.strings';
+    END IF;
+END;
+$_$;
+\set ECHO all
+
 DROP USER MAPPING FOR CURRENT_USER SERVER regex_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE regex_test');
 DROP SERVER regex_loopback CASCADE;

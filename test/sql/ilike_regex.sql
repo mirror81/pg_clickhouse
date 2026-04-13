@@ -149,6 +149,13 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT id, name FROM ilike_regex_http.events WHERE name ~* '^page' ORDER BY id;
 SELECT id, name FROM ilike_regex_http.events WHERE name ~* '^page' ORDER BY id;
 
+-- Ensure no regular expression pushdown when we disable it.
+SET pg_clickhouse.pushdown_regex = 'false';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name ~ '^page' ORDER BY id;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name !~ '^page' ORDER BY id;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name ~* '^page' ORDER BY id;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ilike_regex_bin.events WHERE name !~* '^page' ORDER BY id;
+
 -- Cleanup
 SELECT clickhouse_raw_query('DROP DATABASE ilike_regex_test');
 DROP USER MAPPING FOR CURRENT_USER SERVER ilike_regex_bin_svr;

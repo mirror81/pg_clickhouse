@@ -208,7 +208,19 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 		CustomObjectDef *cdef = chfdw_check_for_custom_operator(objectId, NULL);
 
 		if (cdef)
-			return (cdef->cf_type != CF_UNSHIPPABLE);
+		{
+			switch (cdef->cf_type)
+			{
+				case CF_REGEX_MATCH:
+				case CF_REGEX_NO_MATCH:
+				case CF_REGEX_ICASE_MATCH:
+				case CF_REGEX_ICASE_NO_MATCH:
+					/* Don't pushdown regular expressions if the GUC is false. */
+					return chfdw_pushdown_regex_ok();
+				default:
+					return (cdef->cf_type != CF_UNSHIPPABLE);
+			}
+		}
 	}
 
 	/*
@@ -247,6 +259,13 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 				case CF_SPLIT_BY_REGEX:
 				case CF_REPLACE_REGEX:
 					{
+						/*
+						 * Don't pushdown regular expressions if the GUC is
+						 * false.
+						 */
+						if (!chfdw_pushdown_regex_ok())
+							return false;
+
 						/* Unshippable if using unsupported or dynamic flags */
 						FuncExpr   *fn = (FuncExpr *) node;
 						int			flags_idx = cdef->cf_type == CF_REPLACE_REGEX ? 3 : 2;
@@ -303,8 +322,6 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 		return (cdef && cdef->cf_type != CF_UNSHIPPABLE);
 	}
 	else if (classId == TypeRelationId && chfdw_check_for_custom_type(objectId) != NULL)
-		return true;
-	else if (classId == OperatorRelationId && chfdw_check_for_custom_operator(objectId, NULL) != NULL)
 		return true;
 
 	/* Otherwise, give up if user hasn't specified any shippable extensions. */
