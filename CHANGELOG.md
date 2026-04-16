@@ -34,8 +34,12 @@ All notable changes to this project will be documented in this file. It uses the
   [v0.2.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.2.0...v0.2.1
   [re2 extension]: https://github.com/ClickHouse/pg_re2
     "pg_re2: ClickHouse-compatible regex functions using RE2"
+  [#204]: https://github.com/ClickHouse/pg_clickhouse/pull/204
+    "pg_clickhouse#204 Support pushdown for re2 extension"
   [fuzzystrmatch]: https://www.postgresql.org/docs/current/fuzzystrmatch.html
     "PostgreSQL Docs: fuzzystrmatch"
+  [#210]: https://github.com/ClickHouse/pg_clickhouse/pull/210
+    "pg_clickhouse#210 Support pushing down soundex & levenshtein from fuzzystrmatch"
 
 ## [v0.2.0] — 2026-04-13
 
@@ -192,6 +196,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
   [#179]: https://github.com/ClickHouse/pg_clickhouse/pull/179
     "pg_clickhouse#179 Fix appending Merge suffix incorrectly"
   [now64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now64
+  [now]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#now
   [nowInBlock64]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64
   [#177]: https://github.com/ClickHouse/pg_clickhouse/pull/177
     "pg_clickhouse#177 clang-tidy static analysis"
