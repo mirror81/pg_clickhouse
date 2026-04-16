@@ -246,3 +246,11 @@ window_functions.sql
  24.3       | window_functions_2.out
  23.8       | window_functions_5.out
  23.3       | window_functions_3.out
+
+re2_functions.sql
+-----------------
+
+ Postgres | pg_re2    | File
+----------|-----------|---------------------
+ 13+      | installed | re2_functions.out
+ 13+      | absent    | re2_functions_1.out

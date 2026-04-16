@@ -1105,6 +1105,34 @@ any of these functions cannot be pushed down they will raise an exception.
 
 *   [dictGet](https://clickhouse.com/docs/sql-reference/functions/ext-dict-functions#dictget-dictgetordefault-dictgetornull)
 
+### Extension Pushdown
+
+pg_clickhouse recognizes functions from select core and third-party extensions,
+pushing them down to their ClickHouse equivalents.
+
+#### re2
+
+All [re2 extension] functions push down 1:1 to ClickHouse:
+
+*   `re2match` → [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `re2extract` → [extract](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extract)
+*   `re2extractall` → [extractAll](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extractAll)
+*   `re2regexpextract` → [regexpExtract](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#regexpExtract)
+*   `re2extractgroups` → [extractGroups](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extractGroups)
+*   `re2replaceregexpone` → [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne)
+*   `re2replaceregexpall` → [replaceRegexpAll](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll)
+*   `re2countmatches` → [countMatches](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#countMatches)
+*   `re2countmatchescaseinsensitive` → [countMatchesCaseInsensitive](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#countMatchesCaseInsensitive)
+*   `re2multimatchany` → [multiMatchAny](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#multiMatchAny)
+*   `re2multimatchanyindex` → [multiMatchAnyIndex](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#multiMatchAnyIndex)
+*   `re2multimatchallindices` → [multiMatchAllIndices](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#multiMatchAllIndices)
+
+#### intarray
+
+One [intarray] function pushes down to ClickHouse:
+
+*   `idx` → [indexOf](https://clickhouse.com/docs/sql-reference/functions/array-functions#indexOf)
+
 ### Pushdown Casts
 
 pg_clickhouse pushes down casts such as `CAST(x AS bigint)` for compatible
@@ -1360,3 +1388,7 @@ Copyright (c) 2025-2026, ClickHouse.
   [Postgres flags]: https://www.postgresql.org/docs/18/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
     "PostgreSQL Docs: ARE Embedded-Option Letters"
   [RE2 Regular Expressions]: https://github.com/google/re2/wiki/Syntax "RE2 Syntax"
+  [re2 extension]: https://github.com/ClickHouse/pg_re2
+    "pg_re2: ClickHouse-compatible regex functions using RE2"
+  [intarray]: https://www.postgresql.org/docs/current/intarray.html
+    "PostgreSQL Docs: intarray"

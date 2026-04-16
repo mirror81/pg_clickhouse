@@ -7,6 +7,23 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.2.1] — Unreleased
+
+### ⚡ Improvements
+
+*   Added pushdown for [pg_re2] functions to their ClickHouse equivalents
+    (e.g., `re2match` → `match`, `re2extractall` → `extractAll`). Thanks to
+    Philip Dubé for the PR ([#204]).
+
+### 📚 Documentation
+
+*   Added "Extensions Pushdown" section to the [reference
+    docs](doc/pg_clickhouse.md), covering re2 and intarray support.
+
+  [v0.2.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.2.0...v0.2.1
+  [pg_re2]: https://github.com/ClickHouse/pg_re2
+    "pg_re2: ClickHouse-compatible regex functions using RE2"
+
 ## [v0.2.0] — 2026-04-13
 
 This release makes binary-compatible changes to the v0.1 releases. Once

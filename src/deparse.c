@@ -446,10 +446,6 @@ foreign_expr_walker(Node * node,
 					break;
 				}
 
-				/* Other variadic functions are not in ClickHouse. */
-				if (fe->funcvariadic)
-					return false;
-
 				/*
 				 * Recurse to input subexpressions.
 				 */

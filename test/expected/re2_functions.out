@@ -1,0 +1,151 @@
+SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name = 're2') AS have_re2 \gset
+\if :have_re2
+CREATE SERVER re2_svr FOREIGN DATA WRAPPER clickhouse_fdw OPTIONS(dbname 're2_test');
+CREATE USER MAPPING FOR CURRENT_USER SERVER re2_svr;
+SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS re2_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query('CREATE DATABASE re2_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    CREATE TABLE re2_test.t1 (
+        id   Int32,
+        val  String
+    ) ENGINE = MergeTree ORDER BY id
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT clickhouse_raw_query($$
+    INSERT INTO re2_test.t1 VALUES
+        (1, 'POSIX uses BRE and ERE'),
+        (2, 're2 uses finite automata'),
+        (3, 'PCRE supports backtracking')
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+CREATE SCHEMA re2_test;
+IMPORT FOREIGN SCHEMA re2_test FROM SERVER re2_svr INTO re2_test;
+SET search_path = re2_test, public;
+CREATE EXTENSION re2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2match(val, 're2');
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE (match(val, 're2'))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2extract(val, '(re2)') = 're2';
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((extract(val, '(re2)') = 're2'))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2extractall(val, '[A-Z]+') = ARRAY['POSIX','BRE','ERE'];
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((extractAll(val, '[A-Z]+') = ['POSIX','BRE','ERE']))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2regexpextract(val, '(re2)', 1) = 're2';
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((regexpExtract(val, '(re2)', 1) = 're2'))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2extractgroups(val, '(POSIX) uses (BRE)') = ARRAY['POSIX','BRE'];
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((extractGroups(val, '(POSIX) uses (BRE)') = ['POSIX','BRE']))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2replaceregexpone(val, 'POSIX', 're2') = 're2 uses BRE and ERE';
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((replaceRegexpOne(val, 'POSIX', 're2') = 're2 uses BRE and ERE'))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2replaceregexpall(val, ' ', '-') = 're2-uses-finite-automata';
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((replaceRegexpAll(val, ' ', '-') = 're2-uses-finite-automata'))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2countmatches(val, 'e') > 0;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((countMatches(val, 'e') > 0))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2countmatchescaseinsensitive(val, 'E') > 0;
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((countMatchesCaseInsensitive(val, 'E') > 0))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2multimatchany(val, 'POSIX','PCRE');
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE (multiMatchAny(val, ['POSIX','PCRE']))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2multimatchanyindex(val, 'POSIX','PCRE') > 0;
+                                              QUERY PLAN                                               
+-------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((multiMatchAnyIndex(val, ['POSIX','PCRE']) > 0))
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE re2multimatchallindices(val, 'POSIX','PCRE') = ARRAY[1];
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE ((multiMatchAllIndices(val, ['POSIX','PCRE']) = [1]))
+(3 rows)
+
+DROP EXTENSION re2;
+DROP USER MAPPING FOR CURRENT_USER SERVER re2_svr;
+SELECT clickhouse_raw_query('DROP DATABASE re2_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+DROP SERVER re2_svr CASCADE;
+NOTICE:  drop cascades to foreign table t1
+\else
+\echo 'SKIP: re2 extension not available'
+\endif

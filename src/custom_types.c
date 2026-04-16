@@ -164,6 +164,40 @@ chfdw_check_for_ordered_aggregate(Aggref * agg)
 }
 
 /*
+ * Map sans-prefix pg_re2 function names to ClickHouse
+ * case-sensitive names. Must be kept in lexicographic order.
+ */
+static char *re2_func_map[][2] = {
+	{"countmatches", "countMatches"},
+	{"countmatchescaseinsensitive", "countMatchesCaseInsensitive"},
+	{"extractall", "extractAll"},
+	{"extractgroups", "extractGroups"},
+	{"multimatchallindices", "multiMatchAllIndices"},
+	{"multimatchany", "multiMatchAny"},
+	{"multimatchanyindex", "multiMatchAnyIndex"},
+	{"regexpextract", "regexpExtract"},
+	{"replaceregexpall", "replaceRegexpAll"},
+	{"replaceregexpone", "replaceRegexpOne"},
+	{NULL, NULL},
+};
+
+inline static char *
+re2_func_name(char *proname)
+{
+	Assert(strncmp(proname, "re2", 3) == 0);
+	char	   *stripped = proname + 3;
+	size_t		i = 0;
+
+	while (re2_func_map[i][0] != NULL)
+	{
+		if (STR_EQUAL(re2_func_map[i][0], stripped))
+			return re2_func_map[i][1];
+		i++;
+	}
+	return stripped;
+}
+
+/*
  * Map pg_clickhouse pushdown function names to ClickHouse case-sensitive
  * names. Must be kept in lexicographic order.
  */
@@ -519,6 +553,12 @@ chfdw_check_for_custom_function(Oid funcid)
 					entry->cf_type = CF_INTARRAY_IDX;
 					strcpy(entry->custom_name, "indexOf");
 				}
+			}
+			else if (STR_EQUAL(extname, "re2"))
+			{
+				/* pg_re2: 1:1 pushdown to ClickHouse RE2 functions. */
+				entry->cf_type = CF_CH_FUNCTION;
+				strlcpy(entry->custom_name, re2_func_name(proname), NAMEDATALEN);
 			}
 			else if (STR_EQUAL(extname, "pg_clickhouse"))
 			{
