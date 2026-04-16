@@ -16,7 +16,8 @@ PostgreSQL 13 and higher and ClickHouse 23 and higher.
 ## Getting Started
 
 The simplest way to try pg_clickhouse is the [Docker image], which contains
-the standard PostgreSQL Docker image with the pg_clickhouse extension:
+the standard PostgreSQL Docker image with the pg_clickhouse and [re2][re2
+extension] extensions:
 
 ```sh
 docker run --name pg_clickhouse -e POSTGRES_PASSWORD=my_pass \
@@ -1239,10 +1240,10 @@ default), and makes an effort to ensure a basic level of compatibility, be
 aware of the differences between the two and how pg_clickhouse handles them.
 
 *   PostgreSQL supports [POSIX Regular Expressions] while ClickHouse supports
-    [RE2 Regular Expressions]. Beware of differences in behavior: write RE2
-    when the regular expression will be evaluated by ClickHouse (e.g., in a
-    `WHERE` clause) and POSIX when it will be evaluated by Postgres (e.g., in
-    a `SELECT` clause).
+    [RE2 Regular Expressions][RE2]. Beware of differences in behavior: write
+    RE2 when the regular expression will be evaluated by ClickHouse (e.g., in
+    a `WHERE` clause) and POSIX when it will be evaluated by Postgres (e.g.,
+    in a `SELECT` clause).
 
 *   pg_clickhouse pushes down the Postgres [Regex flags] by prepending them
     to ClickHouse regular expression inside `(?)`. For example:
@@ -1285,6 +1286,12 @@ aware of the differences between the two and how pg_clickhouse handles them.
     refer to the entire match, while in ClickHouse supports `\0` for the
     entire match. Be sure to use `\0` when the function pushes down to
     ClickHouse.
+
+To avoid all ambiguity, consider setting
+[pg_clickhouse.pushdown_regex](pg_clickhousepushdown_regex) to prevent
+Postgres regular expression from pushing down to ClickHouse, and using the
+[re2 extension], for which pg_clickhouse supports [direct pushdown](#re2)
+of ClickHouse-compatible [RE2] regular expressions.
 
 ## Authors
 
@@ -1387,7 +1394,7 @@ Copyright (c) 2025-2026, ClickHouse.
     "PostgreSQL Docs: POSIX Regular Expressions"
   [Postgres flags]: https://www.postgresql.org/docs/18/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
     "PostgreSQL Docs: ARE Embedded-Option Letters"
-  [RE2 Regular Expressions]: https://github.com/google/re2/wiki/Syntax "RE2 Syntax"
+  [RE2]: https://github.com/google/re2/wiki/Syntax "RE2 Syntax"
   [re2 extension]: https://github.com/ClickHouse/pg_re2
     "pg_re2: ClickHouse-compatible regex functions using RE2"
   [intarray]: https://www.postgresql.org/docs/current/intarray.html

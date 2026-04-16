@@ -11,14 +11,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     cmake \
     libssl-dev \
+    libre2-dev \
+    pgxnclient \
+    unzip \
     g++
 
 RUN make && make install DESTDIR=/dest
 
+# Build the latest stable version of the re2 extension.
+RUN if [ "$PG_MAJOR" -ge "16" ]; then \
+        cd /tmp && pgxn download re2 && unzip re2-*.zip && rm re2-*.zip && cd re2-* && make && make install DESTDIR=/dest; \
+    fi
+
 FROM postgres:$PG_MAJOR-trixie
 
 # Install dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends libcurl4t64 uuid \
+RUN apt-get update && apt-get install -y --no-install-recommends libcurl4t64 uuid libre2-11 \
     && apt-get clean \
     && rm -rf /var/cache/apt/* /var/lib/apt/lists/*
 
