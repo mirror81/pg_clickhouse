@@ -19,9 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN make && make install DESTDIR=/dest
 
 # Build the latest stable version of the re2 extension.
-RUN if [ "$PG_MAJOR" -ge "16" ]; then \
-        cd /tmp && pgxn download re2 && unzip re2-*.zip && rm re2-*.zip && cd re2-* && make && make install DESTDIR=/dest; \
-    fi
+RUN cd /tmp && pgxn download re2 && unzip re2-*.zip && rm re2-*.zip && cd re2-* && make && make install DESTDIR=/dest
 
 FROM postgres:$PG_MAJOR-trixie
 
