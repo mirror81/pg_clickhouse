@@ -565,9 +565,7 @@ chfdw_check_for_custom_function(Oid funcid)
 				if (STR_EQUAL(proname, "levenshtein") &&
 					procform->pronargs == 2)
 					strcpy(entry->custom_name, "editDistance");
-				else if (STR_EQUAL(proname, "soundex"))
-					strcpy(entry->custom_name, "soundex");
-				else
+				else if (!(STR_EQUAL(proname, "soundex")))
 					entry->cf_type = CF_UNSHIPPABLE;
 			}
 			else if (STR_EQUAL(extname, "pg_clickhouse"))

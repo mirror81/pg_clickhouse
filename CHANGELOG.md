@@ -147,7 +147,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as `groupBitOr`,
     and `string_agg` as `groupConcat` to ClickHouse. Thanks Philip Dubé for
     the PR ([#184]).
-*   Added mapping sot push down the Postgres "SQL Value Functions", including
+*   Added mapping to push down the Postgres "SQL Value Functions", including
     `CURRENT_TIMESTAMP`, `CURRENT_USER`, and `CURRENT_DATABASE`.
 *   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
     current Postgres database rather than to the ClickHouse
@@ -171,7 +171,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   `regr_avgx`, `regr_avgy`, `regr_count`, `regr_intercept`, `regr_r2`,
     `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`, `json_agg_strict`, and
     `jsonb_agg_strict` now evaluate locally instead of being pushed to
-    ClickHouse where they would fail. Thanks Philip Dubé for the PR ([#184]).∑
+    ClickHouse where they would fail. Thanks Philip Dubé for the PR ([#184]).
 
 ### 📔 Notes
 
