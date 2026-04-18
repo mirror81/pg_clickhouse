@@ -530,3 +530,44 @@ ch_http_stream_total_time(HttpStream * stream)
 {
 	return stream->total_time * 1000;
 }
+
+/*
+ * ch_http_stream_take_body — transfer ownership of the response body.
+ *
+ * On return, *out_data is a malloc()'d buffer the caller must free(). When
+ * status is CH_HTTP_STATUS_TRANSPORT_ERROR the body is the strdup'd libcurl
+ * error message; otherwise it is the accumulated response bytes (shifted to
+ * offset 0 and NUL-terminated). *out_size is set to the length in bytes,
+ * excluding the NUL. Sets *out_data to NULL and *out_size to 0 when there is
+ * nothing to hand off. Safe to call at most once per stream; the stream
+ * itself should still be released with ch_http_stream_end().
+ */
+void
+ch_http_stream_take_body(HttpStream * stream, char **out_data, size_t * out_size)
+{
+	size_t		avail;
+
+	if (stream->http_status == CH_HTTP_STATUS_TRANSPORT_ERROR && stream->error_msg)
+	{
+		*out_data = stream->error_msg;
+		*out_size = strlen(stream->error_msg);
+		stream->error_msg = NULL;
+		return;
+	}
+
+	avail = ch_http_stream_available(stream);
+	if (avail == 0 || !stream->buf)
+	{
+		*out_data = NULL;
+		*out_size = 0;
+		return;
+	}
+
+	if (stream->parse_pos > 0)
+		memmove(stream->buf, stream->buf + stream->parse_pos, avail);
+	stream->buf[avail] = '\0';
+
+	*out_data = stream->buf;
+	*out_size = avail;
+	stream->buf = NULL;
+}
