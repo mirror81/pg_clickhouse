@@ -217,8 +217,8 @@ lsp: compile_commands.json
 
 # Requires https://github.com/rizsotto/Bear.
 compile_commands.json:
-	$(MAKE) clean
-	bear -- $(MAKE) all
+	$(MAKE) clean -j $$(nproc) NO_VENDOR_CLEAN=$(NO_VENDOR_CLEAN)
+	bear -- $(MAKE) all -j $$(nproc) NO_VENDOR_CLEAN=$(NO_VENDOR_CLEAN)
 
 # ClickHouse Docker Containers
 start-containers: dev/Makefile dev/docker-compose.yml
