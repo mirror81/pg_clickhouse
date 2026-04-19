@@ -18,6 +18,12 @@ All notable changes to this project will be documented in this file. It uses the
     `levenshtein()` (2-arg, mapped to `editDistance`).  Thanks to
     Philip Dubé for the PR ([#210]).
 
+### 🐞 Bug Fixes
+
+*   Fixed `EXPLAIN (VERBOSE)` failing with "could not find window clause for
+    winref N" when window functions are pushed down to ClickHouse. Thanks to
+    Philip Dubé for the PR ([#223]).
+
 ### 📚 Documentation
 
 *   Added "Extensions Pushdown" section to the [reference
@@ -43,6 +49,8 @@ All notable changes to this project will be documented in this file. It uses the
     "PostgreSQL Docs: fuzzystrmatch"
   [#210]: https://github.com/ClickHouse/pg_clickhouse/pull/210
     "pg_clickhouse#210 Support pushing down soundex & levenshtein from fuzzystrmatch"
+  [#223]: https://github.com/ClickHouse/pg_clickhouse/pull/223
+    "pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
 
 ## [v0.2.0] — 2026-04-13
 
