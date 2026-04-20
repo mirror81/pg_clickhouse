@@ -238,7 +238,9 @@ capture_transfer_info(HttpStream * stream)
 
 /* ----------------------------------------------------------------
  * find_batch_end — find a row-aligned split point near fetch_size
- * bytes. Looks forward then backward for nearest newline.
+ * bytes. Looks forward then backward for nearest newline. Never
+ * returns a partial row: if no newline is buffered, returns 0 so
+ * the caller keeps ingesting.
  * ----------------------------------------------------------------
  */
 static size_t
@@ -260,9 +262,9 @@ find_batch_end(const HttpStream * stream)
 			return (found - base) + 1;
 
 		/* Look backward */
-		for (size_t i = stream->fetch_size - 1; i >= 0; i--)
-			if (base[i] == '\n')
-				return i + 1;
+		for (size_t i = stream->fetch_size; i > 0; i--)
+			if (base[i - 1] == '\n')
+				return i;
 	}
 
 	if (stream->transfer_done)

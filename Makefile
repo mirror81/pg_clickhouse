@@ -62,7 +62,7 @@ PG_LDFLAGS = -lstdc++ -lssl -lcrypto $(shell $(CURL_CONFIG) --libs)
 PG_CXXFLAGS = -std=c++17
 
 # Suppress annoying pre-c99 warning and include curl flags.
-PG_CFLAGS = -Wno-declaration-after-statement $(shell $(CURL_CONFIG) --cflags)
+PG_CFLAGS = -Wno-declaration-after-statement -Werror=type-limits $(shell $(CURL_CONFIG) --cflags)
 
 # We'll need libuuid except on darwin, where it's included in the OS.
 ifneq ($(OS),darwin)
