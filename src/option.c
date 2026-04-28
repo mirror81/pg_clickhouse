@@ -58,6 +58,7 @@ static ChFdwOption * clickhouse_fdw_options;
 static const ChFdwOption ch_options[] =
 {
 	{"host", 0, false},
+	{"secure", 0, false},
 	{"port", 0, false},
 	{"dbname", 0, false},
 	{"user", 0, false},
@@ -133,6 +134,22 @@ clickhouse_fdw_validator(PG_FUNCTION_ARGS)
 
 		if (strcmp(def->defname, "fetch_size") == 0)
 			validate_fetch_size_option(def);
+
+		if (strcmp(def->defname, "secure") == 0)
+		{
+			const char *val = defGetString(def);
+
+			if (strcmp(val, "on") != 0 && strcmp(val, "true") != 0 &&
+				strcmp(val, "yes") != 0 && strcmp(val, "1") != 0 &&
+				strcmp(val, "off") != 0 && strcmp(val, "false") != 0 &&
+				strcmp(val, "no") != 0 && strcmp(val, "0") != 0 &&
+				strcmp(val, "auto") != 0)
+				ereport(ERROR,
+						(errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
+						 errmsg("invalid value for option \"secure\": \"%s\"",
+								val),
+						 errhint("Valid values are: on, off, auto.")));
+		}
 	}
 
 	PG_RETURN_VOID();
@@ -286,7 +303,7 @@ is_ch_option(const char *keyword)
 void
 chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
 					  char **dbname, char **username, char **password,
-					  char **compression)
+					  char **compression, tls_mode * tls)
 {
 	ListCell   *lc;
 
@@ -324,6 +341,18 @@ chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
 				*dbname = defGetString(def);
 				if (*dbname[0] == '\0')
 					*dbname = DEFAULT_DBNAME;
+			}
+			else if (tls && strcmp(def->defname, "secure") == 0)
+			{
+				const char *val = defGetString(def);
+
+				if (strcmp(val, "on") == 0 || strcmp(val, "true") == 0 ||
+					strcmp(val, "yes") == 0 || strcmp(val, "1") == 0)
+					*tls = CH_TLS_ON;
+				else if (strcmp(val, "off") == 0 || strcmp(val, "false") == 0 ||
+						 strcmp(val, "no") == 0 || strcmp(val, "0") == 0)
+					*tls = CH_TLS_OFF;
+				/* else: "auto" or anything else → CH_TLS_AUTO (already 0) */
 			}
 		}
 	}

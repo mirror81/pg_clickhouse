@@ -47,10 +47,10 @@ clickhouse_connect(ForeignServer * server, UserMapping * user)
 
 	chfdw_extract_options(server->options, &driver, &details.host,
 						  &details.port, &details.dbname, &details.username,
-						  &details.password, &details.compression);
+						  &details.password, &details.compression, &details.tls);
 	chfdw_extract_options(user->options, &driver, &details.host,
 						  &details.port, &details.dbname, &details.username,
-						  &details.password, &details.compression);
+						  &details.password, &details.compression, &details.tls);
 
 	if (strcmp(driver, "http") == 0)
 	{

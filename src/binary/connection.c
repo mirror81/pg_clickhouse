@@ -30,6 +30,7 @@
 #include "engine.h"
 
 #define CLICKHOUSE_SECURE_PORT 9440
+#define CLICKHOUSE_PLAIN_PORT 9000
 
 static bool
 cancel_adapter(void *ud)
@@ -210,20 +211,26 @@ ch_binary_connect(ch_connection_details * details)
 {
 	const char *host = details->host ? details->host : "127.0.0.1";
 	int			port = details->port;
-	bool		tls = false;
+	bool		tls;
 
-	if (port == 0)
+	switch (details->tls)
 	{
-		if (ch_is_cloud_host(host))
-		{
-			port = CLICKHOUSE_SECURE_PORT;
+		case CH_TLS_ON:
+			if (port == 0)
+				port = CLICKHOUSE_SECURE_PORT;
 			tls = true;
-		}
-		else
-			port = 9000;
+			break;
+		case CH_TLS_OFF:
+			if (port == 0)
+				port = CLICKHOUSE_PLAIN_PORT;
+			tls = false;
+			break;
+		default:				/* CH_TLS_AUTO */
+			if (port == 0)
+				port = ch_is_cloud_host(host) ? CLICKHOUSE_SECURE_PORT : CLICKHOUSE_PLAIN_PORT;
+			tls = (port == CLICKHOUSE_SECURE_PORT);
+			break;
 	}
-	else if (port == CLICKHOUSE_SECURE_PORT)
-		tls = true;
 
 	chc_compression comp = parse_compression(details->compression);
 

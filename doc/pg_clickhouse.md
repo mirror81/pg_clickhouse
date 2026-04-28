@@ -153,6 +153,13 @@ The supported options are:
     *   9004 if `driver` is "binary" and `host` is not a ClickHouse Cloud host
     *   8443 if `driver` is "http" and `host` is a ClickHouse Cloud host
     *   8123 if `driver` is "http" and `host` is not a ClickHouse Cloud host
+*   `secure`: Controls TLS for the connection. One of:
+    *   `auto` (default): use TLS when `host` is a ClickHouse Cloud host or
+        `port` is a secure port; plaintext otherwise.
+    *   `on` (or `true`/`yes`/`1`): always use TLS. Defaults `port` to 8443
+        ("http") or 9440 ("binary").
+    *   `off` (or `false`/`no`/`0`): never use TLS. Defaults `port` to 8123
+        ("http") or 9000 ("binary").
 
 ### ALTER SERVER
 
