@@ -29,6 +29,10 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed the parsing of strings in the http driver to distinguish a true
     `NULL` value from a string containing `\N`. Thanks to Kaushik
     Iska for the PR ([#235]).
+*   Fixed the `column_name` foreign-table column option being ignored by
+    `INSERT`, which caused the binary engine to fail to match ClickHouse block
+    columns and the HTTP engine to deparse PostgreSQL attribute names. Thanks
+    to Philip Dubé for the PR ([#231]).
 
 ### 📚 Documentation
 
@@ -38,6 +42,8 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added recommendation to the [reference docs](doc/pg_clickhouse.md) to
     consider using the [re2 extension] and disabling Postgres regular
     expression pushdown.
+*   Documented the `column_name` foreign-table column option in the [reference
+    docs](doc/pg_clickhouse.md).
 
 ### 🚀 Distribution
 
@@ -61,6 +67,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#234 Make TSV parser column-type-aware for bracket-leading strings"
   [#235]: https://github.com/ClickHouse/pg_clickhouse/pull/235
     "ClickHouse/pg_clickhouse#235 Detect TSV NULL marker before unescaping"
+  [#231]: https://github.com/ClickHouse/pg_clickhouse/pull/231
+    "ClickHouse/pg_clickhouse#231 Fix column_name option not being respected by inserts"
 
 ## [v0.2.0] — 2026-04-13
 

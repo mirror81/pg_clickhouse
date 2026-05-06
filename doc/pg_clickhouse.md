@@ -314,10 +314,24 @@ The supported table options are:
     the table.
 
 Use the [data type](#data-types) appropriate for the remote ClickHouse data
-type of each column. For [AggregateFunction Type] and [SimpleAggregateFunction
-Type] columns, map the data type to the ClickHouse type passed to the function
-and specify the name of the aggregate function via the appropriate column
-option:
+type of each column. The supported column options are:
+
+*   `column_name`: The name of the column on the ClickHouse side, used in
+    preference to the PostgreSQL attribute name when deparsing queries and
+    inserts. Useful for mapping unquoted lowercase PostgreSQL column names to
+    case-sensitive ClickHouse columns, e.g.,
+
+    ```sql
+    CREATE FOREIGN TABLE hits (
+        watchid    bigint  OPTIONS(column_name 'WatchID'),
+        javaenable smallint OPTIONS(column_name 'JavaEnable'),
+        title      text    OPTIONS(column_name 'Title')
+    ) SERVER taxi_srv OPTIONS(table_name 'hits');
+    ```
+
+For [AggregateFunction Type] and [SimpleAggregateFunction Type] columns, map
+the data type to the ClickHouse type passed to the function and specify the
+name of the aggregate function via the appropriate column option:
 
 *   `AggregateFunction`: The name of the aggregate function applied to an
     [AggregateFunction Type] column

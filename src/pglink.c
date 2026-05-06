@@ -1071,6 +1071,7 @@ binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
 	state->callback.arg = state;
 	state->conn = conn;
 	state->table_name = pstrdup(table_name);
+	state->relid = RelationGetRelid(rri->ri_RelationDesc);
 	MemoryContextRegisterResetCallback(tempcxt, &state->callback);
 
 	/* time for c++ stuff */
@@ -1097,7 +1098,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 
 			old_mcxt = MemoryContextSwitchTo(state->memcxt);
 			state->conversion_states = ch_binary_make_tuple_map(
-																slot->tts_tupleDescriptor, state->outdesc);
+																slot->tts_tupleDescriptor, state->outdesc, state->relid);
 			MemoryContextSwitchTo(old_mcxt);
 		}
 
