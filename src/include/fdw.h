@@ -72,7 +72,7 @@ typedef void (*check_conn_method) (const char *password, UserMapping * user);
 typedef ch_cursor * (*simple_query_method) (void *conn, const ch_query * query);
 typedef void (*simple_insert_method) (void *conn, const ch_query * query);
 typedef Datum * (*cursor_fetch_row_method) (ChFdwScanRowContext * ctx);
-typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *,
+typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *, List *,
 										const ch_query *, char *);
 typedef void (*insert_tuple_method) (void *state, TupleTableSlot * slot);
 typedef ch_cursor * (*streaming_query_method) (void *conn,
@@ -310,10 +310,11 @@ typedef enum
 	CF_REGEX_NO_MATCH,			/* !~ POSIX regex operator */
 	CF_REGEX_ICASE_MATCH,		/* ~* case-insensitive regex operator */
 	CF_REGEX_ICASE_NO_MATCH,	/* !~* case-insensitive regex operator */
-	CF_JSONB_FETCHVAL,			/* -> operator on jsonb */
-	CF_JSONB_FETCHVAL_TEXT,		/* ->> operator on jsonb */
-	CF_JSONB_EXTRACT_PATH_TEXT, /* jsonb_extract_path_text() → col."k1"."k2" */
-	CF_JSONB_EXTRACT_PATH,		/* jsonb_extract_path() →
+	CF_JSON_FETCHVAL,			/* -> operator on json & jsonb */
+	CF_JSON_FETCHVAL_TEXT,		/* ->> operator on json & jsonb */
+	CF_JSON_EXTRACT_PATH_TEXT,	/* jsonb?_extract_path_text() →
+								 * col."k1"."k2" */
+	CF_JSON_EXTRACT_PATH,		/* json?_extract_path() →
 								 * toJSONString(col."k1"."k2") */
 	CF_STRING_AGG,				/* string_agg → groupConcat(delim)(expr) */
 	CF_CURRENT_DATABASE,		/* CURRENT_DATABASE → string literal */

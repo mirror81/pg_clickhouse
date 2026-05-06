@@ -1,3 +1,7 @@
+/*
+ * Conversion functions for the binary driver.
+*/
+
 #include "postgres.h"
 
 #include "funcapi.h"
@@ -188,10 +192,16 @@ ch_binary_convert_datum(void *state, Datum val)
 }
 
 /* input */
+
+/*
+ * Convert val from intype to outtype. No conversion for binary-compatible
+ * types or when intype and outtype are the same. All others converted via the
+ * appropriate CAST function.
+*/
 void	   *
 ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 {
-	/* make_datum() binary.cpp copies all bytes, no cast needed. */
+	/* make_datum() copies all bytes, no cast needed. */
 	if (intype == TEXTOID && outtype == BYTEAOID)
 		return NULL;
 
@@ -360,8 +370,15 @@ init_output_convert_state(ch_convert_output_state * state)
 	if (state->outtype == state->intype)
 		return;
 
-	/* column_append() binary.cpp copies all bytes, no cast needed. */
+	/* column_append() copies all bytes, no cast needed. */
 	if (state->intype == BYTEAOID && state->outtype == TEXTOID)
+		return;
+
+	/* column_append() handles both JSON and JSONB, so no need to convert. */
+	if (
+		(state->intype == JSONBOID && state->outtype == JSONOID)
+		|| (state->intype == JSONOID && state->outtype == JSONBOID)
+		)
 		return;
 
 	/* Postgres has no cast from bool to INT16, so provide our own. */
@@ -471,6 +488,14 @@ ch_binary_make_tuple_map(TupleDesc indesc, TupleDesc outdesc, Oid relid)
 	return states;
 }
 
+/*
+ * For each value to be output, convert it, if necessary, from the Postgres
+ * Datum type defined for the foreign table to a Datum that column_append() in
+ * binary.cpp knows how to convert to a ClickHouse type. No conversion for
+ * binary-compatible types; other types require a CAST.
+ * ch_binary_make_tuple_map() makes this determination for each type, stored
+ * in insert_state->conversion_states)
+*/
 void
 ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 							   TupleTableSlot * slot)

@@ -29,6 +29,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     Philip Dubé for the PR ([#210]).
 *   Added mapping for `JSON` => `jsonb` to the binary driver (requires
     ClickHouse 24.10 or later).
+*   Added support for ClickHouse `JSON` mapped to Postgres `json`, supporting
+    all the same operators and functions as the `jsonb` mapping.
 
 ### 🐞 Bug Fixes
 
@@ -56,6 +58,12 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     expression pushdown.
 *   Documented the `column_name` foreign-table column option in the [reference
     docs](doc/pg_clickhouse.md).
+*   Added `jsonb_extract_path_text()` and `jsonb_extract_path()` to the list
+    of push down functions in the [reference docs](doc/pg_clickhouse.md),
+    along with `json_extract_path_text()` and `json_extract_path()`, which are
+    new in this release.
+*   Fixed the reversed descriptions of `->>` and `->` in the list of pushed
+    down operators in the [reference docs](doc/pg_clickhouse.md).
 
 ### 🚀 Distribution
 

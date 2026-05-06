@@ -159,7 +159,8 @@ json.sql
  24.10-25.3 | json_2.out
  24.8-24.9  | json_3.out
  24.3       | json_4.out
- 23         | json_5.out
+ 23.8       | json_5.out
+ 23.3       | json_6.out
 
 param.sql
 ---------

@@ -312,7 +312,7 @@ SELECT * FROM json_http.json_things
 
 SELECT * FROM json_http.json_things
   WHERE data ->> 'size' = 'large' AND data ->> 'stocked' = 'true';
-ERROR:  pg_clickhouse: Code: 53. DB::Exception: Cannot convert string true to type UInt8. (TYPE_MISMATCH)
+ERROR:  pg_clickhouse: Code: 53. DB::Exception: Cannot convert string true to type UInt8: while executing 'FUNCTION equals(data.stocked : 2, 'true' : 5) -> equals(data.stocked, 'true') UInt8 : 7'. (TYPE_MISMATCH)
 CONTEXT:  HTTP status code: 400
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_bin.json_things
@@ -326,7 +326,7 @@ SELECT * FROM json_bin.json_things
 
 SELECT * FROM json_bin.json_things
   WHERE data ->> 'size' = 'large' AND data ->> 'stocked' = 'true';
-ERROR:  pg_clickhouse: DB::Exception: Cannot convert string true to type UInt8
+ERROR:  pg_clickhouse: DB::Exception: Cannot convert string true to type UInt8: while executing 'FUNCTION equals(data.stocked : 2, 'true' : 5) -> equals(data.stocked, 'true') UInt8 : 7'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.things WHERE ((data.size = 'large')) AND ((data.stocked = 'true'))
 -- WHERE with jsonb ->> in an OR condition.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -442,11 +442,11 @@ SELECT * FROM json_bin.json_things ORDER BY data ->> 'name';
 ERROR:  type json is not composite
 SET pg_clickhouse.session_settings TO 'allow_suspicious_types_in_order_by 1';
 SELECT * FROM json_http.json_things ORDER BY data ->> 'name' LIMIT 2;
-ERROR:  pg_clickhouse: Code: 115. DB::Exception: Setting allow_suspicious_types_in_order_by is neither a builtin setting nor started with the prefix 'SQL_' registered for user-defined settings. (UNKNOWN_SETTING)
+ERROR:  pg_clickhouse: Code: 115. DB::Exception: Unknown setting allow_suspicious_types_in_order_by. (UNKNOWN_SETTING)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.things ORDER BY data.name ASC NULLS LAST LIMIT 2
 CONTEXT:  HTTP status code: 404
 SELECT * FROM json_bin.json_things ORDER BY data ->> 'name' LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Unknown setting 'allow_suspicious_types_in_order_by'
+ERROR:  pg_clickhouse: DB::Exception: Unknown setting allow_suspicious_types_in_order_by
 DETAIL:  Remote Query: SELECT id, data FROM json_test.things ORDER BY data.name ASC NULLS LAST LIMIT 2
 SET pg_clickhouse.session_settings TO '';
 -- The jsonb -> operator runs locally when used in SELECT target lists.
@@ -817,7 +817,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'The "meaning" of life' = '4
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> 'The "meaning" of life' = '42';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.The "meaning" of life' in scope SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.The "meaning" of life' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'', required columns: 'id' 'data' 'data.The "meaning" of life', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."The ""meaning"" of life" = '42'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -830,7 +830,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> 'The "meaning" of life' = '42
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> 'The "meaning" of life' = '42';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.The "meaning" of life' in scope SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.The "meaning" of life' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'', required columns: 'id' 'data' 'data.The "meaning" of life', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."The ""meaning"" of life" = '42'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'The "meaning" of life' = '42';
@@ -842,7 +842,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> 'The "meaning" of life'
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'The "meaning" of life' = '42';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.The "meaning" of life' in scope SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.The "meaning" of life' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'', required columns: 'id' 'data' 'data.The "meaning" of life', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."The ""meaning"" of life" = '42'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -855,7 +855,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> 'The "meaning" of life' 
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> 'The "meaning" of life' = '42';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.The "meaning" of life' in scope SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.The "meaning" of life' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`The "meaning" of life` = '42'', required columns: 'id' 'data' 'data.The "meaning" of life', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."The ""meaning"" of life" = '42'))
 -- Key containing a backslash.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -868,7 +868,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'back\slash' = 'bs';
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> 'back\slash' = 'bs';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.back\slash' in scope SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.back\slash' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'', required columns: 'id' 'data' 'data.back\slash', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."back\slash" = 'bs'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -881,7 +881,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> 'back\slash' = 'bs';
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> 'back\slash' = 'bs';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.back\slash' in scope SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.back\slash' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'', required columns: 'id' 'data' 'data.back\slash', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."back\slash" = 'bs'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'back\slash' = 'bs';
@@ -893,7 +893,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> 'back\slash' = 'bs';
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'back\slash' = 'bs';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.back\slash' in scope SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.back\slash' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'', required columns: 'id' 'data' 'data.back\slash', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."back\slash" = 'bs'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -906,7 +906,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> 'back\slash' = 'bs';
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> 'back\slash' = 'bs';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.back\slash' in scope SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.back\slash' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`back\\slash` = 'bs'', required columns: 'id' 'data' 'data.back\slash', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."back\slash" = 'bs'))
 -- Key containing a dot (must not be confused with nested access).
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -919,7 +919,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'dotted.key' = 'dot';
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> 'dotted.key' = 'dot';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.dotted.key' in scope SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.dotted.key' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'', required columns: 'id' 'data' 'data.dotted.key', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."dotted.key" = 'dot'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -932,7 +932,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> 'dotted.key' = 'dot';
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> 'dotted.key' = 'dot';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.dotted.key' in scope SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.dotted.key' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'', required columns: 'id' 'data' 'data.dotted.key', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."dotted.key" = 'dot'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'dotted.key' = 'dot';
@@ -944,7 +944,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> 'dotted.key' = 'dot';
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'dotted.key' = 'dot';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.dotted.key' in scope SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.dotted.key' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'', required columns: 'id' 'data' 'data.dotted.key', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."dotted.key" = 'dot'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -957,7 +957,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> 'dotted.key' = 'dot';
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> 'dotted.key' = 'dot';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.dotted.key' in scope SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.dotted.key' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`dotted.key` = 'dot'', required columns: 'id' 'data' 'data.dotted.key', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."dotted.key" = 'dot'))
 -- Key containing an apostrophe / single quote.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -970,7 +970,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'it''s' = 'apos';
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> 'it''s' = 'apos';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.it's' in scope SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.it's' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'', required columns: 'id' 'data' 'data.it's', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."it's" = 'apos'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -983,7 +983,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> 'it''s' = 'apos';
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> 'it''s' = 'apos';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.it's' in scope SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.it's' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'', required columns: 'id' 'data' 'data.it's', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."it's" = 'apos'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'it''s' = 'apos';
@@ -995,7 +995,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> 'it''s' = 'apos';
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'it''s' = 'apos';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.it's' in scope SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.it's' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'', required columns: 'id' 'data' 'data.it's', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."it's" = 'apos'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1008,7 +1008,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> 'it''s' = 'apos';
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> 'it''s' = 'apos';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.it's' in scope SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.it's' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`it's` = 'apos'', required columns: 'id' 'data' 'data.it's', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."it's" = 'apos'))
 -- Key with slashes, bangs, at-signs, etc.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1021,7 +1021,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> 'key/with!special@chars#' = 
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> 'key/with!special@chars#' = 'special';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.key/with!special@chars#' in scope SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.key/with!special@chars#' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'', required columns: 'id' 'data' 'data.key/with!special@chars#', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."key/with!special@chars#" = 'special'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1034,7 +1034,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> 'key/with!special@chars#' = '
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> 'key/with!special@chars#' = 'special';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.key/with!special@chars#' in scope SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.key/with!special@chars#' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'', required columns: 'id' 'data' 'data.key/with!special@chars#', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."key/with!special@chars#" = 'special'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'key/with!special@chars#' = 'special';
@@ -1046,7 +1046,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> 'key/with!special@chars
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> 'key/with!special@chars#' = 'special';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.key/with!special@chars#' in scope SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.key/with!special@chars#' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'', required columns: 'id' 'data' 'data.key/with!special@chars#', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."key/with!special@chars#" = 'special'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1059,7 +1059,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> 'key/with!special@chars#
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> 'key/with!special@chars#' = 'special';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.key/with!special@chars#' in scope SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.key/with!special@chars#' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`key/with!special@chars#` = 'special'', required columns: 'id' 'data' 'data.key/with!special@chars#', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."key/with!special@chars#" = 'special'))
 -- Key that starts with a digit.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1072,7 +1072,7 @@ SELECT * FROM json_http.special_keys WHERE data ->> '123numeric' = 'num';
 (3 rows)
 
 SELECT * FROM json_http.special_keys WHERE data ->> '123numeric' = 'num';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.123numeric' in scope SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.123numeric' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'', required columns: 'id' 'data' 'data.123numeric', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."123numeric" = 'num'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1085,7 +1085,7 @@ SELECT * FROM json_bin.special_keys WHERE data ->> '123numeric' = 'num';
 (3 rows)
 
 SELECT * FROM json_bin.special_keys WHERE data ->> '123numeric' = 'num';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.123numeric' in scope SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.123numeric' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'', required columns: 'id' 'data' 'data.123numeric', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."123numeric" = 'num'))
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM json_http.json_special_keys WHERE data ->> '123numeric' = 'num';
@@ -1097,7 +1097,7 @@ SELECT * FROM json_http.json_special_keys WHERE data ->> '123numeric' = 'num';
 (3 rows)
 
 SELECT * FROM json_http.json_special_keys WHERE data ->> '123numeric' = 'num';
-ERROR:  pg_clickhouse: Code: 47. DB::Exception: Unknown expression or function identifier 'data.123numeric' in scope SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'. (UNKNOWN_IDENTIFIER)
+ERROR:  pg_clickhouse: Code: 47. DB::Exception: Missing columns: 'data.123numeric' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'', required columns: 'id' 'data' 'data.123numeric', maybe you meant: 'id' or 'data'. (UNKNOWN_IDENTIFIER)
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."123numeric" = 'num'))
 CONTEXT:  HTTP status code: 404
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1110,7 +1110,7 @@ SELECT * FROM json_bin.json_special_keys WHERE data ->> '123numeric' = 'num';
 (3 rows)
 
 SELECT * FROM json_bin.json_special_keys WHERE data ->> '123numeric' = 'num';
-ERROR:  pg_clickhouse: DB::Exception: Unknown expression or function identifier 'data.123numeric' in scope SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'
+ERROR:  pg_clickhouse: DB::Exception: Missing columns: 'data.123numeric' while processing query: 'SELECT id, data FROM json_test.special_keys WHERE data.`123numeric` = 'num'', required columns: 'id' 'data' 'data.123numeric', maybe you meant: 'id' or 'data'
 DETAIL:  Remote Query: SELECT id, data FROM json_test.special_keys WHERE ((data."123numeric" = 'num'))
 -- =======================================================================
 -- jsonb_extract_path_text / jsonb_extract_path pushdown

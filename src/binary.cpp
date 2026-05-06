@@ -286,8 +286,13 @@ extern "C"
 		return resp;
 	}
 
+	/*
+	 * Given TypeRef for the value returned by a clickhouse-cpp query and the
+	 * Postgres data type from the corresponding column in the foreign table,
+	 * return the Oid of the type that should be created for the TypeRef.
+	 */
 	static Oid
-	get_corr_postgres_type(const TypeRef &type)
+	get_corr_postgres_type(const TypeRef &type, Oid pg_type)
 	{
 		switch (type->GetCode())
 		{
@@ -317,7 +322,7 @@ extern "C"
 			case Type::Code::String:
 				return TEXTOID;
 			case Type::Code::LowCardinality:
-				return get_corr_postgres_type(type->As<LowCardinalityType>()->GetNestedType());
+				return get_corr_postgres_type(type->As<LowCardinalityType>()->GetNestedType(), pg_type);
 			case Type::Code::Date:
 			case Type::Code::Date32:
 				return DATEOID;
@@ -329,8 +334,8 @@ extern "C"
 				return UUIDOID;
 			case Type::Code::Array:
 			{
-				Oid array_type
-				= get_array_type(get_corr_postgres_type(type->As<clickhouse::ArrayType>()->GetItemType()));
+				Oid array_type = get_array_type(
+				get_corr_postgres_type(type->As<clickhouse::ArrayType>()->GetItemType(), get_element_type(pg_type)));
 				if (array_type == InvalidOid)
 					throw std::runtime_error("pg_clickhouse: could not find array "
 											 " type for column type "
@@ -341,12 +346,13 @@ extern "C"
 			case Type::Code::Tuple:
 				return RECORDOID;
 			case Type::Code::Nullable:
-				return get_corr_postgres_type(type->As<NullableType>()->GetNestedType());
+				return get_corr_postgres_type(type->As<NullableType>()->GetNestedType(), pg_type);
 			case Type::Code::IPv4:
 			case Type::Code::IPv6:
 				return INETOID;
 			case Type::Code::JSON:
-				return JSONBOID;
+				/* We support json and default to jsonb. */
+				return pg_type == JSONOID ? JSONOID : JSONBOID;
 			default:
 				throw std::runtime_error("pg_clickhouse: unsupported column type " + type->GetName());
 		}
@@ -411,12 +417,17 @@ extern "C"
 		AttrNumber i = 0;
 		for (Block::Iterator bi(*block); bi.IsValid(); bi.Next())
 		{
-			Oid			pg_type;
-			const char *colname;
+			/* Start with the data type from the foreign table. */
+			Oid			pg_type = lfirst_oid(list_nth_cell(state->target_oids, i));
+			const char *colname = bi.Name().c_str();
 			try
 			{
-				/* Determine the Postgres column type. */
-				pg_type = get_corr_postgres_type(bi.Type());
+				/*
+				 * Determine the Postgres type to which to convert values so
+				 * that column_append() knows how to append it to a ClickHouse
+				 * column.
+				 */
+				pg_type = get_corr_postgres_type(bi.Type(), pg_type);
 				colname = bi.Name().c_str();
 			}
 			catch (const std::exception &e)
@@ -440,6 +451,12 @@ extern "C"
 		state->insert_block = (ch_insert_block_h *)block;
 	}
 
+	/*
+	 * Append val to col. If isnull is true and val is nullable, append a
+	 * null. Otherwise, determine how to convert val, of type valtype, to a
+	 * value appropriate to col, and append that value. Raises an exception if
+	 * valtype is not compatible with col's type.
+	 */
 	static void
 	column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, bool isnull)
 	{
@@ -742,11 +759,15 @@ extern "C"
 			break;
 			default:
 			{
-				THROW_UNEXPECTED_COLUMN(std::to_string(valtype), col);
+				THROW_UNEXPECTED_COLUMN(format_type_extended(valtype, -1, FORMAT_TYPE_ALLOW_INVALID), col);
 			}
 		}
 	}
 
+	/*
+	 * Append state->values[colidx] to state->insert_block[colidx] or raise an
+	 * exception.
+	 */
 	void
 	ch_binary_column_append_data(ch_binary_insert_state *state, size_t colidx)
 	{
@@ -756,8 +777,9 @@ extern "C"
 			auto col = (*block)[colidx];
 
 			Datum val = state->values[colidx];
-			Oid	  valtype = TupleDescAttr(state->outdesc, colidx)->atttypid;
-			bool  isnull = state->nulls[colidx];
+
+			Oid	 valtype = TupleDescAttr(state->outdesc, colidx)->atttypid;
+			bool isnull = state->nulls[colidx];
 
 			column_append(col, val, valtype, isnull);
 		}
@@ -839,6 +861,7 @@ extern "C"
 				state->coltypes = new Oid[resp->columns_count];
 				state->values = new Datum[resp->columns_count];
 				state->nulls = new bool[resp->columns_count];
+				std::fill(state->coltypes, state->coltypes + resp->columns_count, 0);
 			}
 		}
 		catch (const std::exception &e)
@@ -848,14 +871,20 @@ extern "C"
 	}
 
 	/*
-	 * This function is preparing values for `convert_datum` which is called in upper
-	 * code.
+	 * This function prepares values for `convert_datum` which is called in
+	 * upper code.
 	 *
 	 * This function calls postgres functions, which can call `palloc` so we can end up
 	 * with elog(ERROR) and longjmp to upper postgres code with leaking c++ memory.
 	 *
 	 * There is not an adequate (without huge overheads) solution, we just consider
 	 * this state unfixable.
+	 *
+	 * Expects `valtype` to already be set to the type of the foreign table
+	 * column for the value, but it may replace it with another type that will
+	 * later be cast to valtype.
+	 *
+	 * Always sets `is_null`.
 	 */
 	static Datum
 	make_datum(clickhouse::ColumnRef col, size_t row, Oid *valtype, bool *is_null)
@@ -865,7 +894,6 @@ extern "C"
 	nested_col:
 		auto type_code = col->Type()->GetCode();
 
-		*valtype = InvalidOid;
 		*is_null = false;
 
 		switch (type_code)
@@ -1092,7 +1120,7 @@ extern "C"
 				size_t len = arr->Size();
 				auto   slot = (ch_binary_array_t *)exc_palloc(sizeof(ch_binary_array_t));
 
-				Oid item_type = get_corr_postgres_type(arr->Type());
+				Oid item_type = get_corr_postgres_type(arr->Type(), get_element_type(*valtype));
 				Oid array_type = get_array_type(item_type);
 
 				if (array_type == InvalidOid)
@@ -1179,8 +1207,12 @@ extern "C"
 		return ret;
 	}
 
+	/*
+	 * Read a row from state->block and fill state->values with the
+	 * corresponding values.
+	 */
 	bool
-	ch_binary_read_row(ch_binary_read_state_t *state)
+	ch_binary_read_row(ch_binary_read_state_t *state, TupleDesc tupdesc, List *attrs)
 	{
 		/* coltypes is NULL means there are no blocks */
 		bool res = false;
@@ -1202,6 +1234,20 @@ extern "C"
 
 			for (size_t i = 0; i < state->resp->columns_count; i++)
 			{
+				/*
+				 * For the first row we fetch, set the data types to the
+				 * Postgres target columns. make_datum() may replace the type,
+				 * but in general we want to prefer the type that Postgres
+				 * expects. tupdesc describes the Postgres tuple that we're
+				 * selecting from; attrs contains the list of column numbers
+				 * we're selecting from that tuple.
+				 *
+				 * XXX Would be nice to set this up in an earlier callback
+				 * hook.
+				 */
+				if (!state->coltypes[i] && tupdesc && list_length(attrs) > (int)i)
+					state->coltypes[i] = TupleDescAttr(tupdesc, lfirst_int(list_nth_cell(attrs, i)) - 1)->atttypid;
+
 				/* fill value and null arrays */
 				state->values[i] = make_datum(block[i], state->row, &state->coltypes[i], &state->nulls[i]);
 			}

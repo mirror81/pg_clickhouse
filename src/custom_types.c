@@ -271,6 +271,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_TO_TIMESTAMP_FLOAT8:
 			case F_JSONB_EXTRACT_PATH:
 			case F_JSONB_EXTRACT_PATH_TEXT:
+			case F_JSON_EXTRACT_PATH:
+			case F_JSON_EXTRACT_PATH_TEXT:
 			case F_NOW:
 			case F_STATEMENT_TIMESTAMP:
 			case F_TRANSACTION_TIMESTAMP:
@@ -419,14 +421,16 @@ chfdw_check_for_custom_function(Oid funcid)
 					break;
 				}
 			case F_JSONB_EXTRACT_PATH_TEXT:
+			case F_JSON_EXTRACT_PATH_TEXT:
 				{
-					entry->cf_type = CF_JSONB_EXTRACT_PATH_TEXT;
+					entry->cf_type = CF_JSON_EXTRACT_PATH_TEXT;
 					entry->custom_name[0] = '\1';
 					break;
 				}
 			case F_JSONB_EXTRACT_PATH:
+			case F_JSON_EXTRACT_PATH:
 				{
-					entry->cf_type = CF_JSONB_EXTRACT_PATH;
+					entry->cf_type = CF_JSON_EXTRACT_PATH;
 					entry->custom_name[0] = '\1';
 					break;
 				}
@@ -608,6 +612,8 @@ chfdw_check_for_custom_type(Oid typeoid)
 #define OID_TEXT_IREGEX_NE_OP		1229
 #define OID_JSONB_FETCHVAL_OP		3211
 #define OID_JSONB_FETCHVAL_TEXT_OP	3477
+#define OID_JSON_FETCHVAL_OP		3962
+#define OID_JSON_FETCHVAL_TEXT_OP	3963
 
 /*
  * Map a builtin operator OID to its custom_object_type. Returns CF_USUAL
@@ -627,9 +633,11 @@ classify_builtin_operator(Oid opoid)
 		case OID_TEXT_IREGEX_NE_OP:
 			return CF_REGEX_ICASE_NO_MATCH;
 		case OID_JSONB_FETCHVAL_OP:
-			return CF_JSONB_FETCHVAL;
+		case OID_JSON_FETCHVAL_OP:
+			return CF_JSON_FETCHVAL;
 		case OID_JSONB_FETCHVAL_TEXT_OP:
-			return CF_JSONB_FETCHVAL_TEXT;
+		case OID_JSON_FETCHVAL_TEXT_OP:
+			return CF_JSON_FETCHVAL_TEXT;
 		case OID_ARRAY_CONTAINS_OP:
 			return CF_ARRAY_CONTAINS;
 		case OID_ARRAY_CONTAINED_OP:

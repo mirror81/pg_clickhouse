@@ -56,6 +56,7 @@ extern "C"
 		MemoryContextCallback callback;
 
 		TupleDesc	outdesc;
+		List	   *target_oids;	/* Type of each value in outdesc */
 		ch_insert_block_h *insert_block;	/* clickhouse::Block */
 		size_t		len;
 		void	   *conversion_states;
@@ -79,7 +80,7 @@ extern "C"
 /* reading */
 	void		ch_binary_read_state_init(ch_binary_read_state_t * state, ch_binary_response_t * resp);
 	void		ch_binary_read_state_free(ch_binary_read_state_t * state);
-	bool		ch_binary_read_row(ch_binary_read_state_t * state);
+	bool		ch_binary_read_row(ch_binary_read_state_t * state, TupleDesc tupdesc, List * attrs);
 	Datum		ch_binary_convert_datum(void *state, Datum val);
 	void	   *ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype);
 	void		ch_binary_free_convert_state(void *);

@@ -425,14 +425,14 @@ foreign_expr_walker(Node * node,
 					return false;
 
 				/*
-				 * jsonb_extract_path_text / jsonb_extract_path are always
+				 * jsonb?_extract_path_text / jsonb?_extract_path are always
 				 * presented by the planner in variadic form: two args where
 				 * the second is a text[] constant.  Allow them through the
 				 * variadic gate; only recurse on the column argument.
 				 */
 				if (cdef &&
-					(cdef->cf_type == CF_JSONB_EXTRACT_PATH_TEXT ||
-					 cdef->cf_type == CF_JSONB_EXTRACT_PATH))
+					(cdef->cf_type == CF_JSON_EXTRACT_PATH_TEXT ||
+					 cdef->cf_type == CF_JSON_EXTRACT_PATH))
 				{
 					if (list_length(fe->args) != 2 ||
 						!IsA(lsecond(fe->args), Const) ||
@@ -2598,11 +2598,11 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 		/* Special casses. */
 		switch (cdef->cf_type)
 		{
-			case CF_JSONB_EXTRACT_PATH_TEXT:
-			case CF_JSONB_EXTRACT_PATH:
+			case CF_JSON_EXTRACT_PATH_TEXT:
+			case CF_JSON_EXTRACT_PATH:
 				{
 					deparseJsonbExtractPath(node, context,
-											cdef->cf_type == CF_JSONB_EXTRACT_PATH);
+											cdef->cf_type == CF_JSON_EXTRACT_PATH);
 					return;
 				}
 			case CF_CURRENT_DATABASE:
@@ -3209,8 +3209,8 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 					goto cleanup;
 				}
 				break;
-			case CF_JSONB_FETCHVAL:
-			case CF_JSONB_FETCHVAL_TEXT:
+			case CF_JSON_FETCHVAL:
+			case CF_JSON_FETCHVAL_TEXT:
 				{
 					Expr	   *arg1 = linitial(node->args);
 					Expr	   *arg2 = lsecond(node->args);
@@ -3230,7 +3230,7 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 						{
 							char	   *keyval = TextDatumGetCString(key->constvalue);
 
-							if (cdef->cf_type == CF_JSONB_FETCHVAL)
+							if (cdef->cf_type == CF_JSON_FETCHVAL)
 								appendStringInfoString(buf, "toJSONString(");
 
 							deparseExpr(arg1, context);
@@ -3238,7 +3238,7 @@ deparseOpExpr(OpExpr * node, deparse_expr_cxt * context)
 							appendStringInfoString(buf,
 												   quote_identifier(keyval));
 
-							if (cdef->cf_type == CF_JSONB_FETCHVAL)
+							if (cdef->cf_type == CF_JSON_FETCHVAL)
 								appendStringInfoChar(buf, ')');
 
 							pfree(keyval);

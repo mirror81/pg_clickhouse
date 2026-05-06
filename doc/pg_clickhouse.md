@@ -828,7 +828,7 @@ cluster to be restart when the library is updated.
 ## Data Types
 
 pg_clickhouse maps the following ClickHouse data types to PostgreSQL data
-types. [IMPORT FOREIGN SCHEMA](#import-foreign-schema) use the first type in
+types. [IMPORT FOREIGN SCHEMA](#import-foreign-schema) uses the first type in
 the PostgreSQL column when importing columns; additional types may be used in
 [CREATE FOREIGN TABLE](#create-foreign-table) statements:
 
@@ -847,7 +847,7 @@ the PostgreSQL column when importing columns; additional types may be used in
 | Int32      | integer          |                               |
 | Int64      | bigint           |                               |
 | Int8       | smallint         |                               |
-| JSON       | jsonb            |                               |
+| JSON       | jsonb, json      |                               |
 | String     | text, bytea      |                               |
 | UInt16     | integer          |                               |
 | UInt32     | bigint           |                               |
@@ -1082,6 +1082,10 @@ maps the following functions:
 *   `regexp_replace`: [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne) or [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll) when the `g` flag is present
 *   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
+*   `json_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `json_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `jsonb_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `jsonb_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
 *   `statement_timestamp`, `transaction_timestamp`, & `clock_timestamp`:
     [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
@@ -1114,8 +1118,8 @@ maps the following functions:
 *   `!~` (regexp not match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `~*` (case insensitive regexp no match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `!~*` (case insensitive regexp not match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
-*   `->` (JSON extract element): [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
-*   `->>` (JSON extract element as text): [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `->>` (JSON/JSONB extract element as text): [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `->` (JSON/JSONB extract): [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 
 ### Custom Functions
 

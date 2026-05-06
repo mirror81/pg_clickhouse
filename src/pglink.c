@@ -38,7 +38,7 @@ static Datum * http_fetch_row(ChFdwScanRowContext * ctx);
 static Datum * http_streaming_fetch_row(ChFdwScanRowContext * ctx);
 static Datum * http_fetch_row_from_state(ChFdwScanRowContext * ctx,
 										 ch_http_read_state * state);
-static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
+static void *http_prepare_insert(void *, ResultRelInfo *, List *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
 static void char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
 static void report_http_stream_query_failure(void *conn, const ch_query * query,
@@ -62,7 +62,7 @@ static void binary_cursor_free(void *cursor);
 /* static void binary_simple_insert(void *conn, const char *query); */
 static Datum * binary_fetch_row(ChFdwScanRowContext * ctx);
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
-static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
+static void *binary_prepare_insert(void *, ResultRelInfo *, List *, List *,
 								   const ch_query * query, char *table_name);
 static char *ch_escape_string(const char *s, size_t len);
 static void ch_quote_literal_internal(char *dst, const char *src, size_t len);
@@ -782,7 +782,7 @@ extend_insert_query(ch_http_insert_state * state, TupleTableSlot * slot)
 }
 
 static void *
-http_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
+http_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs, List * target_oids,
 					const ch_query * query, char *table_name)
 {
 	ch_http_insert_state *state = palloc0(sizeof(ch_http_insert_state));
@@ -933,7 +933,7 @@ binary_fetch_row(ChFdwScanRowContext * ctx)
 	Datum	   *values = ctx->values;
 	bool	   *nulls = ctx->nulls;
 	ch_binary_read_state_t *state = cursor->read_state;
-	bool		have_data = ch_binary_read_row(state);
+	bool		have_data = ch_binary_read_row(state, tupdesc, attrs);
 	size_t		attcount = list_length(attrs);
 
 	if (state->error)
@@ -980,7 +980,6 @@ binary_fetch_row(ChFdwScanRowContext * ctx)
 			bool		isnull = state->nulls[j];
 			intptr_t	convstate;
 
-
 			if (isnull)
 				values[i - 1] = (Datum) 0;
 			else
@@ -1002,6 +1001,17 @@ binary_fetch_row(ChFdwScanRowContext * ctx)
 							 * it.
 							 */
 							old_mcxt = MemoryContextSwitchTo(cursor->memcxt);
+
+							/*
+							 * Convert the Postgres Datum, stored by
+							 * ch_binary_read_row() as the type defined by by
+							 * state->coltypes[j], to the type defined by the
+							 * foreign table. No conversion if they're binary
+							 * compatible, but required to allow a static
+							 * ClickHouse type (which maps to a well-known
+							 * Postgres type) to be converted to a compatible
+							 * Postgres value via a CAST.
+							 */
 							s = ch_binary_init_convert_state(state->values[j],
 															 state->coltypes[j], outtype);
 							MemoryContextSwitchTo(old_mcxt);
@@ -1048,7 +1058,7 @@ binary_cursor_free(void *c)
 }
 
 static void *
-binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
+binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs, List * target_oids,
 					  const ch_query * query, char *table_name)
 {
 	ch_binary_insert_state *state = NULL;
@@ -1072,6 +1082,7 @@ binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
 	state->conn = conn;
 	state->table_name = pstrdup(table_name);
 	state->relid = RelationGetRelid(rri->ri_RelationDesc);
+	state->target_oids = target_oids;
 	MemoryContextRegisterResetCallback(tempcxt, &state->callback);
 
 	/* time for c++ stuff */
@@ -1097,8 +1108,16 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 			MemoryContext old_mcxt;
 
 			old_mcxt = MemoryContextSwitchTo(state->memcxt);
-			state->conversion_states = ch_binary_make_tuple_map(
-																slot->tts_tupleDescriptor, state->outdesc, state->relid);
+
+			/*
+			 * Set up conversion states so that Postgres Datums of types
+			 * defined by the foreign table can be converted to a well-known
+			 * Postgres type that column_append() in binary.cpp knows how to
+			 * convert to the appropriate ClickHouse type. Binary compatible
+			 * types don't convert; others require a CAST. Fails if there is
+			 * no cast.
+			 */
+			state->conversion_states = ch_binary_make_tuple_map(slot->tts_tupleDescriptor, state->outdesc, state->relid);
 			MemoryContextSwitchTo(old_mcxt);
 		}
 
@@ -1139,7 +1158,7 @@ binary_insert_tuple(void *istate, TupleTableSlot * slot)
 		('UUID',     'uuid',             ''),
 		('IPv4',     'inet',             ''),
 		('IPv6',     'inet',             ''),
-		('JSON',     'jsonb',            '')
+		('JSON',     'jsonb, json',      '')
 	) AS v(\"ClickHouse\", \"PostgreSQL\", \"Notes\")
 	ORDER BY \"ClickHouse\";
 	" | perl -ne 'my $m = $.%2; print $buf[$m] if defined $buf[$m]; $buf[$m] = s/\+/|/gr if $.>1' | pbcopy
