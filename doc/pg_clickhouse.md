@@ -847,7 +847,7 @@ the PostgreSQL column when importing columns; additional types may be used in
 | Int32      | integer          |                               |
 | Int64      | bigint           |                               |
 | Int8       | smallint         |                               |
-| JSON       | jsonb            | HTTP engine only              |
+| JSON       | jsonb            |                               |
 | String     | text, bytea      |                               |
 | UInt16     | integer          |                               |
 | UInt32     | bigint           |                               |

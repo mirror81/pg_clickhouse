@@ -156,8 +156,10 @@ json.sql
  ClickHouse | File
 ------------|------------
  25.8+      | json.out
- 24.8-25.3  | json_2.out
- 23-24.3    | json_3.out
+ 24.10-25.3 | json_2.out
+ 24.8-24.9  | json_3.out
+ 24.3       | json_4.out
+ 23         | json_5.out
 
 param.sql
 ---------

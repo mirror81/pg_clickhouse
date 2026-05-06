@@ -27,6 +27,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 *   Added pushdown for [fuzzystrmatch] functions `soundex()` and
     `levenshtein()` (2-arg, mapped to `editDistance`).  Thanks to
     Philip Dubé for the PR ([#210]).
+*   Added mapping for `JSON` => `jsonb` to the binary driver (requires
+    ClickHouse 24.10 or later).
 
 ### 🐞 Bug Fixes
 

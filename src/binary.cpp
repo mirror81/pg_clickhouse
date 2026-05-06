@@ -181,7 +181,7 @@ extern "C"
 	 * Converts query->settings to QuerySettings.
 	 */
 	static QuerySettings
-	ch_binary_settings(const ch_query *query)
+	ch_binary_settings(const Client *client, const ch_query *query)
 	{
 		kv_iter iter;
 		auto	res = QuerySettings{};
@@ -190,6 +190,9 @@ extern "C"
 		{
 			res.insert_or_assign(iter.name, QuerySettingsField{ iter.value, 1 });
 		}
+		auto info = client->GetServerInfo();
+		if (info.version_major >= 25 || (info.version_major == 24 && info.version_minor >= 10))
+			res.insert_or_assign("output_format_native_write_json_as_string", QuerySettingsField{ "1", 1 });
 
 		return res;
 	}
@@ -228,7 +231,7 @@ extern "C"
 			resp = new ch_binary_response_t();
 			values = new std::vector<std::vector<clickhouse::ColumnRef>>();
 			client->Select(clickhouse::Query(query->sql)
-						   .SetQuerySettings(ch_binary_settings(query))
+						   .SetQuerySettings(ch_binary_settings(client, query))
 						   .SetParams(ch_binary_params(query))
 						   .OnProgress(
 						   [&check_cancel](const Progress &)
@@ -342,6 +345,8 @@ extern "C"
 			case Type::Code::IPv4:
 			case Type::Code::IPv6:
 				return INETOID;
+			case Type::Code::JSON:
+				return JSONBOID;
 			default:
 				throw std::runtime_error("pg_clickhouse: unsupported column type " + type->GetName());
 		}
@@ -380,7 +385,7 @@ extern "C"
 			/* XXX https://github.com/ClickHouse/clickhouse-cpp/pull/453/
 			block = new Block(client->BeginInsert(
 				clickhouse::Query(std::string(query->sql)+ " VALUES").SetQuerySettings(
-					ch_binary_settings(query)
+					ch_binary_settings(client, query)
 				).SetParams(
 					ch_binary_params(query)
 				)
@@ -721,6 +726,18 @@ extern "C"
 							THROW_UNEXPECTED_COLUMN("INET", col);
 					}
 				}
+			}
+			break;
+			case JSONBOID:
+			{
+				char *s = DatumGetCString(DirectFunctionCall1(jsonb_out, val));
+				col->AsStrict<ColumnJSON>()->Append(s);
+			}
+			break;
+			case JSONOID:
+			{
+				char *s = DatumGetCString(DirectFunctionCall1(json_out, val));
+				col->AsStrict<ColumnJSON>()->Append(s);
 			}
 			break;
 			default:
@@ -1143,6 +1160,15 @@ extern "C"
 				auto item = col->AsStrict<ColumnIPv6>()->AsString(row);
 				ret = DirectFunctionCall1(inet_in, CStringGetDatum(item.c_str()));
 				*valtype = INETOID;
+			}
+			break;
+			case Type::Code::JSON:
+			{
+				if (!*valtype)
+					*valtype = JSONBOID;
+				/* Sadly must copy to a null-terminated string as Postgres expects. */
+				auto item = std::string(col->AsStrict<ColumnJSON>()->At(row));
+				ret = DirectFunctionCall1(*valtype == JSONBOID ? jsonb_in : json_in, CStringGetDatum(item.c_str()));
 			}
 			break;
 			default:

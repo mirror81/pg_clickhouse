@@ -99,7 +99,7 @@ $(CH_CPP_DIR)/CMakeLists.txt:
 	git submodule update --init
 
 # Require the vendored clickhouse-cpp and the version header.
-$(OBJS): $(CH_CPP_DIR)/CMakeLists.txt src/include/version.h
+$(OBJS): $(CH_CPP_LIB) src/include/version.h
 
 # Build clickhouse-cpp.
 $(CH_CPP_LIB): export CXXFLAGS=-fPIC
@@ -191,7 +191,6 @@ bake-vars:
 # standard. Requires `pg_bsd_indent` to be in the path.
 indent: dev/indent.sh
 	@$<
-	clang-format --style=file:.clang-format -i src/binary.cpp
 
 # Linting.
 .PHONY: lint # Lint the project
