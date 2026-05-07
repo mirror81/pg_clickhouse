@@ -41,6 +41,8 @@ typedef struct
 	size_t		curpos;
 	StringInfoData val;
 	bool		done;
+	bool		is_null;		/* set when the parser saw the wire NULL
+								 * marker `\N` for the field just read */
 }			ch_http_read_state;
 
 typedef struct

@@ -336,9 +336,25 @@ INSERT INTO ft_brk_mix VALUES
 
 SELECT id, tags, term FROM ft_brk_mix ORDER BY id;
 
-DROP FOREIGN TABLE ft_brk_mix;
-DROP FOREIGN TABLE ft_brk_stream;
-DROP FOREIGN TABLE ft_brk;
+/*
+ * The wire NULL marker is the 2-byte sequence `\N`. A non-NULL String value
+ * whose unescaped content happens to start with `\N` (or be exactly `\N`)
+ * must not be misread as NULL.
+ */
+SELECT clickhouse_raw_query('CREATE TABLE http_test.t_nullmark
+    (id String, s String) ENGINE = MergeTree ORDER BY id');
+SELECT clickhouse_raw_query(
+    'INSERT INTO http_test.t_nullmark VALUES'
+    || ' (''1'', ''\\N''),'             /* exactly the 2-char NULL marker as data */
+    || ' (''2'', ''\\N foo bar''),'     /* starts with \N */
+    || ' (''3'', ''leading text \\N''),'/* contains \N at end */
+    || ' (''4'', ''ordinary'')');
+
+CREATE FOREIGN TABLE ft_nullmark (id text, s text)
+    SERVER http_loopback OPTIONS (table_name 't_nullmark');
+
+SELECT id, s, length(s), s IS NULL AS is_null
+FROM ft_nullmark ORDER BY id;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
 DROP SERVER http_no_stream CASCADE;

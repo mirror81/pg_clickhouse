@@ -41,7 +41,6 @@ static Datum * http_fetch_row_from_state(ChFdwScanRowContext * ctx,
 static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
 static void char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
-static bool http_value_is_null(const StringInfoData * value);
 static void report_http_stream_query_failure(void *conn, const ch_query * query,
 											 HttpStream * stream);
 
@@ -194,14 +193,6 @@ kill_query(void *conn, const char *query_id)
 	resp = ch_http_simple_query(conn, &query);
 	if (resp != NULL)
 		ch_http_response_free(resp);
-}
-
-inline static bool
-http_value_is_null(const StringInfoData * value)
-{
-	return value->len == 2
-		&& value->data[0] == '\\'
-		&& value->data[1] == 'N';
 }
 
 static void
@@ -528,7 +519,7 @@ http_fetch_row_from_state(ChFdwScanRowContext * ctx, ch_http_read_state * state)
 	{
 		Assert(ctx->values && ctx->nulls);
 		rc = ch_http_read_next(state, false);
-		if (rc != CH_CONT && http_value_is_null(&state->val))
+		if (rc != CH_CONT && state->is_null)
 		{
 			ctx->nulls[0] = true;
 			ctx->values[0] = (Datum) 0;
@@ -560,7 +551,9 @@ http_fetch_row_from_state(ChFdwScanRowContext * ctx, ch_http_read_state * state)
 			i = lfirst_int(lc) - 1;
 			pgtype = TupleDescAttr(ctx->tupdesc, i)->atttypid;
 			rc = ch_http_read_next(state, type_is_array(pgtype));
-			char_to_datum(ctx, i, state->val.data, state->val.len);
+			char_to_datum(ctx, i,
+						  state->is_null ? NULL : state->val.data,
+						  state->val.len);
 		}
 	}
 	/* No TupleDesc, everything is text. */
@@ -570,7 +563,7 @@ http_fetch_row_from_state(ChFdwScanRowContext * ctx, ch_http_read_state * state)
 		for (int idx = 0; idx < attcount; idx++)
 		{
 			rc = ch_http_read_next(state, false);
-			if (http_value_is_null(&state->val))
+			if (state->is_null)
 				values[idx] = (Datum) 0;
 			else
 				values[idx] = PointerGetDatum(cstring_to_text(state->val.data));
@@ -623,13 +616,8 @@ char_to_datum(ChFdwScanRowContext * ctx, int attidx, char *data, size_t len)
 {
 	Oid			pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
 
-	if (data[0] == '\\' && data[1] == 'N')
-	{
-		/* \N is always NULL, thanks to format_tsv_null_representation. */
-		data = NULL;
-	}
-	else if (data && (pgtype == TIMEOID || pgtype == TIMETZOID)
-			 && data[strlen(data) - 1] == 'Z')
+	if (data && (pgtype == TIMEOID || pgtype == TIMETZOID)
+		&& data[strlen(data) - 1] == 'Z')
 	{
 		/*
 		 * date_time_output_format=iso formats times as ISO timestamps. Remove

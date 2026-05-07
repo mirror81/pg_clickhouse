@@ -26,6 +26,9 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed the parsing of strings that start with `[` in the http driver so
     that it no longer assumes it's the start of an array. Thanks to Kaushik
     Iska for the PR ([#234]).
+*   Fixed the parsing of strings in the http driver to distinguish a true
+    `NULL` value from a string containing `\N`. Thanks to Kaushik
+    Iska for the PR ([#235]).
 
 ### 📚 Documentation
 
@@ -45,15 +48,19 @@ All notable changes to this project will be documented in this file. It uses the
   [ca-certificates package]: https://packages.debian.org/source/trixie/ca-certificates
     "Debian Packages: Common CA certificates"
   [re2 extension]: https://github.com/ClickHouse/pg_re2
-    "pg_re2: ClickHouse-compatible regex functions using RE2"
+    "ClickHouse/pg_re2: ClickHouse-compatible regex functions using RE2"
   [#204]: https://github.com/ClickHouse/pg_clickhouse/pull/204
-    "pg_clickhouse#204 Support pushdown for re2 extension"
+    "ClickHouse/pg_clickhouse#204 Support pushdown for re2 extension"
   [fuzzystrmatch]: https://www.postgresql.org/docs/current/fuzzystrmatch.html
     "PostgreSQL Docs: fuzzystrmatch"
   [#210]: https://github.com/ClickHouse/pg_clickhouse/pull/210
-    "pg_clickhouse#210 Support pushing down soundex & levenshtein from fuzzystrmatch"
+    "ClickHouse/pg_clickhouse#210 Support pushing down soundex & levenshtein from fuzzystrmatch"
   [#223]: https://github.com/ClickHouse/pg_clickhouse/pull/223
-    "pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
+    "ClickHouse/pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
+  [#234]: https://github.com/ClickHouse/pg_clickhouse/pull/234
+    "ClickHouse/pg_clickhouse#234 Make TSV parser column-type-aware for bracket-leading strings"
+  [#235]: https://github.com/ClickHouse/pg_clickhouse/pull/235
+    "ClickHouse/pg_clickhouse#235 Detect TSV NULL marker before unescaping"
 
 ## [v0.2.0] — 2026-04-13
 

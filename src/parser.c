@@ -40,6 +40,7 @@ ch_http_read_state_init(ch_http_read_state * state, char *data, size_t datalen)
 	state->datalen = datalen;
 	state->curpos = 0;
 	state->done = false;
+	state->is_null = false;
 	if (state->val.data == NULL)
 		initStringInfo(&state->val);
 	else
@@ -69,10 +70,29 @@ ch_http_read_next(ch_http_read_state * state, bool is_array)
 		return ch_http_read_eof(state);
 
 	resetStringInfo(&state->val);
+	state->is_null = false;
 	if (state->curpos >= state->datalen)
 		return ch_http_read_eof(state);
 
-	if (is_array && data[state->curpos] == '[')
+	/*
+	 * Detect the wire NULL marker. ClickHouse's TabSeparated format encodes
+	 * NULL as the bare 2-byte sequence `\N`. A literal backslash in data is
+	 * sent as `\\`, so legitimate non-null output never contains `\N` at the
+	 * start of a field followed by a delimiter. Detect it here, before
+	 * unescaping, so a non-null String value whose unescaped content happens
+	 * to be `\N` is not collapsed with the NULL marker.
+	 */
+	if (state->curpos + 1 < state->datalen
+		&& data[state->curpos] == '\\'
+		&& data[state->curpos + 1] == 'N'
+		&& (state->curpos + 2 == state->datalen
+			|| data[state->curpos + 2] == '\t'
+			|| data[state->curpos + 2] == '\n'))
+	{
+		state->is_null = true;
+		state->curpos += 2;
+	}
+	else if (is_array && data[state->curpos] == '[')
 		/* Parse array literal. */
 		ch_http_read_array(state);
 	else
