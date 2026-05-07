@@ -17,8 +17,14 @@ All notable changes to this project will be documented in this file. It uses the
     and PostgreSQL multidimensional arrays inserted into ClickHouse
     `Array(Array(...))` columns preserve their nesting. Thanks to Philip Dubé
     for the PR ([#233]).
+*   Added pushdown for [re2 extension] functions introduced in pg_re2 0.3:
+    `re2extractallgroupshorizontal`, `re2extractallgroupsvertical`,
+    `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to Philip Dubé for
+    the PR ([#232]).
 
   [v0.3.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.0...v0.3.1
+  [#232]: https://github.com/ClickHouse/pg_clickhouse/pull/232
+    "ClickHouse/pg_clickhouse#232 pushdown for new functions in pg_re2 0.3"
   [#233]: https://github.com/ClickHouse/pg_clickhouse/pull/233
     "ClickHouse/pg_clickhouse#233 Support multidimensional arrays"
 

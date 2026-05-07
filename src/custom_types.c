@@ -310,13 +310,17 @@ static char *re2_func_map[][2] = {
 	{"countmatches", "countMatches"},
 	{"countmatchescaseinsensitive", "countMatchesCaseInsensitive"},
 	{"extractall", "extractAll"},
+	{"extractallgroupshorizontal", "extractAllGroupsHorizontal"},
+	{"extractallgroupsvertical", "extractAllGroupsVertical"},
 	{"extractgroups", "extractGroups"},
 	{"multimatchallindices", "multiMatchAllIndices"},
 	{"multimatchany", "multiMatchAny"},
 	{"multimatchanyindex", "multiMatchAnyIndex"},
 	{"regexpextract", "regexpExtract"},
+	{"regexpquotemeta", "regexpQuoteMeta"},
 	{"replaceregexpall", "replaceRegexpAll"},
 	{"replaceregexpone", "replaceRegexpOne"},
+	{"splitbyregexp", "splitByRegexp"},
 	{NULL, NULL},
 };
 
