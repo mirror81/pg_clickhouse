@@ -23,6 +23,9 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed `EXPLAIN (VERBOSE)` failing with "could not find window clause for
     winref N" when window functions are pushed down to ClickHouse. Thanks to
     Philip Dubé for the PR ([#223]).
+*   Fixed the parsing of strings that start with `[` in the http driver so
+    that it no longer assumes it's the start of an array. Thanks to Kaushik
+    Iska for the PR ([#234]).
 
 ### 📚 Documentation
 
