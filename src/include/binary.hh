@@ -41,12 +41,21 @@ extern "C"
 		Oid		   *types;
 	}			ch_binary_tuple_t;
 
+	/*
+	 * Holds an array read from ClickHouse. For nested arrays
+	 * (Array(Array(...))) ndim > 1 and datums[i] points to a child
+	 * ch_binary_array_t with ndim-1. item_type is the leaf scalar type,
+	 * array_type is the postgres array type (same at every level since
+	 * postgres uses one array type per element type regardless of
+	 * dimensionality).
+	 */
 	typedef struct
 	{
 		Datum	   *datums;
 		bool	   *nulls;
 		size_t		len;
-		Oid			item_type;	/* used on selects */
+		int			ndim;		/* nesting depth, ≥1 (used on selects) */
+		Oid			item_type;	/* leaf element type (used on selects) */
 		Oid			array_type; /* used on selects */
 	}			ch_binary_array_t;
 

@@ -334,8 +334,13 @@ extern "C"
 				return UUIDOID;
 			case Type::Code::Array:
 			{
-				Oid array_type = get_array_type(
-				get_corr_postgres_type(type->As<clickhouse::ArrayType>()->GetItemType(), get_element_type(pg_type)));
+				/* postgres uses one array type for any number of dimensions, so
+				 * walk past nested Array layers to the leaf element type. */
+				auto leaf = type->As<clickhouse::ArrayType>()->GetItemType();
+				while (leaf->GetCode() == Type::Code::Array)
+					leaf = leaf->As<clickhouse::ArrayType>()->GetItemType();
+
+				Oid array_type = get_array_type(get_corr_postgres_type(leaf, get_element_type(pg_type)));
 				if (array_type == InvalidOid)
 					throw std::runtime_error("pg_clickhouse: could not find array "
 											 " type for column type "
@@ -1131,7 +1136,17 @@ extern "C"
 				size_t len = arr->Size();
 				auto   slot = (ch_binary_array_t *)exc_palloc(sizeof(ch_binary_array_t));
 
-				Oid item_type = get_corr_postgres_type(arr->Type(), get_element_type(*valtype));
+				/* find leaf scalar type & nesting depth, since postgres has one
+				 * array type per element type regardless of ndim */
+				int	 ndim = 1;
+				auto leaf_type = arr->Type();
+				while (leaf_type->GetCode() == Type::Code::Array)
+				{
+					leaf_type = leaf_type->As<clickhouse::ArrayType>()->GetItemType();
+					ndim++;
+				}
+
+				Oid item_type = get_corr_postgres_type(leaf_type, get_element_type(*valtype));
 				Oid array_type = get_array_type(item_type);
 
 				if (array_type == InvalidOid)
@@ -1139,6 +1154,7 @@ extern "C"
 											 + std::to_string(item_type));
 
 				slot->len = len;
+				slot->ndim = ndim;
 				slot->array_type = array_type;
 				slot->item_type = item_type;
 
@@ -1147,8 +1163,13 @@ extern "C"
 					slot->datums = (Datum *)exc_palloc0(sizeof(Datum) * len);
 					slot->nulls = (bool *)exc_palloc0(sizeof(bool) * len);
 
+					/* For ndim==1 inner make_datum returns leaf scalars; for
+					 * ndim>1 it recurses into the Array branch and produces
+					 * nested ch_binary_array_t* values. Use a scratch valtype
+					 * to avoid clobbering slot->item_type. */
+					Oid scratch;
 					for (size_t i = 0; i < len; ++i)
-						slot->datums[i] = make_datum(arr, i, &slot->item_type, &slot->nulls[i]);
+						slot->datums[i] = make_datum(arr, i, &scratch, &slot->nulls[i]);
 				}
 
 				/* this one will need additional work, since we just return raw slot */
