@@ -1,4 +1,4 @@
-pg_clickhouse 0.2.0
+pg_clickhouse 0.3.0
 ===================
 
 ## Synopsis
@@ -1005,6 +1005,14 @@ parameters are:
 *   `username`: The username to connect as; defaults to `default`
 *   `password`: The password to use to authenticate; defaults to no password
 
+By default, no role has `EXECUTE` access to this function; consider [GRANT]ing
+access only to roles that legitimately need to execute ad-hoc ClickHouse
+queries, e.g., a dedicated ClickHouse admin role:
+
+```sql
+GRANT EXECUTE ON FUNCTION clickhouse_raw_query(text, text) TO ch_admin;
+```
+
 Useful for queries that return no records, but queries that do return values
 will be returned as a single text value:
 
@@ -1407,6 +1415,8 @@ Copyright (c) 2025-2026, ClickHouse.
     "ClickHouse/ClickHouse#85570 fix HTTP with multipart"
   [BYTEA]: https://www.postgresql.org/docs/current/datatype-binary.html
     "PostgreSQL Docs: Binary Data Types"
+  [GRANT]: https://www.postgresql.org/docs/current/sql-grant.html
+    "PostgreSQL Docs: GRANT"
   [String]: https://clickhouse.com/docs/sql-reference/data-types/string
     "ClickHouse Docs: String"
   [TEXT]: https://www.postgresql.org/docs/current/datatype-character.html

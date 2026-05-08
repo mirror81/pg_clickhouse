@@ -7,7 +7,17 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.2.1] — Unreleased
+## [v0.3.0] — Unreleased
+
+This release makes binary-compatible changes to the v0.2 releases. Once
+installed, any existing use of pg_clickhouse v0.2 will benefit from its
+improvements on reload. The only change that requires an upgrade revokes
+`EXECUTE` from `clickhouse_raw_query()`. We recommend running this command
+make this security-sensitive change:
+
+```sql
+ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
+```
 
 ### ⚡ Improvements
 
@@ -50,7 +60,17 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added the [ca-certificates package] and the [re2 extension] to the OCI
     (née Docker) images.
 
-  [v0.2.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.2.0...v0.2.1
+### 🚨 Security Fixes
+
+*   Added SQL to revoke `EXECUTE` permission on `clickhouse_raw_query()` from
+    `PUBLIC`. Leaving it executable by `PUBLIC` would allow any database user
+    to reach internal services (metadata endpoints, private APIs, etc.) from
+    the PostgreSQL server — a classic SSRF vector. This ensures that admins
+    can limit access only those who legitimately need to execute ad-hoc
+    ClickHouse queries (e.g., a dedicated ClickHouse admin role). Thanks to
+    Andrey Borodin for the PR ([#228]).
+
+  [v0.3.0]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.2.0...v0.3.0
   [ca-certificates package]: https://packages.debian.org/source/trixie/ca-certificates
     "Debian Packages: Common CA certificates"
   [re2 extension]: https://github.com/ClickHouse/pg_re2
@@ -69,6 +89,10 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#235 Detect TSV NULL marker before unescaping"
   [#231]: https://github.com/ClickHouse/pg_clickhouse/pull/231
     "ClickHouse/pg_clickhouse#231 Fix column_name option not being respected by inserts"
+  [#223]: https://github.com/ClickHouse/pg_clickhouse/pull/223
+    "pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
+  [#228]: https://github.com/ClickHouse/pg_clickhouse/pull/228
+    "pg_clickhouse#228 Security: revoke PUBLIC execute on clickhouse_raw_query"
 
 ## [v0.2.0] — 2026-04-13
 
