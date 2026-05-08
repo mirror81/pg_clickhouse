@@ -323,33 +323,30 @@ type of each column. The supported column options are:
 
     ```sql
     CREATE FOREIGN TABLE hits (
-        watchid    bigint  OPTIONS(column_name 'WatchID'),
+        watchid    bigint   OPTIONS(column_name 'WatchID'),
         javaenable smallint OPTIONS(column_name 'JavaEnable'),
-        title      text    OPTIONS(column_name 'Title')
+        title      text     OPTIONS(column_name 'Title')
     ) SERVER taxi_srv OPTIONS(table_name 'hits');
     ```
 
-For [AggregateFunction Type] and [SimpleAggregateFunction Type] columns, map
-the data type to the ClickHouse type passed to the function and specify the
-name of the aggregate function via the appropriate column option:
-
 *   `AggregateFunction`: The name of the aggregate function applied to an
-    [AggregateFunction Type] column
+    [AggregateFunction Type] column. Map the data type to the ClickHouse type
+    passed to the function and specify the name of the aggregate function via
+    the appropriate column option and pg_clickhouse will automatically append
+    `Merge` to an aggregate function evaluating the column.
+
+    ```sql
+    CREATE FOREIGN TABLE test (
+        column1 bigint  OPTIONS(AggregateFunction 'uniq'),
+        column2 integer OPTIONS(AggregateFunction 'anyIf'),
+        column3 bigint  OPTIONS(AggregateFunction 'quantiles(0.5, 0.9)')
+    ) SERVER clickhouse_srv;
+    ```
+
 *   `SimpleAggregateFunction`: The name of the aggregate function applied to
-    an [SimpleAggregateFunction Type] column
-
-Example:
-
-```sql
-CREATE FOREIGN TABLE test (
-    column1 bigint  OPTIONS(AggregateFunction 'uniq'),
-    column2 integer OPTIONS(AggregateFunction 'anyIf'),
-    column3 bigint  OPTIONS(AggregateFunction 'quantiles(0.5, 0.9)')
-) SERVER clickhouse_srv;
-```
-
-For columns with the `AggregateFunction` function, pg_clickhouse will
-automatically append `Merge` to an aggregate function evaluating the column.
+    an [SimpleAggregateFunction Type] column. Map the data type to the
+    ClickHouse type passed to the function and specify the name of the
+    aggregate function via the appropriate column option.
 
 ### ALTER FOREIGN TABLE
 
