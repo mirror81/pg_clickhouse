@@ -223,7 +223,7 @@ convert_array(ch_convert_state * state, Datum val)
 
 	if (slot->len == 0)
 		val = PointerGetDatum(construct_empty_array(slot->item_type));
-	else if (slot->ndim == 1)
+	else if (slot->ndim <= 1)
 	{
 		void	   *arrout = construct_array(slot->datums, slot->len, slot->item_type,
 											 state->typlen, state->typbyval, state->typalign);
@@ -629,13 +629,56 @@ ch_binary_make_tuple_map(TupleDesc indesc, TupleDesc outdesc, Oid relid)
 }
 
 /*
+ * Chunk a flat postgres array (already extracted into `flat`/`flatnulls` in
+ * row-major order) into the nested ch_binary_array_t tree the binary engine
+ * expects for Array(Array(...)) columns. Each interior node carries
+ * ndim>1 with datums[i] = PointerGetDatum(child); leaves carry ndim==1 with
+ * scalar datums copied from the flat buffer.
+ */
+static ch_binary_array_t *
+build_nested_binary_array(int level, int ndim, int *dims, Oid item_type,
+						  Datum * flat, bool *flatnulls, size_t * idx)
+{
+	ch_binary_array_t *arr = palloc(sizeof(ch_binary_array_t));
+
+	arr->len = dims[level];
+	arr->ndim = ndim - level;
+	arr->item_type = item_type;
+	arr->array_type = InvalidOid;
+	arr->datums = palloc(sizeof(Datum) * arr->len);
+	arr->nulls = palloc0(sizeof(bool) * arr->len);
+
+	if (level + 1 == ndim)
+	{
+		for (size_t i = 0; i < arr->len; i++)
+		{
+			arr->datums[i] = flat[*idx];
+			arr->nulls[i] = flatnulls[*idx];
+			(*idx)++;
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < arr->len; i++)
+		{
+			ch_binary_array_t *child = build_nested_binary_array(level + 1, ndim, dims,
+																 item_type, flat,
+																 flatnulls, idx);
+
+			arr->datums[i] = PointerGetDatum(child);
+		}
+	}
+	return arr;
+}
+
+/*
  * For each value to be output, convert it, if necessary, from the Postgres
  * Datum type defined for the foreign table to a Datum that column_append() in
  * binary.cpp knows how to convert to a ClickHouse type. No conversion for
  * binary-compatible types; other types require a CAST.
  * ch_binary_make_tuple_map() makes this determination for each type, stored
  * in insert_state->conversion_states)
-*/
+ */
 void
 ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 							   TupleTableSlot * slot)
@@ -658,24 +701,51 @@ ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 				AnyArrayType *v = DatumGetAnyArrayP(out_values[i]);
 				ch_binary_array_t *arr;
 				array_iter	iter;
+				int			ndim = AARR_NDIM(v);
+				int		   *dims = AARR_DIMS(v);
+				size_t		total = ArrayGetNItems(ndim, dims);
 
-				if (AARR_NDIM(v) > 1)
+				if (ndim > MAXDIM)
 					ereport(ERROR,
-							(errcode(ERRCODE_DATATYPE_MISMATCH),
-							 errmsg("pg_clickhouse: inserted array should have one dimension")));
+							(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+							 errmsg("pg_clickhouse: inserted array depth %d exceeds maximum %d",
+									ndim, MAXDIM)));
 
-				arr = palloc(sizeof(ch_binary_array_t));
-				arr->len = ArrayGetNItems(AARR_NDIM(v), AARR_DIMS(v));
-				arr->ndim = 1;
-				arr->datums = palloc(sizeof(Datum) * arr->len);
-				arr->nulls = palloc(sizeof(bool) * arr->len);
-				arr->item_type = cstate->innertype;
-
-				array_iter_setup(&iter, v);
-				for (size_t j = 0; j < arr->len; j++)
+				if (ndim <= 1)
 				{
-					arr->datums[j] = array_iter_next(&iter, &arr->nulls[j], i,
-													 cstate->typlen, cstate->typbyval, cstate->typalign);
+					arr = palloc(sizeof(ch_binary_array_t));
+					arr->len = total;
+					arr->ndim = 1;
+					arr->item_type = cstate->innertype;
+					arr->array_type = InvalidOid;
+					arr->datums = total ? palloc(sizeof(Datum) * total) : NULL;
+					arr->nulls = total ? palloc(sizeof(bool) * total) : NULL;
+
+					array_iter_setup(&iter, v);
+					for (size_t j = 0; j < total; j++)
+					{
+						arr->datums[j] = array_iter_next(&iter, &arr->nulls[j], j,
+														 cstate->typlen, cstate->typbyval, cstate->typalign);
+					}
+				}
+				else
+				{
+					Datum	   *flat = palloc(sizeof(Datum) * total);
+					bool	   *flatnulls = palloc0(sizeof(bool) * total);
+					size_t		idx = 0;
+
+					array_iter_setup(&iter, v);
+					for (size_t j = 0; j < total; j++)
+					{
+						flat[j] = array_iter_next(&iter, &flatnulls[j], j,
+												  cstate->typlen, cstate->typbyval, cstate->typalign);
+					}
+
+					arr = build_nested_binary_array(0, ndim, dims, cstate->innertype,
+													flat, flatnulls, &idx);
+
+					pfree(flat);
+					pfree(flatnulls);
 				}
 				out_values[i] = PointerGetDatum(arr);
 

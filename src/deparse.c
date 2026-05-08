@@ -2064,6 +2064,90 @@ ch_timestamp_out(PG_FUNCTION_ARGS)
 }
 
 static void
+emitArrayElement(StringInfo buf, Datum elt, bool isnull, Oid element_type,
+				 Oid typiofunc)
+{
+	char	   *extval;
+
+	if (isnull)
+	{
+		appendStringInfoString(buf, "NULL");
+		return;
+	}
+
+	extval = OidOutputFunctionCall(typiofunc, elt);
+
+	switch (element_type)
+	{
+		case INT2OID:
+		case INT4OID:
+		case INT8OID:
+		case OIDOID:
+		case FLOAT4OID:
+		case FLOAT8OID:
+		case NUMERICOID:
+			{
+				/*
+				 * No need to quote unless it's a special value such as 'NaN'.
+				 * See comments in get_const_expr().
+				 */
+				if (strspn(extval, "0123456789+-eE.") == strlen(extval))
+				{
+					if (extval[0] == '+' || extval[0] == '-')
+						appendStringInfo(buf, "(%s)", extval);
+					else
+						appendStringInfoString(buf, extval);
+				}
+				else
+					appendStringInfo(buf, "'%s'", extval);
+			}
+			break;
+		case BOOLOID:
+			if (strcmp(extval, "t") == 0)
+				appendStringInfoString(buf, "true");
+			else
+				appendStringInfoString(buf, "false");
+			break;
+		default:
+			deparseStringLiteral(buf, extval);
+			break;
+	}
+	pfree(extval);
+}
+
+/*
+ * Walk a multi-dim postgres array level by level, emitting nested
+ * `[...]` literals so ClickHouse sees the same shape. iter is consumed
+ * in row-major order, matching postgres' flat element layout.
+ */
+static void
+emitArrayLevel(StringInfo buf, int level, int ndims, int *dims, array_iter * iter,
+			   Oid element_type, int16 typlen, bool typbyval, char typalign,
+			   Oid typiofunc, int *nleaf)
+{
+	appendStringInfoChar(buf, '[');
+	for (int i = 0; i < dims[level]; i++)
+	{
+		if (i > 0)
+			appendStringInfoChar(buf, ',');
+
+		if (level + 1 < ndims)
+			emitArrayLevel(buf, level + 1, ndims, dims, iter, element_type,
+						   typlen, typbyval, typalign, typiofunc, nleaf);
+		else
+		{
+			Datum		elt;
+			bool		isnull;
+			int			n = (*nleaf)++;
+
+			elt = array_iter_next(iter, &isnull, n, typlen, typbyval, typalign);
+			emitArrayElement(buf, elt, isnull, element_type, typiofunc);
+		}
+	}
+	appendStringInfoChar(buf, ']');
+}
+
+static void
 deparseArray(Datum arr, deparse_expr_cxt * context)
 {
 	StringInfo	buf = context->buf;
@@ -2078,93 +2162,47 @@ deparseArray(Datum arr, deparse_expr_cxt * context)
 	char		typdelim;
 	Oid			typioparam;
 	Oid			typiofunc;
-	int			nitems;
 	array_iter	iter;
-	int			i;
-	bool		first;
 
-	if (ndims > 1)
+	if (context->array_as_tuple && ndims > 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("only one dimension of arrays supported by pg_clickhouse")));
+				 errmsg("pg_clickhouse: tuple-formatted arrays must be one-dimensional")));
 
 	get_type_io_data(element_type, IOFunc_output,
 					 &typlen, &typbyval,
 					 &typalign, &typdelim,
 					 &typioparam, &typiofunc);
 
-	/* Loop over source data */
-	nitems = ArrayGetNItems(ndims, dims);
 	array_iter_setup(&iter, array);
-	first = true;
 
-	if (context->array_as_tuple)
-		appendStringInfoChar(buf, '(');
-	else
-		appendStringInfoChar(buf, '[');
-
-	for (i = 0; i < nitems; i++)
+	if (ndims > 1)
 	{
-		Datum		elt;
-		bool		isnull;
+		int			nleaf = 0;
 
-		if (!first)
-			appendStringInfoChar(buf, ',');
-		first = false;
-
-		/* Get element, checking for NULL */
-		elt = array_iter_next(&iter, &isnull, i, typlen, typbyval, typalign);
-
-		if (isnull)
-		{
-			appendStringInfoString(buf, "NULL");
-		}
-		else
-		{
-			char	   *extval = OidOutputFunctionCall(typiofunc, elt);
-
-			switch (element_type)
-			{
-				case INT2OID:
-				case INT4OID:
-				case INT8OID:
-				case OIDOID:
-				case FLOAT4OID:
-				case FLOAT8OID:
-				case NUMERICOID:
-					{
-						/*
-						 * No need to quote unless it's a special value such
-						 * as 'NaN'. See comments in get_const_expr().
-						 */
-						if (strspn(extval, "0123456789+-eE.") == strlen(extval))
-						{
-							if (extval[0] == '+' || extval[0] == '-')
-								appendStringInfo(buf, "(%s)", extval);
-							else
-								appendStringInfoString(buf, extval);
-						}
-						else
-							appendStringInfo(buf, "'%s'", extval);
-					}
-					break;
-				case BOOLOID:
-					if (strcmp(extval, "t") == 0)
-						appendStringInfoString(buf, "true");
-					else
-						appendStringInfoString(buf, "false");
-					break;
-				default:
-					deparseStringLiteral(buf, extval);
-					break;
-			}
-			pfree(extval);
-		}
+		emitArrayLevel(buf, 0, ndims, dims, &iter, element_type,
+					   typlen, typbyval, typalign, typiofunc, &nleaf);
 	}
-	if (context->array_as_tuple)
-		appendStringInfoChar(buf, ')');
 	else
-		appendStringInfoChar(buf, ']');
+	{
+		int			nitems = ArrayGetNItems(ndims, dims);
+		char		open = context->array_as_tuple ? '(' : '[';
+		char		close = context->array_as_tuple ? ')' : ']';
+
+		appendStringInfoChar(buf, open);
+		for (int i = 0; i < nitems; i++)
+		{
+			Datum		elt;
+			bool		isnull;
+
+			if (i > 0)
+				appendStringInfoChar(buf, ',');
+
+			elt = array_iter_next(&iter, &isnull, i, typlen, typbyval, typalign);
+			emitArrayElement(buf, elt, isnull, element_type, typiofunc);
+		}
+		appendStringInfoChar(buf, close);
+	}
 }
 
 /*

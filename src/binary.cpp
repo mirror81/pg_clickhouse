@@ -464,6 +464,54 @@ extern "C"
 	 * value appropriate to col, and append that value. Raises an exception if
 	 * valtype is not compatible with col's type.
 	 */
+	static void column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, bool isnull);
+
+	/*
+	 * Build a single ColumnArray row's worth of data from a (possibly nested)
+	 * ch_binary_array_t. items_type is the per-row element type of the parent
+	 * ColumnArray: scalar T for Array(T), Array(T) for Array(Array(T)), etc.
+	 *
+	 * For nested types, recurses to build child ColumnArrays and stitches them
+	 * via AppendAsColumn so the outer column's offsets describe the row shape.
+	 */
+	static clickhouse::ColumnRef
+	build_array_row_column(ch_binary_array_t *arr, clickhouse::TypeRef items_type)
+	{
+		using namespace clickhouse;
+
+		auto col = CreateColumnByType(items_type->GetName());
+
+		/* Empty postgres array fits any nesting depth: nothing to walk, so
+		 * skip the dim check and return an empty column at this level. */
+		if (arr->len == 0)
+			return col;
+
+		if (items_type->GetCode() == Type::Code::Array)
+		{
+			if (arr->ndim < 2)
+				throw std::runtime_error("pg_clickhouse: insert array has fewer dimensions than column type");
+
+			auto inner_arr = col->AsStrict<ColumnArray>();
+			auto inner_items_t = items_type->As<clickhouse::ArrayType>()->GetItemType();
+
+			for (size_t i = 0; i < arr->len; i++)
+			{
+				auto child = (ch_binary_array_t *)DatumGetPointer(arr->datums[i]);
+				auto sub = build_array_row_column(child, inner_items_t);
+
+				inner_arr->AppendAsColumn(sub);
+			}
+			return col;
+		}
+
+		if (arr->ndim != 1)
+			throw std::runtime_error("pg_clickhouse: insert array has more dimensions than column type");
+
+		for (size_t i = 0; i < arr->len; i++)
+			column_append(col, arr->datums[i], arr->item_type, arr->nulls[i]);
+		return col;
+	}
+
 	static void
 	column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, bool isnull)
 	{
@@ -691,13 +739,11 @@ extern "C"
 					case Type::Array:
 					{
 						auto arrcol = col->AsStrict<ColumnArray>();
-						auto items
-						= CreateColumnByType(arrcol->GetType().As<clickhouse::ArrayType>()->GetItemType()->GetName());
+						auto items_type = arrcol->GetType().As<clickhouse::ArrayType>()->GetItemType();
 						auto arr = (ch_binary_array_t *)DatumGetPointer(val);
-						for (size_t i = 0; i < arr->len; i++)
-							column_append(items, arr->datums[i], arr->item_type, arr->nulls[i]);
+						auto one_row = build_array_row_column(arr, items_type);
 
-						arrcol->AppendAsColumn(items);
+						arrcol->AppendAsColumn(one_row);
 						break;
 					}
 					default:
