@@ -488,6 +488,42 @@ SELECT * FROM t4 WHERE levenshtein(val, 'val1', 1, 1, 2) <= 1;
 
 DROP EXTENSION fuzzystrmatch;
 
+-- to_char: pushdown of formats whose every keyword has a faithful
+-- formatDateTime equivalent.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT to_char(ts, 'YYYY-MM-DD HH24:MI:SS') FROM t5 ORDER BY 1;
+SELECT to_char(ts, 'YYYY-MM-DD HH24:MI:SS') FROM t5 ORDER BY 1;
+
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT to_char(ts, 'YY/MM/DD HH12:MI AM Q DDD Mon Dy') FROM t5 ORDER BY 1;
+SELECT to_char(ts, 'YY/MM/DD HH12:MI AM Q DDD Mon Dy') FROM t5 ORDER BY 1;
+
+-- Quoted literal text and a literal % round-trip via formatDateTime escaping.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT to_char(ts, '"Year=" YYYY "%"') FROM t5 ORDER BY 1;
+SELECT to_char(ts, '"Year=" YYYY "%"') FROM t5 ORDER BY 1;
+
+-- to_char: refusal cases evaluate locally rather than pushing wrong output.
+-- Padded month name (Month) -- CH formatDateTime cannot blank-pad.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT ts FROM t5 WHERE to_char(ts, 'Month') = 'October   ';
+-- Single-digit year token (Y) -- CH has no equivalent.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT ts FROM t5 WHERE to_char(ts, 'Y') = '5';
+-- Ordinal suffix (TH) -- CH has no ordinal output.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT ts FROM t5 WHERE to_char(ts, 'DDTH') = '15TH';
+-- FM modifier suppresses padding -- CH always pads.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT ts FROM t5 WHERE to_char(ts, 'FMMM') = '10';
+-- Lowercase am/pm -- CH %p is always uppercase.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT ts FROM t5 WHERE to_char(ts, 'HH12 am') = '08 pm';
+
+-- Dynamic format -- not a Const, so cannot be validated.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT to_char(ts, t4.val) FROM t5, t4 LIMIT 1;
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 DROP SERVER functions_loopback CASCADE;

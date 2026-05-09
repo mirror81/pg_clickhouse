@@ -334,6 +334,9 @@ typedef enum
 	CF_ARRAY_CONTAINS,			/* @> → hasAll(left, right) */
 	CF_ARRAY_CONTAINED_BY,		/* <@ → hasAll(right, left) */
 	CF_ARRAY_OVERLAP,			/* && → hasAny(left, right) */
+	CF_TO_CHAR,					/* to_char(timestamp[tz], fmt) →
+								 * formatDateTime, with strict format
+								 * translation */
 }			custom_object_type;
 
 typedef enum
@@ -379,6 +382,15 @@ extern Datum ch_time_out(PG_FUNCTION_ARGS);
 extern bool chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * fpinfo,
 							   CustomObjectDef * *outcdef);
 extern double time_diff(struct timeval *prior, struct timeval *latter);
+
+/*
+ * Translate a Postgres `to_char()` template into a ClickHouse
+ * `formatDateTime()` template.  Returns true on success, with the
+ * translation appended to `out` (caller-owned, may be NULL to validate
+ * only).  Returns false on any unsupported PG keyword or modifier;
+ * when used to gate pushdown, false means caller must evaluate locally.
+ */
+extern bool chfdw_translate_to_char_format(const char *pgfmt, StringInfo out);
 
 /* compat */
 #if PG_VERSION_NUM < 120000

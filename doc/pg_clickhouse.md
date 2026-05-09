@@ -1087,6 +1087,11 @@ maps the following functions:
 *   `jsonb_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `jsonb_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
+*   `to_char(timestamp[tz], fmt)`: [formatDateTime](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#formatDateTime)
+    when `fmt` is a string constant whose every keyword has a faithful
+    ClickHouse equivalent. See [to_char()](#to_char) under Compatibility
+    Notes for the supported keywords. Otherwise the function evaluates
+    locally in PostgreSQL.
 *   `statement_timestamp`, `transaction_timestamp`, & `clock_timestamp`:
     [nowInBlock64](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#nowInBlock64)
     (`nowInBlock64(9, $session_timezone)`)
@@ -1323,6 +1328,45 @@ Postgres regular expression from pushing down to ClickHouse, and using the
 [re2 extension], for which pg_clickhouse supports [direct pushdown](#re2)
 of ClickHouse-compatible [RE2] regular expressions.
 
+### to_char()
+
+PostgreSQL [`to_char()`] for `timestamp` and `timestamp with time zone`
+pushes down to ClickHouse [formatDateTime] only when the format argument
+is a non-NULL string constant whose every PostgreSQL keyword has a
+byte-for-byte identical ClickHouse equivalent. If the format is dynamic
+(not a `Const`), or contains any unsupported keyword or modifier, the
+call falls back to local evaluation in PostgreSQL — pushdown is never
+attempted with a partial translation, so output stays PG-compatible.
+
+Two-argument `to_char()` forms over `numeric`, `interval`, and other
+non-timestamp types never push down; ClickHouse [formatDateTime] only
+formats date-time values.
+
+#### Translated keywords
+
+| PostgreSQL | ClickHouse | Meaning |
+| ---------- | ---------- | ------- |
+| `YYYY`, `yyyy` | `%Y` | 4-digit year |
+| `YY`, `yy` | `%y` | 2-digit year |
+| `MM`, `mm` | `%m` | zero-padded month (01–12) |
+| `DD`, `dd` | `%d` | zero-padded day of month (01–31) |
+| `DDD`, `ddd` | `%j` | zero-padded day of year (001–366) |
+| `HH24`, `hh24` | `%H` | zero-padded 24-hour (00–23) |
+| `HH`, `hh`, `HH12`, `hh12` | `%I` | zero-padded 12-hour (01–12) |
+| `MI`, `mi` | `%i` | zero-padded minute (00–59) |
+| `SS`, `ss` | `%S` | zero-padded second (00–59) |
+| `Q`, `q` | `%Q` | quarter (1–4) |
+| `Mon` | `%b` | abbreviated month name, e.g., `Oct` |
+| `Dy` | `%a` | abbreviated weekday name, e.g., `Mon` |
+| `AM`, `PM` | `%p` | meridiem indicator, always uppercase |
+
+#### Quoted text and literals
+
+Text wrapped in `"..."` passes through verbatim, with any literal `%`
+doubled to `%%` to escape ClickHouse's specifier prefix. A `\"` outside
+quotes also passes through as a literal `"`. Inside `"..."`, backslash
+only escapes `"`; other backslash sequences are treated as literal text.
+
 ## Authors
 
 *   [David E. Wheeler](https://justatheory.com/)
@@ -1433,3 +1477,7 @@ Copyright (c) 2025-2026, ClickHouse.
     "PostgreSQL Docs: intarray"
   [fuzzystrmatch]: https://www.postgresql.org/docs/current/fuzzystrmatch.html
     "PostgreSQL Docs: fuzzystrmatch"
+  [`to_char()`]: https://www.postgresql.org/docs/current/functions-formatting.html
+    "PostgreSQL Docs: Data Type Formatting Functions"
+  [formatDateTime]: https://clickhouse.com/docs/sql-reference/functions/date-time-functions#formatDateTime
+    "ClickHouse Docs: formatDateTime"

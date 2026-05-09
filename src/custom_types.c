@@ -62,6 +62,8 @@
 #define F_ARRAY_FILL_ANYELEMENT__INT4 F_ARRAY_FILL
 #define F_ARRAY_FILL_ANYELEMENT__INT4__INT4 F_ARRAY_FILL_WITH_LOWER_BOUNDS
 #define F_CARDINALITY F_ARRAY_CARDINALITY
+#define F_TO_CHAR_TIMESTAMP_TEXT 2049
+#define F_TO_CHAR_TIMESTAMPTZ_TEXT 1770
 #endif
 /* regexp_like was added in Postgres 15 */
 #if PG_VERSION_NUM < 150000
@@ -269,6 +271,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_MD5_BYTEA:
 			case F_MD5_TEXT:
 			case F_TO_TIMESTAMP_FLOAT8:
+			case F_TO_CHAR_TIMESTAMP_TEXT:
+			case F_TO_CHAR_TIMESTAMPTZ_TEXT:
 			case F_JSONB_EXTRACT_PATH:
 			case F_JSONB_EXTRACT_PATH_TEXT:
 			case F_JSON_EXTRACT_PATH:
@@ -418,6 +422,13 @@ chfdw_check_for_custom_function(Oid funcid)
 					 */
 					strcpy(entry->custom_name, "fromUnixTimestamp(toInt64");
 					entry->paren_count = 2;
+					break;
+				}
+			case F_TO_CHAR_TIMESTAMP_TEXT:
+			case F_TO_CHAR_TIMESTAMPTZ_TEXT:
+				{
+					entry->cf_type = CF_TO_CHAR;
+					strcpy(entry->custom_name, "formatDateTime");
 					break;
 				}
 			case F_JSONB_EXTRACT_PATH_TEXT:

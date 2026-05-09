@@ -2547,6 +2547,172 @@ appendRegex(List * args, deparse_expr_cxt * context)
 }
 
 /*
+ * Map a Postgres `to_char()` template into a ClickHouse `formatDateTime()`
+ * template.  Only translates keywords whose CH equivalent matches PG output
+ * byte-for-byte across supported CH versions.  Any keyword PG recognizes but
+ * which cannot translate exactly (case-following names, blank-padded names,
+ * ordinal postfix, fill-mode prefixes, fractional seconds, ISO week, etc.)
+ * causes refusal.  Outside `"..."` quoted text, an uppercase or lowercase
+ * letter PG would bind to one of its date keywords also refuses,
+ * so a stray `Y` cannot silently survive as a literal.
+ *
+ * See PG `DCH_keywords` in `src/backend/utils/adt/formatting.c` for the
+ * full PG token grammar.
+ */
+typedef struct
+{
+	const char *pg;
+	const char *ch;				/* NULL → recognized keyword we refuse */
+}			ToCharTok;
+
+static const ToCharTok to_char_toks[] = {
+	{"Y,YYY", NULL}, {"y,yyy", NULL},
+	{"SSSSS", NULL}, {"sssss", NULL},
+	{"MONTH", NULL}, {"Month", NULL}, {"month", NULL},
+	{"YYYY", "%Y"}, {"yyyy", "%Y"},
+	{"HH24", "%H"}, {"hh24", "%H"},
+	{"HH12", "%I"}, {"hh12", "%I"},
+	{"IYYY", NULL}, {"iyyy", NULL},
+	{"IDDD", NULL}, {"iddd", NULL},
+	{"SSSS", NULL}, {"ssss", NULL},
+	{"A.D.", NULL}, {"a.d.", NULL},
+	{"B.C.", NULL}, {"b.c.", NULL},
+	{"P.M.", NULL}, {"p.m.", NULL},
+	{"A.M.", NULL}, {"a.m.", NULL},
+	{"YYY", NULL}, {"yyy", NULL},
+	{"DDD", "%j"}, {"ddd", "%j"},
+	{"DAY", NULL}, {"day", NULL}, {"Day", NULL},
+	{"Mon", "%b"},
+	{"MON", NULL}, {"mon", NULL},
+	{"IYY", NULL}, {"iyy", NULL},
+	{"FF1", NULL}, {"FF2", NULL}, {"FF3", NULL},
+	{"FF4", NULL}, {"FF5", NULL}, {"FF6", NULL},
+	{"ff1", NULL}, {"ff2", NULL}, {"ff3", NULL},
+	{"ff4", NULL}, {"ff5", NULL}, {"ff6", NULL},
+	{"TZH", NULL}, {"tzh", NULL},
+	{"TZM", NULL}, {"tzm", NULL},
+	{"AD", NULL}, {"ad", NULL},
+	{"AM", "%p"}, {"PM", "%p"},
+	{"am", NULL}, {"pm", NULL},
+	{"BC", NULL}, {"bc", NULL},
+	{"CC", NULL}, {"cc", NULL},
+	{"DD", "%d"}, {"dd", "%d"},
+	{"Dy", "%a"},
+	{"DY", NULL}, {"dy", NULL},
+	{"FM", NULL}, {"fm", NULL},
+	{"FX", NULL}, {"fx", NULL},
+	{"HH", "%I"}, {"hh", "%I"},
+	{"ID", NULL}, {"id", NULL},
+	{"IW", NULL}, {"iw", NULL},
+	{"IY", NULL}, {"iy", NULL},
+	{"MI", "%i"}, {"mi", "%i"},
+	{"MM", "%m"}, {"mm", "%m"},
+	{"MS", NULL}, {"ms", NULL},
+	{"OF", NULL}, {"of", NULL},
+	{"RM", NULL}, {"rm", NULL},
+	{"SS", "%S"}, {"ss", "%S"},
+	{"TM", NULL}, {"tm", NULL},
+	{"TZ", NULL}, {"tz", NULL},
+	{"US", NULL}, {"us", NULL},
+	{"WW", NULL}, {"ww", NULL},
+	{"YY", "%y"}, {"yy", "%y"},
+	{"D", NULL}, {"d", NULL},
+	{"I", NULL}, {"i", NULL},
+	{"J", NULL}, {"j", NULL},
+	{"Q", "%Q"}, {"q", "%Q"},
+	{"W", NULL}, {"w", NULL},
+	{"Y", NULL}, {"y", NULL},
+	{NULL, NULL}
+};
+
+bool
+chfdw_translate_to_char_format(const char *pgfmt, StringInfo out)
+{
+	const char *p = pgfmt;
+	bool		just_keyword = false;
+
+	while (*p)
+	{
+		const		ToCharTok *t;
+		bool		matched = false;
+
+		/*
+		 * Ordinal postfix (TH/th) attaches to a preceding numeric keyword; CH
+		 * has no ordinal output, so refuse rather than diverge.
+		 */
+		if (just_keyword
+			&& (p[0] == 'T' || p[0] == 't')
+			&& (p[1] == 'H' || p[1] == 'h'))
+			return false;
+		just_keyword = false;
+
+		/* Quoted literal: pass inner chars through, doubling % for CH. */
+		if (*p == '"')
+		{
+			p++;
+			while (*p)
+			{
+				if (*p == '\\' && p[1])
+					p++;
+				else if (*p == '"')
+				{
+					p++;
+					break;
+				}
+				if (out)
+				{
+					if (*p == '%')
+						appendStringInfoString(out, "%%");
+					else
+						appendStringInfoChar(out, *p);
+				}
+				p++;
+			}
+			continue;
+		}
+
+		/* Outside quotes, backslash escapes only a literal " */
+		if (p[0] == '\\' && p[1] == '"')
+		{
+			if (out)
+				appendStringInfoChar(out, '"');
+			p += 2;
+			continue;
+		}
+
+		for (t = to_char_toks; t->pg; t++)
+		{
+			size_t		l = strlen(t->pg);
+
+			if (strncmp(p, t->pg, l) == 0)
+			{
+				if (!t->ch)
+					return false;
+				if (out)
+					appendStringInfoString(out, t->ch);
+				p += l;
+				just_keyword = true;
+				matched = true;
+				break;
+			}
+		}
+		if (matched)
+			continue;
+
+		if (out)
+		{
+			if (*p == '%')
+				appendStringInfoString(out, "%%");
+			else
+				appendStringInfoChar(out, *p);
+		}
+		p++;
+	}
+
+	return true;
+}
+
+/*
  * Deparse a function call.
  */
 static void
@@ -2861,6 +3027,33 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 				deparseExpr((Expr *) linitial(node->args), context);
 				appendStringInfoChar(buf, ')');
 				return;
+			case CF_TO_CHAR:
+				{
+					/*
+					 * formatDateTime(ts, '<translated fmt>'). Shippability
+					 * already validated the format string is a non-NULL Const
+					 * whose tokens all translate; redoing the translation
+					 * here is just to materialize the result for SQL-literal
+					 * quoting.
+					 */
+					Const	   *fmt_const = (Const *) list_nth(node->args, 1);
+					char	   *pgfmt = TextDatumGetCString(fmt_const->constvalue);
+					StringInfoData chfmt;
+
+					initStringInfo(&chfmt);
+					if (!chfdw_translate_to_char_format(pgfmt, &chfmt))
+						elog(ERROR, "to_char format unexpectedly rejected during deparse: %s", pgfmt);
+
+					appendStringInfoChar(buf, '(');
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					deparseStringLiteral(buf, chfmt.data);
+					appendStringInfoChar(buf, ')');
+
+					pfree(chfmt.data);
+					pfree(pgfmt);
+					return;
+				}
 			default:
 				break;
 		}

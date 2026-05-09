@@ -255,6 +255,27 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 							return false;
 					}
 					break;
+				case CF_TO_CHAR:
+					{
+						/* format must be a constant with exact CH translation */
+						Expr	   *fmt = (Expr *) list_nth(((FuncExpr *) node)->args, 1);
+						Const	   *fmt_const;
+						char	   *pgfmt;
+						bool		ok;
+
+						if (!IsA(fmt, Const))
+							return false;
+						fmt_const = (Const *) fmt;
+						if (fmt_const->constisnull)
+							return false;
+
+						pgfmt = TextDatumGetCString(fmt_const->constvalue);
+						ok = chfdw_translate_to_char_format(pgfmt, NULL);
+						pfree(pgfmt);
+						if (!ok)
+							return false;
+					}
+					break;
 				case CF_MATCH:
 				case CF_SPLIT_BY_REGEX:
 				case CF_REPLACE_REGEX:

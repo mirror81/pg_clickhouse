@@ -31,6 +31,12 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     ClickHouse 24.10 or later).
 *   Added support for ClickHouse `JSON` mapped to Postgres `json`, supporting
     all the same operators and functions as the `jsonb` mapping.
+*   Added pushdown for `to_char(timestamp[tz], fmt)` to ClickHouse
+    `formatDateTime()`, with strict format-string validation.  Only
+    pushes down when the format is a constant whose every keyword has an
+    identical CH equivalent (`YYYY`, `MM`, `DD`, `DDD`, `HH24`, `HH12`, `HH`,
+    `MI`, `SS`, `Q`, `Mon`, `Dy`, `AM`/`PM`, plus lowercase variants).
+    Thanks to Philip Dubé for the PR ([#244]).
 
 ### 🐞 Bug Fixes
 
@@ -99,6 +105,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     "ClickHouse/pg_clickhouse#235 Detect TSV NULL marker before unescaping"
   [#231]: https://github.com/ClickHouse/pg_clickhouse/pull/231
     "ClickHouse/pg_clickhouse#231 Fix column_name option not being respected by inserts"
+  [#244]: https://github.com/ClickHouse/pg_clickhouse/pull/244
+    "ClickHouse/pg_clickhouse#244 Push down compatible to_char"
   [#223]: https://github.com/ClickHouse/pg_clickhouse/pull/223
     "pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
   [#228]: https://github.com/ClickHouse/pg_clickhouse/pull/228
