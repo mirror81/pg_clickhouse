@@ -418,7 +418,9 @@ extern "C"
 		for (Block::Iterator bi(*block); bi.IsValid(); bi.Next())
 		{
 			/* Start with the data type from the foreign table. */
-			Oid			pg_type = lfirst_oid(list_nth_cell(state->target_oids, i));
+			Oid pg_type = query->tupdesc
+						  ? TupleDescAttr(query->tupdesc, lfirst_int(list_nth_cell(query->attr_nums, i)) - 1)->atttypid
+						  : InvalidOid;
 			const char *colname = bi.Name().c_str();
 			try
 			{
@@ -832,7 +834,7 @@ extern "C"
 	}
 
 	void
-	ch_binary_read_state_init(ch_binary_read_state_t *state, ch_binary_response_t *resp)
+	ch_binary_read_state_init(ch_binary_read_state_t *state, ch_binary_response_t *resp, const ch_query *query)
 	{
 		state->resp = resp;
 		state->block = 0;
@@ -861,13 +863,22 @@ extern "C"
 				state->coltypes = new Oid[resp->columns_count];
 				state->values = new Datum[resp->columns_count];
 				state->nulls = new bool[resp->columns_count];
-				std::fill(state->coltypes, state->coltypes + resp->columns_count, 0);
 			}
 		}
 		catch (const std::exception &e)
 		{
 			set_state_error(state, e.what());
+			return;
 		}
+
+		/* Initialize coltypes to SELECT types, when provided. */
+		if (query->tupdesc)
+			for (size_t i = 0; i < list_length(query->attr_nums); i++)
+				state->coltypes[i]
+				= TupleDescAttr(query->tupdesc, lfirst_int(list_nth_cell(query->attr_nums, i)) - 1)->atttypid;
+		else
+			for (size_t i = 0; i < resp->columns_count; i++)
+				state->coltypes[i] = InvalidOid;
 	}
 
 	/*
@@ -1234,20 +1245,6 @@ extern "C"
 
 			for (size_t i = 0; i < state->resp->columns_count; i++)
 			{
-				/*
-				 * For the first row we fetch, set the data types to the
-				 * Postgres target columns. make_datum() may replace the type,
-				 * but in general we want to prefer the type that Postgres
-				 * expects. tupdesc describes the Postgres tuple that we're
-				 * selecting from; attrs contains the list of column numbers
-				 * we're selecting from that tuple.
-				 *
-				 * XXX Would be nice to set this up in an earlier callback
-				 * hook.
-				 */
-				if (!state->coltypes[i] && tupdesc && list_length(attrs) > (int)i)
-					state->coltypes[i] = TupleDescAttr(tupdesc, lfirst_int(list_nth_cell(attrs, i)) - 1)->atttypid;
-
 				/* fill value and null arrays */
 				state->values[i] = make_datum(block[i], state->row, &state->coltypes[i], &state->nulls[i]);
 			}

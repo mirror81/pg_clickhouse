@@ -72,7 +72,7 @@ typedef void (*check_conn_method) (const char *password, UserMapping * user);
 typedef ch_cursor * (*simple_query_method) (void *conn, const ch_query * query);
 typedef void (*simple_insert_method) (void *conn, const ch_query * query);
 typedef Datum * (*cursor_fetch_row_method) (ChFdwScanRowContext * ctx);
-typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *, List *,
+typedef void *(*prepare_insert_method) (void *conn, ResultRelInfo *, List *,
 										const ch_query *, char *);
 typedef void (*insert_tuple_method) (void *state, TupleTableSlot * slot);
 typedef ch_cursor * (*streaming_query_method) (void *conn,

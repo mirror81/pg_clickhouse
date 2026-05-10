@@ -97,8 +97,6 @@ enum FdwModifyPrivateIndex
 	FdwModifyPrivateInsertSQL,
 	/* Integer list of target attribute numbers for INSERT/UPDATE */
 	FdwModifyPrivateTargetAttnums,
-	/* List of target attribute OIDs for INSERT/UPDATE */
-	FdwModifyPrivateTargetAttOids,
 	/* Deparsed name of the result table */
 	FdwModifyPrivateTableName,
 };
@@ -257,7 +255,6 @@ static CHFdwModifyState * create_foreign_modify(EState * estate,
 												Plan * subplan,
 												char *query,
 												List * target_attrs,
-												List * target_oids,
 												char *table_name);
 static void finish_foreign_modify(CHFdwModifyState * fmstate);
 static void prepare_query_params(PlanState * node,
@@ -302,7 +299,7 @@ Datum
 clickhouse_raw_query(PG_FUNCTION_ARGS)
 {
 	char	   *connstring = text_to_cstring(PG_GETARG_TEXT_P(1));
-	ch_query	query = new_query(text_to_cstring(PG_GETARG_TEXT_P(0)), 0, NULL);
+	ch_query	query = new_query(text_to_cstring(PG_GETARG_TEXT_P(0)), 0, NULL, NULL, NULL);
 
 	ch_connection_details *details = connstring_parse(connstring);
 	ch_connection conn = chfdw_http_connect(details);
@@ -1106,8 +1103,6 @@ clickhouseIterateForeignScan(ForeignScanState * node)
 	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 	struct timeval time1,
 				time2;
-	TupleDesc	tupdesc;
-	ch_query	query = new_query(fsstate->query, fsstate->numParams, fsstate->param_values);
 
 	/* Allow query cancel (e.g. Ctrl+C) between tuple fetches. */
 	CHECK_FOR_INTERRUPTS();
@@ -1116,6 +1111,8 @@ clickhouseIterateForeignScan(ForeignScanState * node)
 	if (fsstate->ch_cursor == NULL)
 	{
 		MemoryContext old = MemoryContextSwitchTo(fsstate->batch_cxt);
+		ch_query	query = new_query(fsstate->query, fsstate->numParams, fsstate->param_values,
+									  fsstate->tupdesc, fsstate->retrieved_attrs);
 
 		/*
 		 * Construct array of query parameter values in text format.  We do
@@ -1152,16 +1149,8 @@ clickhouseIterateForeignScan(ForeignScanState * node)
 		MemoryContextSwitchTo(old);
 	}
 
-	if (fsstate->rel)
-		tupdesc = RelationGetDescr(fsstate->rel);
-	else
-	{
-		Assert(fsstate);
-		tupdesc = node->ss.ss_ScanTupleSlot->tts_tupleDescriptor;
-	}
-
 	gettimeofday(&time1, NULL);
-	tup = fetch_tuple(fsstate, tupdesc);
+	tup = fetch_tuple(fsstate, fsstate->tupdesc);
 	gettimeofday(&time2, NULL);
 	time_used += time_diff(&time1, &time2);
 
@@ -1207,7 +1196,6 @@ clickhousePlanForeignModify(PlannerInfo * root,
 	Relation	rel;
 	StringInfoData sql;
 	List	   *targetAttrs = NIL;
-	List	   *targetTypes = NIL;
 
 	initStringInfo(&sql);
 
@@ -1226,10 +1214,7 @@ clickhousePlanForeignModify(PlannerInfo * root,
 			Form_pg_attribute attr = TupleDescAttr(tupdesc, attnum - 1);
 
 			if (!attr->attisdropped)
-			{
 				targetAttrs = lappend_int(targetAttrs, attnum);
-				targetTypes = lappend_oid(targetTypes, attr->atttypid);
-			}
 		}
 	}
 
@@ -1269,7 +1254,7 @@ clickhousePlanForeignModify(PlannerInfo * root,
 	 * Build the fdw_private list that will be available to the executor.
 	 * Items in the list must match enum FdwModifyPrivateIndex, above.
 	 */
-	return list_make4(makeString(sql.data), targetAttrs, targetTypes, makeString(table_name));
+	return list_make3(makeString(sql.data), targetAttrs, makeString(table_name));
 }
 
 /*
@@ -1286,7 +1271,6 @@ clickhouseBeginForeignModify(ModifyTableState * mtstate,
 	CHFdwModifyState *fmstate;
 	char	   *query;
 	List	   *target_attrs = NULL;
-	List	   *target_oids = NULL;
 	RangeTblEntry *rte;
 	char	   *table_name;
 
@@ -1300,7 +1284,6 @@ clickhouseBeginForeignModify(ModifyTableState * mtstate,
 	/* Deconstruct fdw_private data. */
 	query = strVal(list_nth(fdw_private, FdwModifyPrivateInsertSQL));
 	target_attrs = (List *) list_nth(fdw_private, FdwModifyPrivateTargetAttnums);
-	target_oids = (List *) list_nth(fdw_private, FdwModifyPrivateTargetAttOids);
 	table_name = strVal(list_nth(fdw_private, FdwModifyPrivateTableName));
 
 	/* Find RTE. */
@@ -1319,7 +1302,6 @@ clickhouseBeginForeignModify(ModifyTableState * mtstate,
 #endif
 									query,
 									target_attrs,
-									target_oids,
 									table_name);
 
 	resultRelInfo->ri_FdwState = fmstate;
@@ -1352,7 +1334,6 @@ clickhouseBeginForeignInsert(ModifyTableState * mtstate,
 	TupleDesc	tupdesc = RelationGetDescr(rel);
 	int			attnum;
 	List	   *targetAttrs = NIL;
-	List	   *targetTypes = NIL;
 	StringInfoData sql;
 	char	   *table_name;
 
@@ -1362,10 +1343,7 @@ clickhouseBeginForeignInsert(ModifyTableState * mtstate,
 		Form_pg_attribute attr = TupleDescAttr(tupdesc, attnum - 1);
 
 		if (!attr->attisdropped)
-		{
 			targetAttrs = lappend_int(targetAttrs, attnum);
-			targetTypes = lappend_oid(targetTypes, attr->atttypid);
-		}
 	}
 
 	/*
@@ -1396,7 +1374,6 @@ clickhouseBeginForeignInsert(ModifyTableState * mtstate,
 									NULL,
 									sql.data,
 									targetAttrs,
-									targetTypes,
 									table_name);
 
 	resultRelInfo->ri_FdwState = fmstate;
@@ -1551,7 +1528,6 @@ create_foreign_modify(EState * estate,
 					  Plan * subplan,
 					  char *query,
 					  List * target_attrs,
-					  List * target_oids,
 					  char *table_name)
 {
 	CHFdwModifyState *fmstate;
@@ -1560,7 +1536,7 @@ create_foreign_modify(EState * estate,
 	UserMapping *user;
 	MemoryContext old_mcxt;
 	Relation	rel = rri->ri_RelationDesc;
-	ch_query	q = new_query(query, 0, NULL);
+	ch_query	q = new_query(query, 0, NULL, RelationGetDescr(rel), target_attrs);
 
 	/* Begin constructing CHFdwModifyState. */
 	fmstate = (CHFdwModifyState *) palloc0(sizeof(CHFdwModifyState));
@@ -1585,7 +1561,7 @@ create_foreign_modify(EState * estate,
 
 	old_mcxt = MemoryContextSwitchTo(PortalContext);
 	fmstate->state = fmstate->conn.methods->prepare_insert(fmstate->conn.conn,
-														   rri, target_attrs, target_oids, &q, table_name);
+														   rri, target_attrs, &q, table_name);
 	MemoryContextSwitchTo(old_mcxt);
 
 	/* Create context for per-query temp workspace. */

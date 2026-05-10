@@ -38,7 +38,7 @@ static Datum * http_fetch_row(ChFdwScanRowContext * ctx);
 static Datum * http_streaming_fetch_row(ChFdwScanRowContext * ctx);
 static Datum * http_fetch_row_from_state(ChFdwScanRowContext * ctx,
 										 ch_http_read_state * state);
-static void *http_prepare_insert(void *, ResultRelInfo *, List *, List *, const ch_query *, char *);
+static void *http_prepare_insert(void *, ResultRelInfo *, List *, const ch_query *, char *);
 static void http_insert_tuple(void *, TupleTableSlot *);
 static void char_to_datum(ChFdwScanRowContext * ctx, int attnum, char *data, size_t len);
 static void report_http_stream_query_failure(void *conn, const ch_query * query,
@@ -62,7 +62,7 @@ static void binary_cursor_free(void *cursor);
 /* static void binary_simple_insert(void *conn, const char *query); */
 static Datum * binary_fetch_row(ChFdwScanRowContext * ctx);
 static void binary_insert_tuple(void *, TupleTableSlot * slot);
-static void *binary_prepare_insert(void *, ResultRelInfo *, List *, List *,
+static void *binary_prepare_insert(void *, ResultRelInfo *, List *,
 								   const ch_query * query, char *table_name);
 static char *ch_escape_string(const char *s, size_t len);
 static void ch_quote_literal_internal(char *dst, const char *src, size_t len);
@@ -187,7 +187,7 @@ kill_query(void *conn, const char *query_id)
 	ch_http_response_t *resp;
 	ch_query	query = new_query(psprintf(
 										   "kill query where query_id=%s",
-										   ch_quote_literal(query_id)), 0, NULL);
+										   ch_quote_literal(query_id)), 0, NULL, NULL, NULL);
 
 	ch_http_set_progress_func(NULL);
 	resp = ch_http_simple_query(conn, &query);
@@ -782,7 +782,7 @@ extend_insert_query(ch_http_insert_state * state, TupleTableSlot * slot)
 }
 
 static void *
-http_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs, List * target_oids,
+http_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
 					const ch_query * query, char *table_name)
 {
 	ch_http_insert_state *state = palloc0(sizeof(ch_http_insert_state));
@@ -806,7 +806,7 @@ http_insert_tuple(void *istate, TupleTableSlot * slot)
 	if ((slot == NULL && state->sql.len > 0)
 		|| state->sql.len > (MaxAllocSize / 2 /* 512MB */ ))
 	{
-		ch_query	query = new_query(state->sql.data, 0, NULL);
+		ch_query	query = new_query(state->sql.data, 0, NULL, NULL, NULL);
 
 		http_simple_insert(state->conn, &query);
 		resetStringInfo(&state->sql);
@@ -888,7 +888,7 @@ binary_simple_query(void *conn, const ch_query * query)
 	cursor->query = pstrdup(query->sql);
 	cursor->read_state = state;
 	cursor->columns_count = resp->columns_count;
-	ch_binary_read_state_init(cursor->read_state, resp);
+	ch_binary_read_state_init(cursor->read_state, resp, query);
 	cursor->conversion_states = palloc0(sizeof(uintptr_t) * cursor->columns_count);
 
 	cursor->memcxt = tempcxt;
@@ -1058,7 +1058,7 @@ binary_cursor_free(void *c)
 }
 
 static void *
-binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs, List * target_oids,
+binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs,
 					  const ch_query * query, char *table_name)
 {
 	ch_binary_insert_state *state = NULL;
@@ -1082,7 +1082,6 @@ binary_prepare_insert(void *conn, ResultRelInfo * rri, List * target_attrs, List
 	state->conn = conn;
 	state->table_name = pstrdup(table_name);
 	state->relid = RelationGetRelid(rri->ri_RelationDesc);
-	state->target_oids = target_oids;
 	MemoryContextRegisterResetCallback(tempcxt, &state->callback);
 
 	/* time for c++ stuff */
@@ -1296,7 +1295,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt * stmt, ForeignServer * se
 	UserMapping *user = GetUserMapping(userid, server->serverid);
 	ch_connection conn = chfdw_get_connection(user);
 	ch_cursor  *cursor;
-	ch_query	query = new_query(NULL, 0, NULL);
+	ch_query	query = new_query(NULL, 0, NULL, NULL, NULL);
 	List	   *result = NIL;
 	Datum	   *row_values;
 
