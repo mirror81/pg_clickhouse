@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.3.0] — Unreleased
+## [v0.3.0] — 2026-05-11
 
 This release makes binary-compatible changes to the v0.2 releases. Once
 installed, any existing use of pg_clickhouse v0.2 will benefit from its
@@ -41,8 +41,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 ### 🐞 Bug Fixes
 
 *   Fixed `EXPLAIN (VERBOSE)` failing with "could not find window clause for
-    winref N" when window functions are pushed down to ClickHouse. Thanks to
-    Philip Dubé for the PR ([#223]).
+    winref N" when window functions push down to ClickHouse. Thanks to Philip
+    Dubé for the PR ([#223]).
 *   Fixed the parsing of strings that start with `[` in the http driver so
     that it no longer assumes it's the start of an array. Thanks to Kaushik
     Iska for the PR ([#234]).
@@ -56,13 +56,13 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 
 ### 📚 Documentation
 
-*   Added "Extensions Pushdown" section to the [reference
+*   Added "Extension Pushdown" section to the [reference
     docs](doc/pg_clickhouse.md), covering re2, intarray, and fuzzystrmatch
     support.
 *   Added recommendation to the [reference docs](doc/pg_clickhouse.md) to
     consider using the [re2 extension] and disabling Postgres regular
     expression pushdown.
-*   Documented the `column_name` foreign-table column option in the [reference
+*   Documented the `column_name` foreign table column option in the [reference
     docs](doc/pg_clickhouse.md).
 *   Added `jsonb_extract_path_text()` and `jsonb_extract_path()` to the list
     of push down functions in the [reference docs](doc/pg_clickhouse.md),
@@ -81,8 +81,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 *   Added SQL to revoke `EXECUTE` permission on `clickhouse_raw_query()` from
     `PUBLIC`. Leaving it executable by `PUBLIC` would allow any database user
     to reach internal services (metadata endpoints, private APIs, etc.) from
-    the PostgreSQL server — a classic SSRF vector. This ensures that admins
-    can limit access only those who legitimately need to execute ad-hoc
+    the PostgreSQL server — a classic [SSRF] vector. This ensures that admins
+    can limit access only to those who legitimately need to execute ad-hoc
     ClickHouse queries (e.g., a dedicated ClickHouse admin role). Thanks to
     Andrey Borodin for the PR ([#228]).
 
@@ -109,6 +109,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     "ClickHouse/pg_clickhouse#244 Push down compatible to_char"
   [#223]: https://github.com/ClickHouse/pg_clickhouse/pull/223
     "pg_clickhouse#223 Fix EXPLAIN (VERBOSE) for window functions"
+  [SSRF]: https://en.wikipedia.org/wiki/Server-side_request_forgery
+    "Wikipedia: Server-side request forgery"
   [#228]: https://github.com/ClickHouse/pg_clickhouse/pull/228
     "pg_clickhouse#228 Security: revoke PUBLIC execute on clickhouse_raw_query"
 
