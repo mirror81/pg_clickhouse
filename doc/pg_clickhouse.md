@@ -1033,12 +1033,19 @@ SELECT clickhouse_raw_query(
 
 ### Pushdown Functions
 
-All PostgreSQL builtin functions used in conditionals (`HAVING` and `WHERE`
-clauses) to query ClickHouse foreign tables automatically push down to
-ClickHouse with the same names and signatures. However, some have different
-names or signatures and must be mapped to their equivalents. `pg_clickhouse`
-maps the following functions:
+`pg_clickhouse` pushes down a subset of the PostgreSQL builtin functions used
+in conditionals (`HAVING` and `WHERE` clauses). That subset maps to ClickHouse
+equivalents as follows:
 
+*   `abs`: [abs](https://clickhouse.com/docs/sql-reference/functions/arithmetic-functions#abs)
+*   `factorial`: [factorial](https://clickhouse.com/docs/sql-reference/functions/math-functions#factorial)
+*   `mod` (int2/int4/int8/numeric): [modulo](https://clickhouse.com/docs/sql-reference/functions/arithmetic-functions#modulo)
+*   `pow` & `power` (float8/numeric): [pow](https://clickhouse.com/docs/sql-reference/functions/math-functions#pow)
+*   `round`: [round](https://clickhouse.com/docs/sql-reference/functions/rounding-functions#round)
+*   `sin`, `cos`, `tan`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`,
+    `degrees`, `radians`, `pi`: [ClickHouse math functions](https://clickhouse.com/docs/sql-reference/functions/math-functions)
+    of the same name. `asin`, `acos`, `atanh`, `acosh` are not pushed
+    down: PG raises on out-of-range input where CH returns `NaN`.
 *   `date_part`:
     *   `date_part('day')`: [toDayOfMonth](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toDayOfMonth)
     *   `date_part('doy')`: [toDayOfYear](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toDayOfYear)
@@ -1061,6 +1068,9 @@ maps the following functions:
     *   `date_trunc('month')`: [toStartOfMonth](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toStartOfMonth)
     *   `date_trunc('quarter')`: [toStartOfQuarter](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toStartOfQuarter)
     *   `date_trunc('year')`: [toStartOfYear](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#toStartOfYear)
+*   `extract(field FROM source)`: same mappings as `date_part`
+*   `date(timestamp)` & `date(timestamptz)`: [toDate](https://clickhouse.com/docs/sql-reference/functions/type-conversion-functions#toDate)
+    (deparsed as CH alias `date`)
 *   `array_position`: [indexOf](https://clickhouse.com/docs/sql-reference/functions/array-functions#indexOf)
 *   `array_cat`: [arrayConcat](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayConcat)
 *   `array_append`: [arrayPushBack](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayPushBack)
@@ -1077,7 +1087,18 @@ maps the following functions:
 *   `array_sample`: [arrayRandomSample](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayRandomSample)
 *   `array_sort`: [arraySort](https://clickhouse.com/docs/sql-reference/functions/array-functions#arraySort) / [arrayReverseSort](https://clickhouse.com/docs/sql-reference/functions/array-functions#arrayReverseSort)
 *   `btrim`: [trimBoth](https://clickhouse.com/docs/sql-reference/functions/string-functions#trimboth)
-*   `strpos`: [position](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#position)
+*   `ltrim`: [ltrim](https://clickhouse.com/docs/sql-reference/functions/string-functions#ltrim)
+*   `rtrim`: [rtrim](https://clickhouse.com/docs/sql-reference/functions/string-functions#rtrim)
+*   `concat_ws`: [concatWithSeparator](https://clickhouse.com/docs/sql-reference/functions/string-functions#concatwithseparator)
+*   `lower(text)`: [lowerUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#lowerutf8)
+*   `upper(text)`: [upperUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#upperutf8)
+*   `substring(text, ...)` & `substr(text, ...)`: [substringUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#substringutf8)
+*   `substring(bytea, ...)` & `substr(bytea, ...)`: [substring](https://clickhouse.com/docs/sql-reference/functions/string-functions#substring)
+*   `length(text)`: [lengthUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#lengthutf8)
+*   `length(bytea)` & `octet_length`: [length](https://clickhouse.com/docs/sql-reference/functions/array-functions#length)
+*   `reverse(text)`: [reverseUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#reverseutf8)
+*   `reverse(bytea)`: [reverse](https://clickhouse.com/docs/sql-reference/functions/string-functions#reverse)
+*   `strpos`: [positionUTF8](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#positionutf8)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `regexp_replace`: [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne) or [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll) when the `g` flag is present
 *   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
@@ -1086,6 +1107,7 @@ maps the following functions:
 *   `json_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `jsonb_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `jsonb_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+*   `bit_count(bytea)`: [bitCount](https://clickhouse.com/docs/sql-reference/functions/bit-functions#bitcount)
 *   `to_timestamp(float8)`: [fromUnixTimestamp](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#fromUnixTimestamp)
 *   `to_char(timestamp[tz], fmt)`: [formatDateTime](https://clickhouse.com/docs/sql-reference/functions/date-time-functions#formatDateTime)
     when `fmt` is a string constant whose every keyword has a faithful
@@ -1167,7 +1189,7 @@ One [intarray] function pushes down to ClickHouse:
 Two [fuzzystrmatch] functions push down to ClickHouse:
 
 *   `soundex`: [soundex](https://clickhouse.com/docs/sql-reference/functions/string-functions#soundex)
-*   `levenshtein` (2-arg): [editDistance](https://clickhouse.com/docs/sql-reference/functions/string-functions#editDistance)
+*   `levenshtein` (2-arg): [editDistanceUTF8](https://clickhouse.com/docs/sql-reference/functions/string-functions#editDistanceUTF8)
 
 ### Pushdown Casts
 
@@ -1191,12 +1213,16 @@ These PostgreSQL aggregate functions pushdown to ClickHouse.
 
 *   [array_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparray)
 *   [avg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/avg)
+*   [bit_and](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitand)
+*   [bit_or](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitor)
+*   [bit_xor](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitxor)
 *   [bool_and / every](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitand)
 *   [bool_or](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitor)
 *   [count](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/count)
 *   [min](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/min)
 *   [max](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/max)
 *   [string_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupconcat)
+*   [sum](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/sum)
 
 ### Custom Aggregates
 

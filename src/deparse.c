@@ -2246,6 +2246,35 @@ deparseConst(Const * node, deparse_expr_cxt * context, int showtype)
 		deparseArray(node->constvalue, context);
 		goto cleanup;
 	}
+	else if (node->consttype == BYTEAOID)
+	{
+		/*
+		 * Emit printable ASCII as-is and \xHH for everything else. PG's
+		 * bytea_out hex format (\xHHHH...) doesn't round-trip through CH's
+		 * string lexer past a single byte: \x consumes exactly two hex digits
+		 * and any remaining hex chars become ASCII literals.
+		 */
+		bytea	   *bp = DatumGetByteaPP(node->constvalue);
+		const char *bytes = VARDATA_ANY(bp);
+		int			len = VARSIZE_ANY_EXHDR(bp);
+
+		appendStringInfoChar(buf, '\'');
+		for (int i = 0; i < len; i++)
+		{
+			unsigned char c = (unsigned char) bytes[i];
+
+			if (c == '\'')
+				appendStringInfoString(buf, "\\'");
+			else if (c == '\\')
+				appendStringInfoString(buf, "\\\\");
+			else if (c >= 0x20 && c <= 0x7E)
+				appendStringInfoChar(buf, (char) c);
+			else
+				appendStringInfo(buf, "\\x%02x", c);
+		}
+		appendStringInfoChar(buf, '\'');
+		goto cleanup;
+	}
 	else
 	{
 		extval = OidOutputFunctionCall(typoutput, node->constvalue);

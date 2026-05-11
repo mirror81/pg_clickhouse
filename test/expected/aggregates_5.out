@@ -1220,7 +1220,7 @@ FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
    Remote SQL: SELECT groupConcat('|')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 (4 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT groupConcat('|')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'. Maybe you meant: ['mapConcat','arrayConcat']
+ERROR:  pg_clickhouse: DB::Exception: Unknown function groupConcat. Maybe you meant: ['arrayConcat']: While processing SELECT groupConcat('|')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'
 DETAIL:  Remote Query: SELECT groupConcat('|')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 -- string_agg pushdown (http)
                                             QUERY PLAN                                            
@@ -1231,7 +1231,7 @@ DETAIL:  Remote Query: SELECT groupConcat('|')(path) FROM agg_test.hits WHERE ((
    Remote SQL: SELECT groupConcat('')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 (4 rows)
 
-ERROR:  pg_clickhouse: Code: 46. DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT groupConcat('')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'. Maybe you meant: ['mapConcat','arrayConcat']. (UNKNOWN_FUNCTION)
+ERROR:  pg_clickhouse: Code: 46. DB::Exception: Unknown function groupConcat. Maybe you meant: ['arrayConcat']: While processing SELECT groupConcat('')(path) FROM agg_test.hits WHERE datestamp = '2025-12-05'. (UNKNOWN_FUNCTION)
 DETAIL:  Remote Query: SELECT groupConcat('')(path) FROM agg_test.hits WHERE ((datestamp = '2025-12-05'))
 CONTEXT:  HTTP status code: 404
 -- string_agg DISTINCT pushdown (binary)
@@ -1262,7 +1262,7 @@ CONTEXT:  HTTP status code: 404
    Remote SQL: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE ((datestamp >= '2025-12-05')) AND ((datestamp <= '2025-12-07')) GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
 (4 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'groupConcat' does not exists. In scope SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE (datestamp >= '2025-12-05') AND (datestamp <= '2025-12-07') GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST. Maybe you meant: ['mapConcat','arrayConcat']
+ERROR:  pg_clickhouse: DB::Exception: Unknown function groupConcat. Maybe you meant: ['arrayConcat']: While processing SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE (datestamp >= '2025-12-05') AND (datestamp <= '2025-12-07') GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
 DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.hits WHERE ((datestamp >= '2025-12-05')) AND ((datestamp <= '2025-12-07')) GROUP BY datestamp ORDER BY datestamp ASC NULLS LAST
 -- bool_and pushdown (binary)
                              QUERY PLAN                              
@@ -1343,11 +1343,8 @@ DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.h
    Remote SQL: SELECT groupBitAnd(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 (4 rows)
 
- bit_and 
----------
-     304
-(1 row)
-
+ERROR:  pg_clickhouse: DB::Exception: Illegal type Int32 of argument for aggregate function groupBitAnd
+DETAIL:  Remote Query: SELECT groupBitAnd(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 -- bit_or pushdown (binary)
                                                    QUERY PLAN                                                    
 -----------------------------------------------------------------------------------------------------------------
@@ -1357,11 +1354,8 @@ DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.h
    Remote SQL: SELECT groupBitOr(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 (4 rows)
 
- bit_or 
---------
-    304
-(1 row)
-
+ERROR:  pg_clickhouse: DB::Exception: Illegal type Int32 of argument for aggregate function groupBitOr
+DETAIL:  Remote Query: SELECT groupBitOr(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 -- bit_xor pushdown (binary)
                                                     QUERY PLAN                                                    
 ------------------------------------------------------------------------------------------------------------------
@@ -1371,11 +1365,8 @@ DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.h
    Remote SQL: SELECT groupBitXor(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 (4 rows)
 
- bit_xor 
----------
-     304
-(1 row)
-
+ERROR:  pg_clickhouse: DB::Exception: Illegal type Int32 of argument for aggregate function groupBitXor
+DETAIL:  Remote Query: SELECT groupBitXor(cast(duration, 'Nullable(Int32)')) FROM agg_test.hits WHERE ((id = 3498231651))
 -- regr_slope local fallback
                                   QUERY PLAN                                  
 ------------------------------------------------------------------------------

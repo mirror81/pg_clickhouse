@@ -13,14 +13,28 @@ aggregates.sql
  Postgres | File
 ----------|-----------------
  16-18    | aggregates.out
- 13-15    | aggregates_1.out
+ 14-15    | aggregates_1.out
+ 13       | aggregates_2.out
 
  ClickHouse | File
 ------------|-----------------
  24.8+      | aggregates.out
- 24.3       | aggregates_2.out
- 23.8       | aggregates_3.out
- 23.3       | aggregates_4.out
+ 24.3       | aggregates_3.out
+ 23.8       | aggregates_4.out
+ 23.3       | aggregates_5.out
+
+array_functions.sql
+-------------------
+
+ Postgres | File
+----------|----------------------
+ 16-18    | array_functions.out
+ 13-15    | array_functions_1.out
+
+ ClickHouse | File
+------------|----------------------
+ 24.3+      | array_functions.out
+ 23         | array_functions_2.out
 
 binary_inserts.sql
 ------------------
@@ -81,17 +95,18 @@ functions.sql
 
  Postgres | File
 ----------|---------------
- 14-18    | functions.out
- 13       | functions_1.out
+ 18       | functions.out
+ 14-17    | functions_1.out
+ 13       | functions_2.out
 
  ClickHouse | File
 ------------|-----------------
  25.8+      | functions.out
- 25.3       | functions_2.out
- 24.8       | functions_3.out
- 24.3       | functions_4.out
- 23.8       | functions_5.out
- 23.3       | functions_6.out
+ 25.3       | functions_3.out
+ 24.8       | functions_4.out
+ 24.3       | functions_5.out
+ 23.8       | functions_6.out
+ 23.3       | functions_7.out
 
 http.sql
 --------
@@ -239,7 +254,7 @@ window_functions.sql
 
  Postgres | File
 ----------|------------------------
- 18       | window_functions.out
+ 13-18    | window_functions.out
 
  ClickHouse | File
 ------------|----------------------------

@@ -1719,12 +1719,8 @@ SELECT * FROM t4 WHERE soundex(val) = 'V400';
 (3 rows)
 
 SELECT * FROM t4 WHERE soundex(val) = 'V400';
- val  
-------
- val1
- val2
-(2 rows)
-
+ERROR:  pg_clickhouse: DB::Exception: Unknown function soundex. Maybe you meant: ['round','unhex']: While processing soundex(val) = 'V400'
+DETAIL:  Remote Query: SELECT val FROM functions_test.t4 WHERE ((soundex(val) = 'V400'))
 -- 2-arg levenshtein pushes down as editDistanceUTF8.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t4 WHERE levenshtein(val, 'val1') <= 1;
@@ -1918,11 +1914,8 @@ SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
 (3 rows)
 
 SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
-  val  
--------
- hello
-(1 row)
-
+ERROR:  pg_clickhouse: DB::Exception: Illegal type String of argument of function bitCount: While processing bitCount(CAST(val, 'bytea(0)')) = 21
+DETAIL:  Remote Query: SELECT val FROM functions_test.t4 WHERE ((bitCount(CAST(val AS bytea(0))) = 21)) ORDER BY val ASC NULLS LAST
 \endif
 -- mod(int, int) pushes down as modulo.
 EXPLAIN (VERBOSE, COSTS OFF)

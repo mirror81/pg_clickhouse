@@ -873,7 +873,7 @@ extern "C"
 
 		/* Initialize coltypes to SELECT types, when provided. */
 		if (query->tupdesc)
-			for (size_t i = 0; i < list_length(query->attr_nums); i++)
+			for (size_t i = 0; i < (size_t)list_length(query->attr_nums); i++)
 				state->coltypes[i]
 				= TupleDescAttr(query->tupdesc, lfirst_int(list_nth_cell(query->attr_nums, i)) - 1)->atttypid;
 		else

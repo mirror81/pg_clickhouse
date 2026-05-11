@@ -269,13 +269,9 @@ SELECT id FROM t1 WHERE cardinality(array_sample(vals, 1)) = 1 ORDER BY id;
 (3 rows)
 
 SELECT id FROM t1 WHERE cardinality(array_sample(vals, 1)) = 1 ORDER BY id;
- id 
-----
-  1
-  2
-  3
-(3 rows)
-
+ERROR:  pg_clickhouse: Code: 46. DB::Exception: Unknown function arrayRandomSample: While processing SELECT id FROM arr_test.t1 WHERE length(arrayRandomSample(vals, 1)) = 1 ORDER BY id ASC NULLS LAST. (UNKNOWN_FUNCTION)
+DETAIL:  Remote Query: SELECT id FROM arr_test.t1 WHERE ((length(arrayRandomSample(vals, 1)) = 1)) ORDER BY id ASC NULLS LAST
+CONTEXT:  HTTP status code: 404
 \endif
 -- Operators: @> → hasAll
 EXPLAIN (VERBOSE, COSTS OFF)

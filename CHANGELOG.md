@@ -25,7 +25,7 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     ClickHouse equivalents (e.g., `re2match` → `match`, `re2extractall` →
     `extractAll`). Thanks to Philip Dubé for the PR ([#204]).
 *   Added pushdown for [fuzzystrmatch] functions `soundex()` and
-    `levenshtein()` (2-arg, mapped to `editDistance`).  Thanks to
+    `levenshtein()` (2-arg, mapped to `editDistanceUTF8`). Thanks to
     Philip Dubé for the PR ([#210]).
 *   Added mapping for `JSON` => `jsonb` to the binary driver (requires
     ClickHouse 24.10 or later).
@@ -37,6 +37,12 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     identical CH equivalent (`YYYY`, `MM`, `DD`, `DDD`, `HH24`, `HH12`, `HH`,
     `MI`, `SS`, `Q`, `Mon`, `Dy`, `AM`/`PM`, plus lowercase variants).
     Thanks to Philip Dubé for the PR ([#244]).
+*   Made builtin function pushdown opt-in: Postgres builtins now ship to
+    ClickHouse only when explicitly mapped, so name or signature differences
+    cannot silently alter results. Thanks to Philip Dubé for the PR ([#245]).
+*   Added explicit mappings for `mod`, `pow`/`power`, `bit_count(bytea)`, and
+    `reverse(text)` (→ `reverseUTF8`) to retain previously working pushdowns.
+    Thanks to Philip Dubé for the PR ([#245]).
 
 ### 🐞 Bug Fixes
 
@@ -53,6 +59,14 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     `INSERT`, which caused the binary engine to fail to match ClickHouse block
     columns and the HTTP engine to deparse PostgreSQL attribute names. Thanks
     to Philip Dubé for the PR ([#231]).
+*   Fixed `length(text)` and `strpos(text, text)` pushdown to map to
+    `lengthUTF8` and `positionUTF8` rather than ClickHouse's byte-counting
+    `length` and `position`, matching Postgres character semantics. Thanks to
+    Philip Dubé for the PR ([#245]).
+*   Stopped pushing down `asin`, `acos`, `atanh`, and `acosh`: Postgres raises
+    an error on out-of-range input where ClickHouse returns `NaN`. Evaluating
+    locally preserves Postgres semantics. Thanks to Philip Dubé for the PR
+    ([#245]).
 
 ### 📚 Documentation
 
@@ -113,6 +127,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     "Wikipedia: Server-side request forgery"
   [#228]: https://github.com/ClickHouse/pg_clickhouse/pull/228
     "pg_clickhouse#228 Security: revoke PUBLIC execute on clickhouse_raw_query"
+  [#245]: https://github.com/ClickHouse/pg_clickhouse/pull/245
+    "ClickHouse/pg_clickhouse#245 Don't push down functions by default"
 
 ## [v0.2.0] — 2026-04-13
 
