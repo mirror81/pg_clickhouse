@@ -188,7 +188,7 @@ CREATE USER MAPPING FOR CURRENT_USER SERVER taxi_srv
        OPTIONS (user 'demo');
 ```
 
-The The supported options are:
+The supported options are:
 
 *   `user`: The name of the ClickHouse user. Defaults to "default".
 *   `password`: The password of the ClickHouse user.
@@ -691,7 +691,7 @@ pg_clickhouse parameters before executing queries that depend on them.
 
 ### SET
 
-Use [SET] to set the the pg_clickhouse custom configuration parameters.
+Use [SET] to set the pg_clickhouse custom configuration parameters.
 
 #### `pg_clickhouse.session_settings`
 
@@ -1288,15 +1288,12 @@ Ranking functions (`row_number`, `rank`, `dense_rank`, `ntile`, `cume_dist`,
 `percent_rank`) omit their frame clause during pushdown because ClickHouse
 rejects frame specifications on these functions.
 
-  [window functions]: https://www.postgresql.org/docs/current/functions-window.html
-    "PostgreSQL Docs: Window Functions"
-
 ## Compatibility Notes
 
 ### Regular Expressions
 
 While pg_clickhouse pushes down regular expressions to ClickHouse equivalents
-when [pg_clickhouse.pushdown_regex](pg_clickhousepushdown_regex) is true (the
+when [pg_clickhouse.pushdown_regex](#pg_clickhousepushdown_regex) is true (the
 default), and makes an effort to ensure a basic level of compatibility, be
 aware of the differences between the two and how pg_clickhouse handles them.
 
@@ -1328,13 +1325,13 @@ aware of the differences between the two and how pg_clickhouse handles them.
 *   The only flags both support, and therefore can be used when evaluated by
     ClickHouse, are:
 
-    RE2 supports only these flags; don't use any other [Postgres flags]
-
     *   `i`: case-insensitive
     *   `m`: multi-line mode:
     *   `s`: let `.` match `\n`
     *   `p`: partial newline-sensitive matching (treated the same as `s`)
     *   `t`: tight syntax (the default, removed by pg_clickhouse)
+
+    RE2 supports only these flags; don't use any other [Postgres flags]
 
 *   Any other flags passed to regular expression functions will cause the
     function not to be pushed down.
@@ -1349,12 +1346,12 @@ aware of the differences between the two and how pg_clickhouse handles them.
     ClickHouse.
 
 To avoid all ambiguity, consider setting
-[pg_clickhouse.pushdown_regex](pg_clickhousepushdown_regex) to prevent
+[pg_clickhouse.pushdown_regex](#pg_clickhousepushdown_regex) to prevent
 Postgres regular expression from pushing down to ClickHouse, and using the
-[re2 extension], for which pg_clickhouse supports [direct pushdown](#re2)
-of ClickHouse-compatible [RE2] regular expressions.
+[re2 extension], for which pg_clickhouse supports [direct pushdown](#re2) of
+ClickHouse-compatible [RE2] regular expressions.
 
-### to_char()
+### `to_char()`
 
 PostgreSQL [`to_char()`] for `timestamp` and `timestamp with time zone`
 pushes down to ClickHouse [formatDateTime] only when the format argument
@@ -1370,21 +1367,21 @@ formats date-time values.
 
 #### Translated keywords
 
-| PostgreSQL | ClickHouse | Meaning |
-| ---------- | ---------- | ------- |
-| `YYYY`, `yyyy` | `%Y` | 4-digit year |
-| `YY`, `yy` | `%y` | 2-digit year |
-| `MM`, `mm` | `%m` | zero-padded month (01–12) |
-| `DD`, `dd` | `%d` | zero-padded day of month (01–31) |
-| `DDD`, `ddd` | `%j` | zero-padded day of year (001–366) |
-| `HH24`, `hh24` | `%H` | zero-padded 24-hour (00–23) |
-| `HH`, `hh`, `HH12`, `hh12` | `%I` | zero-padded 12-hour (01–12) |
-| `MI`, `mi` | `%i` | zero-padded minute (00–59) |
-| `SS`, `ss` | `%S` | zero-padded second (00–59) |
-| `Q`, `q` | `%Q` | quarter (1–4) |
-| `Mon` | `%b` | abbreviated month name, e.g., `Oct` |
-| `Dy` | `%a` | abbreviated weekday name, e.g., `Mon` |
-| `AM`, `PM` | `%p` | meridiem indicator, always uppercase |
+| PostgreSQL                 | ClickHouse | Meaning                               |
+| -------------------------- | ---------- | ------------------------------------- |
+| `YYYY`, `yyyy`             | `%Y`       | 4-digit year                          |
+| `YY`, `yy`                 | `%y`       | 2-digit year                          |
+| `MM`, `mm`                 | `%m`       | zero-padded month (01–12)             |
+| `DD`, `dd`                 | `%d`       | zero-padded day of month (01–31)      |
+| `DDD`, `ddd`               | `%j`       | zero-padded day of year (001–366)     |
+| `HH24`, `hh24`             | `%H`       | zero-padded 24-hour (00–23)           |
+| `HH`, `hh`, `HH12`, `hh12` | `%I`       | zero-padded 12-hour (01–12)           |
+| `MI`, `mi`                 | `%i`       | zero-padded minute (00–59)            |
+| `SS`, `ss`                 | `%S`       | zero-padded second (00–59)            |
+| `Q`, `q`                   | `%Q`       | quarter (1–4)                         |
+| `Mon`                      | `%b`       | abbreviated month name, e.g., `Oct`   |
+| `Dy`                       | `%a`       | abbreviated weekday name, e.g., `Mon` |
+| `AM`, `PM`                 | `%p`       | meridiem indicator, always uppercase  |
 
 #### Quoted text and literals
 
@@ -1492,6 +1489,8 @@ Copyright (c) 2025-2026, ClickHouse.
     "ClickHouse Docs: String"
   [TEXT]: https://www.postgresql.org/docs/current/datatype-character.html
     "PostgreSQL Docs: Character Types"
+  [window functions]: https://www.postgresql.org/docs/current/functions-window.html
+    "PostgreSQL Docs: Window Functions"
   [POSIX Regular Expressions]: https://www.postgresql.org/docs/18/functions-matching.html#FUNCTIONS-POSIX-REGEXP
     "PostgreSQL Docs: POSIX Regular Expressions"
   [Postgres flags]: https://www.postgresql.org/docs/18/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
