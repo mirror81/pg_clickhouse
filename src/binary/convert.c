@@ -1,6 +1,4 @@
-/*
- * Conversion functions for the binary driver.
-*/
+/* Conversion functions for the binary driver. */
 
 #include "postgres.h"
 
@@ -19,7 +17,7 @@
 #include "executor/tuptable.h"
 
 #include "fdw.h"
-#include "binary.hh"
+#include "binary_internal.h"
 #include <stdint.h>
 
 typedef struct ch_convert_state ch_convert_state;
@@ -232,8 +230,8 @@ convert_array(ch_convert_state * state, Datum val)
 	}
 	else
 	{
-		int			dims[MAXDIM];
-		int			lbs[MAXDIM];
+		int			dims[MAXDIM] = {};
+		int			lbs[MAXDIM] = {};
 		size_t		total = 1;
 		size_t		idx = 0;
 		Datum	   *flat;
@@ -317,12 +315,6 @@ convert_bool(ch_convert_state * state, Datum val)
 	int16		dat = DatumGetInt16(val);
 
 	return BoolGetDatum(dat);
-}
-
-inline static Datum
-convert_bool_to_int16(ch_convert_output_state * state, Datum val)
-{
-	return Int16GetDatum(DatumGetBool(val) ? 1 : 0);
 }
 
 Datum
@@ -416,7 +408,8 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 				if (typentry->tupDesc == NULL)
 					ereport(ERROR,
 							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-							 errmsg("type %s is not composite",
+							 errmsg("pg_clickhouse: cannot return %s as %s",
+									slot->ch_type_name ? slot->ch_type_name : "?",
 									format_type_be(outtype))));
 
 				tupdesc = typentry->tupDesc;
@@ -513,21 +506,6 @@ init_output_convert_state(ch_convert_output_state * state)
 	/* column_append() copies all bytes, no cast needed. */
 	if (state->intype == BYTEAOID && state->outtype == TEXTOID)
 		return;
-
-	/* column_append() handles both JSON and JSONB, so no need to convert. */
-	if (
-		(state->intype == JSONBOID && state->outtype == JSONOID)
-		|| (state->intype == JSONOID && state->outtype == JSONBOID)
-		)
-		return;
-
-	/* Postgres has no cast from bool to INT16, so provide our own. */
-	if (state->outtype == INT2OID && state->intype == BOOLOID)
-	{
-		state->func = convert_bool_to_int16;
-		state->ctype = COERCION_PATH_FUNC;
-		return;
-	}
 
 	state->func = convert_out_generic;
 
@@ -672,10 +650,10 @@ build_nested_binary_array(int level, int ndim, int *dims, Oid item_type,
 }
 
 /*
- * For each value to be output, convert it, if necessary, from the Postgres
- * Datum type defined for the foreign table to a Datum that column_append() in
- * binary.cpp knows how to convert to a ClickHouse type. No conversion for
- * binary-compatible types; other types require a CAST.
+ * For each output value, convert it, if necessary, from the Postgres Datum
+ * type defined for the foreign table to a Datum that the binary INSERT
+ * path in encode.c knows how to convert to a ClickHouse type. No conversion
+ * for binary-compatible types; other types require a CAST.
  * ch_binary_make_tuple_map() makes this determination for each type, stored
  * in insert_state->conversion_states)
  */

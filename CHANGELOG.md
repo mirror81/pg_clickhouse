@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file. It uses the
 
 ### ⚡ Improvements
 
+*   Replaced the `clickhouse-cpp` binary client with [ClickHouse/clickhouse-c],
+    pulled in as a git submodule and included in the release package under
+    `vendor/clickhouse-c`. This change eliminates conflicts between the C++
+    and Postgres memory & exception handling and streams query results by the
+    ClickHouse block for reduced memory consumption. It also greatly reduces
+    build time and the size of the library by over 75%. Thanks to Philip Dubé
+    for the the new library and the PR ([#254]).
 *   Added multidimensional array support across SELECT and INSERT to both the
     binary and http drivers. Rectangular ClickHouse `Array(Array(...))` values
     now map to PostgreSQL multidimensional arrays, jagged arrays not supported,
@@ -22,11 +29,21 @@ All notable changes to this project will be documented in this file. It uses the
     `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to Philip Dubé for
     the PR ([#232]).
 
+### 🐞 Bug Fixes
+
+*   Fixed incorrect casting of ClickHouse `UInt16` values to `int16` in the
+    Binary driver. They now correctly convert to `int32` (Postgres `INT4`).
+    Part of the omnibus binary c driver conversion contributed by Philip Dubé
+    ([#233]).
+
   [v0.3.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.0...v0.3.1
   [#232]: https://github.com/ClickHouse/pg_clickhouse/pull/232
     "ClickHouse/pg_clickhouse#232 pushdown for new functions in pg_re2 0.3"
   [#233]: https://github.com/ClickHouse/pg_clickhouse/pull/233
     "ClickHouse/pg_clickhouse#233 Support multidimensional arrays"
+  [ClickHouse/clickhouse-c]: https://github.com/ClickHouse/clickhouse-c
+  [#254]: https://github.com/ClickHouse/pg_clickhouse/pull/254
+    "ClickHouse/pg_clickhouse#254 Replace clickhouse-cpp with clickhouse-c"
 
 ## [v0.3.0] — 2026-05-11
 

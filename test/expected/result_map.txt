@@ -46,7 +46,7 @@ binary_inserts.sql
 
  ClickHouse | File
 ------------|--------------------
- 22-26      | binary_inserts.out
+ 23+        | binary_inserts.out
 
 binary_queries.sql
 ------------------
@@ -61,10 +61,8 @@ binary_queries.sql
  ClickHouse | File
 ------------|----------------------
  26         | binary_queries.out
- 25         | binary_queries_4.out
- 23-24      | binary_queries_5.out
- 23         | binary_queries_6.out
- 22         | binary_queries_7.out
+ 23.8-25    | binary_queries_4.out
+ 23.3       | binary_queries_5.out
 
 deparse_checks.sql
 ------------------
@@ -76,7 +74,7 @@ deparse_checks.sql
 
  ClickHouse | File
 ------------|--------------------
- 22+        | deparse_checks.out
+ 23+        | deparse_checks.out
 
 engines.sql
 -----------
@@ -88,7 +86,7 @@ engines.sql
 
  ClickHouse | File
 ------------|-------------
- 22+        | engines.out
+ 23+        | engines.out
 
 functions.sql
 -------------
@@ -158,7 +156,6 @@ import_schema.sql
  ClickHouse | File
 ------------|---------------------
  23+        | import_schema.out
- 22         | import_schema_2.out
 
 json.sql
 --------
@@ -223,7 +220,7 @@ subquery_pushdown.sql
 
  ClickHouse | File
 ------------|-----------------------
- 22+        | subquery_pushdown.out
+ 23+        | subquery_pushdown.out
 
 timezone.sql
 ------------
@@ -247,7 +244,7 @@ where_sub.sql
 
  ClickHouse | File
 ------------|-----------------
- 22+        | where_sub.out
+ 23+        | where_sub.out
 
 window_functions.sql
 --------------------
