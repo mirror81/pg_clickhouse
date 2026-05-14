@@ -1,6 +1,7 @@
 name: 🐘 Postgres CI
 on:
   push:
+    branches: [main, wip/**]
   pull_request:
   schedule:
     - cron: "0 12 10 * *" # Monthly at noon on the tenth

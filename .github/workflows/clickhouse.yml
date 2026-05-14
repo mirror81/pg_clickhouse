@@ -1,6 +1,7 @@
 name: 🏠 ClickHouse CI
 on:
   push:
+    branches: [main, wip/**]
   pull_request:
   schedule:
     - cron: "0 13 10 * *" # Monthly at 13:00 on the tenth

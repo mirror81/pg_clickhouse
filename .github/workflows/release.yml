@@ -1,5 +1,9 @@
 name: 🚀 Bundle & Release
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, wip/**]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  pull_request:
 permissions:
   contents: write
 jobs:
