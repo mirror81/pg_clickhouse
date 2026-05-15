@@ -3170,7 +3170,7 @@ add_foreign_final_paths(PlannerInfo * root, RelOptInfo * input_rel,
 }
 
 /*
- * Find an equivalence class member expression, all of whose Vars, come from
+ * Find an equivalence class member expression, all of whose Vars come from
  * the indicated relation.
  */
 Expr	   *

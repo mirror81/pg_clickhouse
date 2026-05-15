@@ -7,6 +7,21 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [v0.3.1] — Unreleased
+
+### ⚡ Improvements
+
+*   Added multidimensional array support across SELECT and INSERT to both the
+    binary and http drivers. Rectangular ClickHouse `Array(Array(...))` values
+    now map to PostgreSQL multidimensional arrays, jagged arrays not supported,
+    and PostgreSQL multidimensional arrays inserted into ClickHouse
+    `Array(Array(...))` columns preserve their nesting. Thanks to Philip Dubé
+    for the PR ([#233]).
+
+  [v0.3.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.0...v0.3.1
+  [#233]: https://github.com/ClickHouse/pg_clickhouse/pull/233
+    "ClickHouse/pg_clickhouse#233 Support multidimensional arrays"
+
 ## [v0.3.0] — 2026-05-11
 
 This release makes binary-compatible changes to the v0.2 releases. Once
@@ -43,12 +58,6 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 *   Added explicit mappings for `mod`, `pow`/`power`, `bit_count(bytea)`, and
     `reverse(text)` (→ `reverseUTF8`) to retain previously working pushdowns.
     Thanks to Philip Dubé for the PR ([#245]).
-*   Added multidimensional array support across SELECT and INSERT in both the
-    binary and http engines. Rectangular ClickHouse `Array(Array(...))` values
-    now map to PostgreSQL multidimensional arrays, jagged arrays not supported,
-    and PostgreSQL multidimensional arrays inserted into ClickHouse
-    `Array(Array(...))` columns preserve their nesting. Thanks to Philip Dubé
-    for the PR ([#233]).
 
 ### 🐞 Bug Fixes
 
@@ -135,8 +144,6 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     "pg_clickhouse#228 Security: revoke PUBLIC execute on clickhouse_raw_query"
   [#245]: https://github.com/ClickHouse/pg_clickhouse/pull/245
     "ClickHouse/pg_clickhouse#245 Don't push down functions by default"
-  [#233]: https://github.com/ClickHouse/pg_clickhouse/pull/233
-    "ClickHouse/pg_clickhouse#233 Support multidimensional arrays"
 
 ## [v0.2.0] — 2026-04-13
 
