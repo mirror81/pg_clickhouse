@@ -612,8 +612,8 @@ table.
     Time: 2.012 ms
     ```
 
-2.  This query returns rows for the the 1000 trips with the highest tip
-    amount, then performs an inner join of each row with the dictionary:
+2.  This query returns rows for the 1000 trips with the highest tip amount,
+    then performs an inner join of each row with the dictionary:
 
     ```sql
     taxi=# SELECT *
