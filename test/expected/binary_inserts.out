@@ -411,7 +411,7 @@ SELECT clickhouse_raw_query($$
 		-- TEXTOID
 		c16 Nullable(String), c17 Nullable(FixedString(1)),
 		c18 Nullable(Enum('x'=1)), c19 Nullable(Enum16('x'=1)),
-		-- c20 LowCardinality(Nullable(String)),
+		c20 LowCardinality(Nullable(String)),
 		-- DATEOID
 		c21 Nullable(Date), c22 Nullable(Date32),
 		-- TIMESTAMPOID, TIMESTAMPTZOID
@@ -433,14 +433,14 @@ IMPORT FOREIGN SCHEMA binary_inserts_test LIMIT TO (null_vals)
 FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 INSERT INTO null_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, -- NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
 SELECT * FROM null_vals;
- c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c18 | c19 | c21 | c22 | c23 | c24 | c26 | c27 | c28 
-----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
-  1 |    |    |    |    |    |    |    |    |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     | 
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 | c9 | c10 | c11 | c12 | c13 | c14 | c15 | c16 | c17 | c18 | c19 | c20 | c21 | c22 | c23 | c24 | c26 | c27 | c28 
+----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
+  1 |    |    |    |    |    |    |    |    |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     |     | 
 (1 row)
 
 -- Test default values.
@@ -496,9 +496,15 @@ SELECT * FROM default_vals;
 ----+----+----+----+----+----+----+----+----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----
 (0 rows)
 
--- Test unsupported Nullables.
-INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL);
-ERROR:  pg_clickhouse: cannot append NULL to NOT NULL LowCardinality(Nullable(String)) column
+-- LowCardinality(Nullable(String)) round-trips NULL and non-NULL.
+INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL), (2, 'x', 'x', 'lc');
+SELECT * FROM not_nullable ORDER BY c1;
+ c1 | c2 | c3 | c4 
+----+----+----+----
+  1 | x  | x  | 
+  2 | x  | x  | lc
+(2 rows)
+
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_inserts_test');
  clickhouse_raw_query 

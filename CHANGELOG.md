@@ -16,24 +16,24 @@ All notable changes to this project will be documented in this file. It uses the
     `vendor/clickhouse-c`. This change eliminates conflicts between the C++
     and Postgres memory & exception handling and streams query results by the
     ClickHouse block for reduced memory consumption. It also greatly reduces
-    build time and the size of the library by over 75%. Thanks to Philip Dubé
-    for the the new library and the PR ([#254]).
+    build time and the size of the library by over 75%. Thanks to serprex for
+    the the new library and the PR ([#254]).
 *   Added multidimensional array support across SELECT and INSERT to both the
     binary and http drivers. Rectangular ClickHouse `Array(Array(...))` values
     now map to PostgreSQL multidimensional arrays, jagged arrays not supported,
     and PostgreSQL multidimensional arrays inserted into ClickHouse
-    `Array(Array(...))` columns preserve their nesting. Thanks to Philip Dubé
-    for the PR ([#233]).
+    `Array(Array(...))` columns preserve their nesting. Thanks to serprex for
+    the PR ([#233]).
 *   Added pushdown for [re2 extension] functions introduced in pg_re2 0.3:
     `re2extractallgroupshorizontal`, `re2extractallgroupsvertical`,
-    `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to Philip Dubé for
-    the PR ([#232]).
+    `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to serprex for the
+    PR ([#232]).
 
 ### 🐞 Bug Fixes
 
 *   Fixed incorrect casting of ClickHouse `UInt16` values to `int16` in the
     Binary driver. They now correctly convert to `int32` (Postgres `INT4`).
-    Part of the omnibus binary c driver conversion contributed by Philip Dubé
+    Part of the omnibus binary c driver conversion contributed by serprex
     ([#233]).
 
   [v0.3.1]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.0...v0.3.1
@@ -61,10 +61,10 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 
 *   Added pushdown for [re2 extension] functions, if available, to their
     ClickHouse equivalents (e.g., `re2match` → `match`, `re2extractall` →
-    `extractAll`). Thanks to Philip Dubé for the PR ([#204]).
+    `extractAll`). Thanks to serprex for the PR ([#204]).
 *   Added pushdown for [fuzzystrmatch] functions `soundex()` and
     `levenshtein()` (2-arg, mapped to `editDistanceUTF8`). Thanks to
-    Philip Dubé for the PR ([#210]).
+    serprex for the PR ([#210]).
 *   Added mapping for `JSON` => `jsonb` to the binary driver (requires
     ClickHouse 24.10 or later).
 *   Added support for ClickHouse `JSON` mapped to Postgres `json`, supporting
@@ -74,19 +74,19 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     pushes down when the format is a constant whose every keyword has an
     identical CH equivalent (`YYYY`, `MM`, `DD`, `DDD`, `HH24`, `HH12`, `HH`,
     `MI`, `SS`, `Q`, `Mon`, `Dy`, `AM`/`PM`, plus lowercase variants).
-    Thanks to Philip Dubé for the PR ([#244]).
+    Thanks to serprex for the PR ([#244]).
 *   Made builtin function pushdown opt-in: Postgres builtins now ship to
     ClickHouse only when explicitly mapped, so name or signature differences
-    cannot silently alter results. Thanks to Philip Dubé for the PR ([#245]).
+    cannot silently alter results. Thanks to serprex for the PR ([#245]).
 *   Added explicit mappings for `mod`, `pow`/`power`, `bit_count(bytea)`, and
     `reverse(text)` (→ `reverseUTF8`) to retain previously working pushdowns.
-    Thanks to Philip Dubé for the PR ([#245]).
+    Thanks to serprex for the PR ([#245]).
 
 ### 🐞 Bug Fixes
 
 *   Fixed `EXPLAIN (VERBOSE)` failing with "could not find window clause for
-    winref N" when window functions push down to ClickHouse. Thanks to Philip
-    Dubé for the PR ([#223]).
+    winref N" when window functions push down to ClickHouse. Thanks to serprex
+    for the PR ([#223]).
 *   Fixed the parsing of strings that start with `[` in the http driver so
     that it no longer assumes it's the start of an array. Thanks to Kaushik
     Iska for the PR ([#234]).
@@ -96,15 +96,14 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
 *   Fixed the `column_name` foreign-table column option being ignored by
     `INSERT`, which caused the binary engine to fail to match ClickHouse block
     columns and the HTTP engine to deparse PostgreSQL attribute names. Thanks
-    to Philip Dubé for the PR ([#231]).
+    to serprex for the PR ([#231]).
 *   Fixed `length(text)` and `strpos(text, text)` pushdown to map to
     `lengthUTF8` and `positionUTF8` rather than ClickHouse's byte-counting
     `length` and `position`, matching Postgres character semantics. Thanks to
-    Philip Dubé for the PR ([#245]).
+    serprex for the PR ([#245]).
 *   Stopped pushing down `asin`, `acos`, `atanh`, and `acosh`: Postgres raises
     an error on out-of-range input where ClickHouse returns `NaN`. Evaluating
-    locally preserves Postgres semantics. Thanks to Philip Dubé for the PR
-    ([#245]).
+    locally preserves Postgres semantics. Thanks to serprex for the PR ([#245]).
 
 ### 📚 Documentation
 
@@ -272,8 +271,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
     `PERCENT_RANK`, `MIN`/`MAX OVER`) to ClickHouse instead of computing
     them locally. Thanks Kaushik Iska for the PR ([#175]).
 *   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as `groupBitOr`,
-    and `string_agg` as `groupConcat` to ClickHouse. Thanks Philip Dubé for
-    the PR ([#184]).
+    and `string_agg` as `groupConcat` to ClickHouse. Thanks serprex for the
+    PR ([#184]).
 *   Added mapping to push down the Postgres "SQL Value Functions", including
     `CURRENT_TIMESTAMP`, `CURRENT_USER`, and `CURRENT_DATABASE`.
 *   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
@@ -288,24 +287,24 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 ### 🐛 Bug Fixes
 
 *   Improved memory management, fixing potential crashes in out of memory
-    situations. Thanks to Philip Dubé for the PRs ([#173], [#173]).
+    situations. Thanks to serprex for the PRs ([#173], [#173]).
 *   Fixed issue where the `-Merge` suffix was not consistently appended to
-    aggregates on `AggregateFunction` columns. Thanks to Philip Dubé for the
+    aggregates on `AggregateFunction` columns. Thanks to serprex for the
     PR ([#179]).
 *   Fixed `NTILE`, `CUME_DIST`, and `PERCENT_RANK` pushdown failing because
     the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that ClickHouse
-    rejects for ranking functions. Thanks Philip Dubé for the PR ([#184]).
+    rejects for ranking functions. Thanks serprex for the PR ([#184]).
 *   `regr_avgx`, `regr_avgy`, `regr_count`, `regr_intercept`, `regr_r2`,
     `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`, `json_agg_strict`, and
     `jsonb_agg_strict` now evaluate locally instead of being pushed to
-    ClickHouse where they would fail. Thanks Philip Dubé for the PR ([#184]).
+    ClickHouse where they would fail. Thanks serprex for the PR ([#184]).
 
 ### 📔 Notes
 
 *   Eliminated use of a constant that required libcurl 7.87.0, restoring
     support for earlier versions.
 *   Introduced clang-tidy and integrated it into `make lint` and for use in
-    CI. Thanks to Philip Dubé for the PR ([#177]).
+    CI. Thanks to serprex for the PR ([#177]).
 
   [v0.1.10]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.1.6...v0.1.10
   [sub-column syntax]: https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns
@@ -402,7 +401,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
     Rahul Mehta for the report (#140).
 *   Fixed http driver array parsing, which previously did not properly parse
     string values and would raise an error on values containing brackets
-    (`[]`). Thanks to Philip Dubé for the spot (#142).
+    (`[]`). Thanks to serprex for the spot (#142).
 *   Fixed a bug where the binary driver would raise an error on an empty
     array.
 

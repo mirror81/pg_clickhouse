@@ -203,6 +203,13 @@ classify_column(ic_col * ic, const chc_type * t)
 					 errmsg("pg_clickhouse: unsupported LowCardinality variant: %s",
 							chc_type_name(base, NULL))));
 		}
+
+		/*
+		 * Nullable lives inside LowCardinality, not as an outer wrapper, so
+		 * record it here: resolve_col tracks the per-row null bits
+		 * build_lc_dict reads to map nulls onto dict slot 0.
+		 */
+		ic->is_nullable = inner_nullable;
 		ic->layout = IC_LC_STRING;
 		ic->elem_t = base;
 		return;
@@ -545,6 +552,7 @@ append_string_row(ic_col * c, const void *p, size_t n)
 static void
 decimal_text_to_bytes(const char *s, uint32_t scale, size_t width, uint8_t * out)
 {
+	const char *input = s;
 	bool		neg = false;
 
 	if (!s)
@@ -575,6 +583,13 @@ decimal_text_to_bytes(const char *s, uint32_t scale, size_t width, uint8_t * out
 		char		c = i < ilen ? s[i]
 			: i - ilen < flen ? frac[i - ilen]
 			: '0';
+
+		/* reject NaN / Infinity from numeric_out */
+		if (c < '0' || c > '9')
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					 errmsg("pg_clickhouse: cannot encode \"%s\" as ClickHouse Decimal",
+							input)));
 		uint64_t	carry = (uint64_t) (c - '0');
 
 		for (size_t b = 0; b < nwords; b++)

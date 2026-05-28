@@ -24,6 +24,7 @@
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #include "binary_internal.h"
 #include "engine.h"
@@ -139,7 +140,13 @@ tls_connect(struct ch_binary_state *s, const char *host)
 				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 				 errmsg("pg_clickhouse: failed to initialize opensssl"),
 				 errdetail("SSL_CTX_new failed")));
-	SSL_CTX_set_verify(s->ssl_ctx, SSL_VERIFY_NONE, NULL);
+	/* Authenticate server: verify chain against system CAs and hostname. */
+	SSL_CTX_set_verify(s->ssl_ctx, SSL_VERIFY_PEER, NULL);
+	if (SSL_CTX_set_default_verify_paths(s->ssl_ctx) != 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+				 errmsg("pg_clickhouse: failed to initialize openssl"),
+				 errdetail("could not load default CA certificates")));
 
 	s->ssl = SSL_new(s->ssl_ctx);
 	if (!s->ssl)
@@ -148,13 +155,28 @@ tls_connect(struct ch_binary_state *s, const char *host)
 				 errmsg("pg_clickhouse: failed to initialize opensssl"),
 				 errdetail("SSL_new failed")));
 	SSL_set_tlsext_host_name(s->ssl, host);
+	SSL_set_hostflags(s->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+	if (SSL_set1_host(s->ssl, host) != 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+				 errmsg("pg_clickhouse: failed to initialize openssl"),
+				 errdetail("could not set certificate verification host")));
 	SSL_set_fd(s->ssl, s->fd);
 	if (SSL_connect(s->ssl) != 1)
 	{
+		/* verification failures leave error queue empty, use verify result */
+		long		vr = SSL_get_verify_result(s->ssl);
 		unsigned long e = ERR_peek_last_error();
-		char		ebuf[160];
+		char		ebuf[256];
 
-		ERR_error_string_n(e, ebuf, sizeof(ebuf));
+		if (vr != X509_V_OK)
+			snprintf(ebuf, sizeof(ebuf), "certificate verify failed: %s",
+					 X509_verify_cert_error_string(vr));
+		else if (e)
+			ERR_error_string_n(e, ebuf, sizeof(ebuf));
+		else
+			snprintf(ebuf, sizeof(ebuf), "SSL_connect failed");
+
 		ereport(ERROR,
 				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 				 errmsg("pg_clickhouse: openssl failed to connect"),

@@ -718,8 +718,9 @@ read_value(const chc_column * col, const chc_type * type, uint64_t row,
 				int64		power = pow10i[scale];
 
 				*valtype = TIMESTAMPTZOID;
+				/* multiply before divide so scale > 6 keeps sub-second us */
 				return TimestampTzGetDatum(time_t_to_timestamptz(raw / power)
-										   + (raw % power) * (USECS_PER_SEC / power));
+										   + (raw % power) * USECS_PER_SEC / power);
 			}
 		case CHC_UUID:
 			*valtype = UUIDOID;

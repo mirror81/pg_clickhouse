@@ -185,7 +185,7 @@ SELECT clickhouse_raw_query($$
 		-- TEXTOID
 		c16 Nullable(String), c17 Nullable(FixedString(1)),
 		c18 Nullable(Enum('x'=1)), c19 Nullable(Enum16('x'=1)),
-		-- c20 LowCardinality(Nullable(String)),
+		c20 LowCardinality(Nullable(String)),
 		-- DATEOID
 		c21 Nullable(Date), c22 Nullable(Date32),
 		-- TIMESTAMPOID, TIMESTAMPTZOID
@@ -204,7 +204,7 @@ FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 
 INSERT INTO null_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, -- NULL,
+	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
 	   NULL, NULL, NULL
 );
@@ -258,8 +258,9 @@ INSERT INTO default_vals VALUES(
 
 SELECT * FROM default_vals;
 
--- Test unsupported Nullables.
-INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL);
+-- LowCardinality(Nullable(String)) round-trips NULL and non-NULL.
+INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL), (2, 'x', 'x', 'lc');
+SELECT * FROM not_nullable ORDER BY c1;
 
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_inserts_test');

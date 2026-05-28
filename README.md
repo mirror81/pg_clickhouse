@@ -254,6 +254,7 @@ adding DML features. Our road map:
 ## Authors
 
 *   [David E. Wheeler](https://justatheory.com/)
+*   [serprex](https://github.com/serprex)
 *   [Ildus Kurbangaliev](https://github.com/ildus)
 *   [Ibrar Ahmed](https://github.com/ibrarahmad)
 
