@@ -5,6 +5,9 @@ on:
   pull_request:
   schedule:
     - cron: "0 12 10 * *" # Monthly at noon on the tenth
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
