@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [v0.3.1] — Unreleased
+## [v0.3.1] — 2026-05-02
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.3 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
@@ -18,16 +22,16 @@ All notable changes to this project will be documented in this file. It uses the
     ClickHouse block for reduced memory consumption. It also greatly reduces
     build time and the size of the library by over 75%. Thanks to serprex for
     the the new library and the PR ([#254]).
-*   Added multidimensional array support across SELECT and INSERT to both the
-    binary and http drivers. Rectangular ClickHouse `Array(Array(...))` values
-    now map to PostgreSQL multidimensional arrays, jagged arrays not supported,
-    and PostgreSQL multidimensional arrays inserted into ClickHouse
+*   Added multidimensional array support across `SELECT` and `INSERT` to both
+    the binary and http drivers. Rectangular ClickHouse `Array(Array(...))`
+    values now map to PostgreSQL multidimensional arrays (jagged arrays not
+    supported) and PostgreSQL multidimensional arrays inserted into ClickHouse
     `Array(Array(...))` columns preserve their nesting. Thanks to serprex for
     the PR ([#233]).
-*   Added pushdown for [re2 extension] functions introduced in pg_re2 0.3:
+*   Added pushdown for [re2 extension] functions introduced in pg_re2 v0.3.0:
     `re2extractallgroupshorizontal`, `re2extractallgroupsvertical`,
-    `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to serprex for the
-    PR ([#232]).
+    `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to serprex for the PR
+    ([#232]).
 
 ### 🐞 Bug Fixes
 
@@ -63,18 +67,18 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     ClickHouse equivalents (e.g., `re2match` → `match`, `re2extractall` →
     `extractAll`). Thanks to serprex for the PR ([#204]).
 *   Added pushdown for [fuzzystrmatch] functions `soundex()` and
-    `levenshtein()` (2-arg, mapped to `editDistanceUTF8`). Thanks to
-    serprex for the PR ([#210]).
+    `levenshtein()` (2-arg, mapped to `editDistanceUTF8`). Thanks to serprex
+    for the PR ([#210]).
 *   Added mapping for `JSON` => `jsonb` to the binary driver (requires
     ClickHouse 24.10 or later).
 *   Added support for ClickHouse `JSON` mapped to Postgres `json`, supporting
     all the same operators and functions as the `jsonb` mapping.
 *   Added pushdown for `to_char(timestamp[tz], fmt)` to ClickHouse
-    `formatDateTime()`, with strict format-string validation.  Only
-    pushes down when the format is a constant whose every keyword has an
-    identical CH equivalent (`YYYY`, `MM`, `DD`, `DDD`, `HH24`, `HH12`, `HH`,
-    `MI`, `SS`, `Q`, `Mon`, `Dy`, `AM`/`PM`, plus lowercase variants).
-    Thanks to serprex for the PR ([#244]).
+    `formatDateTime()`, with strict format-string validation.  Only pushes
+    down when the format is a constant whose every keyword has an identical CH
+    equivalent (`YYYY`, `MM`, `DD`, `DDD`, `HH24`, `HH12`, `HH`, `MI`, `SS`,
+    `Q`, `Mon`, `Dy`, `AM`/`PM`, plus lowercase variants). Thanks to serprex
+    for the PR ([#244]).
 *   Made builtin function pushdown opt-in: Postgres builtins now ship to
     ClickHouse only when explicitly mapped, so name or signature differences
     cannot silently alter results. Thanks to serprex for the PR ([#245]).
@@ -103,7 +107,8 @@ ALTER EXTENSION pg_clickhouse UPDATE TO '0.3';
     serprex for the PR ([#245]).
 *   Stopped pushing down `asin`, `acos`, `atanh`, and `acosh`: Postgres raises
     an error on out-of-range input where ClickHouse returns `NaN`. Evaluating
-    locally preserves Postgres semantics. Thanks to serprex for the PR ([#245]).
+    locally preserves Postgres semantics. Thanks to serprex for the PR
+    ([#245]).
 
 ### 📚 Documentation
 
@@ -271,8 +276,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
     `PERCENT_RANK`, `MIN`/`MAX OVER`) to ClickHouse instead of computing
     them locally. Thanks Kaushik Iska for the PR ([#175]).
 *   Pushdown `bool_and`/`every` as `groupBitAnd`, `bool_or` as `groupBitOr`,
-    and `string_agg` as `groupConcat` to ClickHouse. Thanks serprex for the
-    PR ([#184]).
+    and `string_agg` as `groupConcat` to ClickHouse. Thanks serprex for the PR
+    ([#184]).
 *   Added mapping to push down the Postgres "SQL Value Functions", including
     `CURRENT_TIMESTAMP`, `CURRENT_USER`, and `CURRENT_DATABASE`.
 *   Changed the behavior of `CURRENT_DATABASE()` to push down the name of the
@@ -289,8 +294,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Improved memory management, fixing potential crashes in out of memory
     situations. Thanks to serprex for the PRs ([#173], [#173]).
 *   Fixed issue where the `-Merge` suffix was not consistently appended to
-    aggregates on `AggregateFunction` columns. Thanks to serprex for the
-    PR ([#179]).
+    aggregates on `AggregateFunction` columns. Thanks to serprex for the PR
+    ([#179]).
 *   Fixed `NTILE`, `CUME_DIST`, and `PERCENT_RANK` pushdown failing because
     the FDW emitted a `ROWS UNBOUNDED PRECEDING` frame clause that ClickHouse
     rejects for ranking functions. Thanks serprex for the PR ([#184]).
@@ -379,8 +384,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 ## [v0.1.4] — 2026-02-17
 
 This release makes binary-only changes. Once installed, any existing use of
-pg_clickhouse v0.1 will get its benefits on reload without needing to
-`ALTER EXTENSION UPDATE`.
+pg_clickhouse v0.1 will get its benefits on reload without needing to `ALTER
+EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 

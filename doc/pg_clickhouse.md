@@ -1,4 +1,4 @@
-pg_clickhouse 0.3.0
+pg_clickhouse 0.3.1
 ===================
 
 ## Synopsis
