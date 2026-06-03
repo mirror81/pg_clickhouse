@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     uuid-dev \
     make \
-    cmake \
     libssl-dev \
     liblz4-dev \
     libzstd-dev \
