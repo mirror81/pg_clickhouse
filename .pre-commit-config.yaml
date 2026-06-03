@@ -36,7 +36,7 @@ repos:
       - id: clang-tidy
         name: clang-tidy static analysis
         language: system
-        entry: sh -c 'if [ -f compile_commands.json ]; then clang-tidy -p . "$@"; else echo "No compile_commands.json; skipping"; fi'
+        entry: sh -c 'if [ -f compile_commands.json ]; then run-clang-tidy -p . "$@"; else echo "No compile_commands.json; skipping"; fi'
         files: '\.c$'
         exclude: "^vendor/"
   - repo: https://github.com/pre-commit/mirrors-prettier

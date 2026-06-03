@@ -36,8 +36,8 @@ ifneq ($(OS),darwin)
 	PG_LDFLAGS += -luuid
 endif
 
-# Suppress annoying pre-c99 warning and include curl flags.
-PG_CFLAGS = -Wno-declaration-after-statement -Werror=type-limits $(shell $(CURL_CONFIG) --cflags)
+# Suppress annoying pre-c99 warning, error on other warnings, include curl.
+PG_CFLAGS = -Wno-declaration-after-statement -Wall -Werror $(shell $(CURL_CONFIG) --cflags)
 
 # Clean up generated files.
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/include/version.h compile_commands.json test/schedule $(EXTENSION)-$(DISTVERSION).zip
@@ -133,7 +133,7 @@ lint: .pre-commit-config.yaml
 
 .PHONY: clang-tidy # Run clang-tidy static analysis (requires compile_commands.json)
 clang-tidy: compile_commands.json
-	clang-tidy -p . $(wildcard src/*.c src/*/*.c)
+	run-clang-tidy -p . $(wildcard src/*.c src/*/*.c)
 
 ## .git/hooks/pre-commit: Install the pre-commit hook
 .git/hooks/pre-commit:
@@ -151,7 +151,7 @@ lsp: compile_commands.json
 # Requires https://github.com/rizsotto/Bear.
 compile_commands.json:
 	$(MAKE) clean -j $$(nproc)
-	bear -- $(MAKE) all -j $$(nproc)
+	bear --config "dev/bear.$$(if [ "$$(bear --version | awk -F'[^0-9]+' '{ print $$2 }')" -eq 3 ]; then echo 'json'; else echo 'yml'; fi)" -- $(MAKE) all -j $$(nproc)
 
 # ClickHouse Docker Containers
 start-containers: dev/Makefile dev/docker-compose.yml
