@@ -14,6 +14,7 @@ typedef struct
 	char	   *username;
 	char	   *password;
 	char	   *dbname;
+	char	   *compression;
 }			ch_connection_details;
 
 /*

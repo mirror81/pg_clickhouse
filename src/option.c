@@ -62,6 +62,7 @@ static const ChFdwOption ch_options[] =
 	{"dbname", 0, false},
 	{"user", 0, false},
 	{"password", 0, false},
+	{"compression", 0, false},
 	{NULL}
 };
 
@@ -284,7 +285,8 @@ is_ch_option(const char *keyword)
  */
 void
 chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
-					  char **dbname, char **username, char **password)
+					  char **dbname, char **username, char **password,
+					  char **compression)
 {
 	ListCell   *lc;
 
@@ -315,6 +317,8 @@ chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
 				*username = defGetString(def);
 			else if (password && strcmp(def->defname, "password") == 0)
 				*password = defGetString(def);
+			else if (compression && strcmp(def->defname, "compression") == 0)
+				*compression = defGetString(def);
 			else if (dbname && strcmp(def->defname, "dbname") == 0)
 			{
 				*dbname = defGetString(def);

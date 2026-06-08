@@ -7,6 +7,17 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [Unreleased]
+
+### ⚡ Improvements
+
+*   [#268] added a `compression` server option for the binary driver to enable
+    ClickHouse native protocol compression of query results and `INSERT` data.
+    Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4`.
+
+  [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268"
+    "ClickHouse/pg_clickhouse#232 add compression option for binary protocol"
+
 ## [v0.3.1] — 2026-05-02
 
 This release makes binary-only changes. Once installed, any existing use of

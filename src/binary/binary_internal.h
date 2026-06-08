@@ -104,6 +104,9 @@ struct ch_binary_state
 	/* Transport vtable; backed by posix_state or openssl_state below. */
 	chc_io		io;
 
+	/* Compression codec used by chc_client. */
+	chc_codec	codec;
+
 	int			fd;				/* -1 once closed by reset_cb */
 	SSL_CTX    *ssl_ctx;
 	SSL		   *ssl;

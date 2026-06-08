@@ -138,6 +138,8 @@ The supported options are:
 
 *   `driver`: The ClickHouse connection driver to use, either "binary" or
     "http". **Required.**
+*   `compression`: Native-protocol compression for the "binary" driver, one of
+    "none", "lz4", or "zstd". Defaults to "lz4". Ignored by the "http" driver.
 *   `dbname`: The ClickHouse database to use upon connecting. Defaults to
     "default".
 *   `fetch_size`: Approximate batch size in bytes for HTTP streaming. Batches

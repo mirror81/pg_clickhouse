@@ -40,6 +40,27 @@ cancel_adapter(void *ud)
 }
 
 /*
+ * Map "compression" option to send method. NULL/unset defaults to LZ4
+ * (ClickHouse's native network default). Decode side picks codec from each
+ * frame's method byte, so callers fill both codec families regardless.
+ */
+static chc_compression
+parse_compression(const char *s)
+{
+	if (s == NULL || s[0] == '\0' || pg_strcasecmp(s, "lz4") == 0)
+		return CHC_COMP_LZ4;
+	if (pg_strcasecmp(s, "none") == 0)
+		return CHC_COMP_NONE;
+	if (pg_strcasecmp(s, "zstd") == 0)
+		return CHC_COMP_ZSTD;
+
+	ereport(ERROR,
+			(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+			 errmsg("pg_clickhouse: invalid compression \"%s\"", s),
+			 errhint("valid values: none, lz4, zstd")));
+}
+
+/*
  * Releases OS resources owned by the connection. The chc_client and its
  * read buffer live in s->cxt and are freed by the surrounding
  * MemoryContextDelete; only fd / SSL need an explicit close.
@@ -204,6 +225,8 @@ ch_binary_connect(ch_connection_details * details)
 	else if (port == CLICKHOUSE_SECURE_PORT)
 		tls = true;
 
+	chc_compression comp = parse_compression(details->compression);
+
 	MemoryContext cxt = AllocSetContextCreate(CacheMemoryContext,
 											  "pg_clickhouse binary connection",
 											  ALLOCSET_SMALL_SIZES);
@@ -236,10 +259,19 @@ ch_binary_connect(ch_connection_details * details)
 							  cancel_adapter, s);
 		}
 
+		if (comp != CHC_COMP_NONE)
+		{
+			/* both families: server may answer in a different method */
+			chc_lz4_codec_init(&s->codec);
+			chc_zstd_codec_init(&s->codec);
+		}
+
 		chc_client_opts opts = {
 			.database = details->dbname ? details->dbname : "default",
 			.user = details->username ? details->username : "default",
 			.password = details->password ? details->password : "",
+			.codec = comp != CHC_COMP_NONE ? &s->codec : NULL,
+			.compression = comp,
 		};
 		chc_err		err = {};
 		int			rc = chc_client_init(&s->client, &opts, &pg_chc_alloc, &s->io, &err);

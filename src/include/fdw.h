@@ -244,7 +244,8 @@ bool		chfdw_pushdown_regex_ok(void);
 
 extern void
 			chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
-								  char **dbname, char **username, char **password);
+								  char **dbname, char **username, char **password,
+								  char **compression);
 extern List * chfdw_parse_options(const char *options, bool with_comma, bool with_equal);
 
 /* in deparse.c */
