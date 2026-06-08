@@ -77,7 +77,7 @@ See [PostgreSQL Apt] for details on pulling from the PostgreSQL Apt repository.
 
 ```sh
 sudo apt install \
-  postgresql-server-18 \
+  postgresql-server-19 \
   libcurl4-openssl-dev \
   uuid-dev \
   liblz4-dev \
@@ -127,7 +127,7 @@ If your host has several PostgreSQL installations, you might need to specify
 the appropriate version of `pg_config`:
 
 ```sh
-export PG_CONFIG=/usr/lib/postgresql/18/bin/pg_config
+export PG_CONFIG=/usr/lib/postgresql/19/bin/pg_config
 make
 sudo make install
 ```
@@ -268,7 +268,7 @@ adding DML features. Our road map:
   [PGXN]:       https://badge.fury.io/pg/pg_clickhouse.svg
   [⚙️]:         https://pgxn.org/dist/pg_clickhouse "Latest version on PGXN"
   [Postgres]:   https://github.com/clickhouse/pg_clickhouse/actions/workflows/postgres.yml/badge.svg
-  [🐘]:         https://github.com/clickhouse/pg_clickhouse/actions/workflows/postgres.yml "Tested with PostgreSQL 13-18"
+  [🐘]:         https://github.com/clickhouse/pg_clickhouse/actions/workflows/postgres.yml "Tested with PostgreSQL 13-19"
   [ClickHouse]: https://github.com/clickhouse/pg_clickhouse/actions/workflows/clickhouse.yml/badge.svg
   [🏠]:          https://github.com/clickhouse/pg_clickhouse/actions/workflows/clickhouse.yml "Tested with ClickHouse v23–26"
   [Docker]:     https://img.shields.io/github/v/release/ClickHouse/pg_clickhouse?label=%F0%9F%90%B3%20Docker&color=44cc11

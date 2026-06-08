@@ -337,7 +337,7 @@ SELECT * FROM ft1 t1 WHERE t1.c3 = (SELECT MAX(c2) FROM ft2 t2) ORDER BY c1;
  Foreign Scan on public.ft1 t1
    Output: t1.c1, t1.c2, t1.c3, t1.c4, t1.c5, t1.c6, t1.c7, t1.c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c3 = {p1:String})) ORDER BY c1 ASC NULLS LAST
-   InitPlan 1 (returns $1)
+   InitPlan 1
      ->  Foreign Scan
            Output: (max(t2.c2))
            Relations: Aggregate on (ft2 t2)
@@ -448,19 +448,19 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 100 AND t1.c2 = 
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NULL;        -- NullTest
-                                         QUERY PLAN                                         
---------------------------------------------------------------------------------------------
- Foreign Scan on public.ft1 t1
+                QUERY PLAN                
+------------------------------------------
+ Result
    Output: c1, c2, c3, c4, c5, c6, c7, c8
-   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c1 IS NULL))
+   One-Time Filter: false
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NOT NULL;    -- NullTest
-                                           QUERY PLAN                                           
-------------------------------------------------------------------------------------------------
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
  Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
-   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c1 IS NOT NULL))
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE round(abs(c1), 0) = 1; -- FuncExpr
@@ -487,7 +487,16 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE 1 = factorial(c1);      
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((1 = factorial(c1)))
 (3 rows)
 
-EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c6 IS DISTINCT FROM c7; -- DistinctExpr
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.ft1 t1
+   Output: c1, c2, c3, c4, c5, c6, c7, c8
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c6 IS DISTINCT FROM c7))
+(3 rows)
+
+-- Optimized away on Postgres 19+ by commit e2debb643
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr + NullTest
                                                              QUERY PLAN                                                             
 ------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.ft1 t1

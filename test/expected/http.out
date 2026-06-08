@@ -337,7 +337,7 @@ SELECT * FROM ft1 t1 WHERE t1.c3 = (SELECT MAX(c2) FROM ft2 t2) ORDER BY c1;
  Foreign Scan on public.ft1 t1
    Output: t1.c1, t1.c2, t1.c3, t1.c4, t1.c5, t1.c6, t1.c7, t1.c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c3 = {p1:String})) ORDER BY c1 ASC NULLS LAST
-   InitPlan 1
+   InitPlan expr_1
      ->  Foreign Scan
            Output: (max(t2.c2))
            Relations: Aggregate on (ft2 t2)
@@ -452,8 +452,9 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NULL;        -- Nu
 ------------------------------------------
  Result
    Output: c1, c2, c3, c4, c5, c6, c7, c8
+   Replaces: Scan on t1
    One-Time Filter: false
-(3 rows)
+(4 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NOT NULL;    -- NullTest
                               QUERY PLAN                               
@@ -487,13 +488,23 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE 1 = factorial(c1);      
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((1 = factorial(c1)))
 (3 rows)
 
-EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr
-                                                             QUERY PLAN                                                             
-------------------------------------------------------------------------------------------------------------------------------------
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c6 IS DISTINCT FROM c7; -- DistinctExpr
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
  Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
-   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE (((c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL)))
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c6 IS DISTINCT FROM c7))
 (3 rows)
+
+-- Optimized away on Postgres 19+ by commit e2debb643
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr + NullTest
+                QUERY PLAN                
+------------------------------------------
+ Result
+   Output: c1, c2, c3, c4, c5, c6, c7, c8
+   Replaces: Scan on t1
+   One-Time Filter: false
+(4 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 = ANY(ARRAY[c2, 1, c1 + 0]); -- ScalarArrayOpExpr
                                                 QUERY PLAN                                                 

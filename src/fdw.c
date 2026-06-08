@@ -45,7 +45,8 @@
 
 /* Extension metadata for the server. */
 #ifdef PG_MODULE_MAGIC_EXT
-PG_MODULE_MAGIC_EXT(.name = "pg_clickhouse",.version = PGCH_VERSION);
+PG_MODULE_MAGIC_EXT(.name = "pg_clickhouse",
+					.version = PGCH_VERSION);
 #else
 PG_MODULE_MAGIC;
 #endif

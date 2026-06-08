@@ -826,7 +826,7 @@ printTypmod(const char *typname, int32 typmod, Oid typmodout)
 }
 
 static char *
-ch_format_type_extended(Oid type_oid, int32 typemod, bits16 flags)
+ch_format_type_extended(Oid type_oid, int32 typemod, uint16 flags)
 {
 	HeapTuple	tuple;
 	Form_pg_type typeform;
@@ -994,7 +994,7 @@ ch_format_type_extended(Oid type_oid, int32 typemod, bits16 flags)
 static char *
 deparse_type_name(Oid type_oid, int32 typemod)
 {
-	bits16		flags = FORMAT_TYPE_TYPEMOD_GIVEN;
+	uint16		flags = FORMAT_TYPE_TYPEMOD_GIVEN;
 
 	if (!chfdw_is_builtin(type_oid))
 		flags |= FORMAT_TYPE_FORCE_QUALIFY;
@@ -2140,7 +2140,11 @@ emitArrayLevel(StringInfo buf, int level, int ndims, int *dims, array_iter * ite
 			bool		isnull;
 			int			n = (*nleaf)++;
 
+#if PG_VERSION_NUM < 190000
 			elt = array_iter_next(iter, &isnull, n, typlen, typbyval, typalign);
+#else
+			elt = array_iter_next(iter, &isnull, n);
+#endif
 			emitArrayElement(buf, elt, isnull, element_type, typiofunc);
 		}
 	}
@@ -2174,7 +2178,11 @@ deparseArray(Datum arr, deparse_expr_cxt * context)
 					 &typalign, &typdelim,
 					 &typioparam, &typiofunc);
 
+#if PG_VERSION_NUM < 190000
 	array_iter_setup(&iter, array);
+#else
+	array_iter_setup(&iter, array, typlen, typbyval, typalign);
+#endif
 
 	if (ndims > 1)
 	{
@@ -2198,7 +2206,11 @@ deparseArray(Datum arr, deparse_expr_cxt * context)
 			if (i > 0)
 				appendStringInfoChar(buf, ',');
 
+#if PG_VERSION_NUM < 190000
 			elt = array_iter_next(&iter, &isnull, i, typlen, typbyval, typalign);
+#else
+			elt = array_iter_next(&iter, &isnull, i);
+#endif
 			emitArrayElement(buf, elt, isnull, element_type, typiofunc);
 		}
 		appendStringInfoChar(buf, close);
@@ -2573,6 +2585,7 @@ appendRegexFlags(Const * arg, deparse_expr_cxt * context)
 			case 's':
 			case 'p':
 				got_s = true;	/* ClickHouse enables s by default */
+				break;
 			case 't':
 				break;
 			default:

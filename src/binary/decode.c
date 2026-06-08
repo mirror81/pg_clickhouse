@@ -23,6 +23,9 @@
 #include "utils/numeric.h"
 #include "utils/timestamp.h"
 #include "utils/uuid.h"
+#if PG_VERSION_NUM >= 190000
+#include "varatt.h"
+#endif
 
 #include "binary_internal.h"
 

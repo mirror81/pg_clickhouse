@@ -15,8 +15,14 @@ All notable changes to this project will be documented in this file. It uses the
     ClickHouse native protocol compression of query results and `INSERT` data.
     Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4`.
 
-  [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268"
-    "ClickHouse/pg_clickhouse#232 add compression option for binary protocol"
+### 🚀 Distribution
+
+*   [#269] added support for PostgreSQL 19beta1.
+
+  [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268
+    "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"
+  [#269]: https://github.com/ClickHouse/pg_clickhouse/pull/269
+    "ClickHouse/pg_clickhouse#269 Add support for PostgreSQL 19beta1"
 
 ## [v0.3.1] — 2026-05-02
 

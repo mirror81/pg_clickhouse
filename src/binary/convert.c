@@ -4,6 +4,7 @@
 
 #include "funcapi.h"
 #include "access/tupdesc.h"
+#include "access/tupconvert.h"
 #include "catalog/pg_type_d.h"
 #include "catalog/pg_type.h"
 #include "utils/typcache.h"
@@ -699,12 +700,16 @@ ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 					arr->datums = total ? palloc(sizeof(Datum) * total) : NULL;
 					arr->nulls = total ? palloc(sizeof(bool) * total) : NULL;
 
+#if PG_VERSION_NUM < 190000
 					array_iter_setup(&iter, v);
 					for (size_t j = 0; j < total; j++)
-					{
 						arr->datums[j] = array_iter_next(&iter, &arr->nulls[j], j,
 														 cstate->typlen, cstate->typbyval, cstate->typalign);
-					}
+#else
+					array_iter_setup(&iter, v, cstate->typlen, cstate->typbyval, cstate->typalign);
+					for (size_t j = 0; j < total; j++)
+						arr->datums[j] = array_iter_next(&iter, &arr->nulls[j], j);
+#endif
 				}
 				else
 				{
@@ -712,13 +717,16 @@ ch_binary_do_output_conversion(ch_binary_insert_state * insert_state,
 					bool	   *flatnulls = palloc0(sizeof(bool) * total);
 					size_t		idx = 0;
 
+#if PG_VERSION_NUM < 190000
 					array_iter_setup(&iter, v);
 					for (size_t j = 0; j < total; j++)
-					{
 						flat[j] = array_iter_next(&iter, &flatnulls[j], j,
 												  cstate->typlen, cstate->typbyval, cstate->typalign);
-					}
-
+#else
+					array_iter_setup(&iter, v, cstate->typlen, cstate->typbyval, cstate->typalign);
+					for (size_t j = 0; j < total; j++)
+						flat[j] = array_iter_next(&iter, &flatnulls[j], j);
+#endif
 					arr = build_nested_binary_array(0, ndim, dims, cstate->innertype,
 													flat, flatnulls, &idx);
 

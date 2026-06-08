@@ -245,7 +245,7 @@ LIMIT 100;
    Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
    ->  Nested Loop
          Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
-         Join Filter: ((part.p_partkey = partsupp.ps_partkey) AND ((SubPlan 1) = partsupp.ps_supplycost))
+         Join Filter: ((partsupp.ps_partkey = part.p_partkey) AND (partsupp.ps_supplycost = (SubPlan 1)))
          ->  Foreign Scan
                Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
                Relations: (((supplier) INNER JOIN (partsupp)) INNER JOIN (nation)) INNER JOIN (region)

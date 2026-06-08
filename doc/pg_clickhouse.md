@@ -1493,9 +1493,9 @@ Copyright (c) 2025-2026, ClickHouse.
     "PostgreSQL Docs: Character Types"
   [window functions]: https://www.postgresql.org/docs/current/functions-window.html
     "PostgreSQL Docs: Window Functions"
-  [POSIX Regular Expressions]: https://www.postgresql.org/docs/18/functions-matching.html#FUNCTIONS-POSIX-REGEXP
+  [POSIX Regular Expressions]: https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-POSIX-REGEXP
     "PostgreSQL Docs: POSIX Regular Expressions"
-  [Postgres flags]: https://www.postgresql.org/docs/18/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
+  [Postgres flags]: https://www.postgresql.org/docs/current/functions-matching.html#POSIX-EMBEDDED-OPTIONS-TABLE
     "PostgreSQL Docs: ARE Embedded-Option Letters"
   [RE2]: https://github.com/google/re2/wiki/Syntax "RE2 Syntax"
   [re2 extension]: https://github.com/ClickHouse/pg_re2

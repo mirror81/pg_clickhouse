@@ -218,7 +218,7 @@ SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should work
 
 ALTER SERVER http_loopback OPTIONS (SET dbname 'no such database');
 SELECT c3, c4 FROM ft1 ORDER BY c3, c1;  -- should fail
-ERROR:  pg_clickhouse: Code: 81. DB::Exception: Database `no such database` doesn't exist. (UNKNOWN_DATABASE)
+ERROR:  pg_clickhouse: Code: 81. DB::Exception: Database `no such database` does not exist. (UNKNOWN_DATABASE)
 DETAIL:  Remote Query: SELECT c1, c3, c4 FROM "no such database".t1 ORDER BY c3 ASC NULLS LAST, c1 ASC NULLS LAST
 CONTEXT:  HTTP status code: 404
 ALTER USER MAPPING FOR CURRENT_USER SERVER http_loopback OPTIONS (ADD user 'no such user');
@@ -337,7 +337,7 @@ SELECT * FROM ft1 t1 WHERE t1.c3 = (SELECT MAX(c2) FROM ft2 t2) ORDER BY c1;
  Foreign Scan on public.ft1 t1
    Output: t1.c1, t1.c2, t1.c3, t1.c4, t1.c5, t1.c6, t1.c7, t1.c8
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c3 = {p1:String})) ORDER BY c1 ASC NULLS LAST
-   InitPlan 1
+   InitPlan 1 (returns $1)
      ->  Foreign Scan
            Output: (max(t2.c2))
            Relations: Aggregate on (ft2 t2)
@@ -408,8 +408,8 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT t1.c1, t2.c1 FROM ft2 t1 LEFT JOIN ft1 t2 ON
 EXPLAIN SELECT DISTINCT t1.c1, t2.c1 FROM ft2 t1 LEFT JOIN ft1 t2 ON (t1.c1 = t2.c1) order by t1.c1 LIMIT 10;
                            QUERY PLAN                           
 ----------------------------------------------------------------
- Limit  (cost=1.00..1.05 rows=10 width=32)
-   ->  Unique  (cost=1.00..5.60 rows=1000 width=32)
+ Limit  (cost=1.00..1.05 rows=10 width=8)
+   ->  Unique  (cost=1.00..5.60 rows=1000 width=8)
          ->  Foreign Scan  (cost=1.00..0.60 rows=1000 width=32)
                Relations: (ft2 t1) LEFT JOIN (ft1 t2)
 (4 rows)
@@ -448,19 +448,19 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE t1.c1 = 100 AND t1.c2 = 
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NULL;        -- NullTest
-                QUERY PLAN                
-------------------------------------------
- Result
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
-   One-Time Filter: false
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c1 IS NULL))
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c1 IS NOT NULL;    -- NullTest
-                              QUERY PLAN                               
------------------------------------------------------------------------
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
  Foreign Scan on public.ft1 t1
    Output: c1, c2, c3, c4, c5, c6, c7, c8
-   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c1 IS NOT NULL))
 (3 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE round(abs(c1), 0) = 1; -- FuncExpr
@@ -487,7 +487,16 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE 1 = factorial(c1);      
    Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((1 = factorial(c1)))
 (3 rows)
 
-EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE c6 IS DISTINCT FROM c7; -- DistinctExpr
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.ft1 t1
+   Output: c1, c2, c3, c4, c5, c6, c7, c8
+   Remote SQL: SELECT c1, c2, c3, c4, c5, c6, c7, c8 FROM http_test.t1 WHERE ((c6 IS DISTINCT FROM c7))
+(3 rows)
+
+-- Optimized away on Postgres 19+ by commit e2debb643
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM ft1 t1 WHERE (c1 IS NOT NULL) IS DISTINCT FROM (c1 IS NOT NULL); -- DistinctExpr + NullTest
                                                              QUERY PLAN                                                             
 ------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.ft1 t1
@@ -808,13 +817,13 @@ SELECT COUNT(DISTINCT c1) FROM ft2;
 
 /* DISTINCT with IF */
 EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FROM ft2;
-                                 QUERY PLAN                                 
-----------------------------------------------------------------------------
+                      QUERY PLAN                       
+-------------------------------------------------------
  Aggregate
    Output: count(DISTINCT c1) FILTER (WHERE (c1 < 20))
    ->  Foreign Scan on public.ft2
          Output: c1, c2
-         Remote SQL: SELECT c1 FROM http_test.t2 ORDER BY c1 ASC NULLS LAST
+         Remote SQL: SELECT c1 FROM http_test.t2
 (5 rows)
 
 /* Disallow line endings in database names. */

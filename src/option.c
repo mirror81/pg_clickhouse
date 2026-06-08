@@ -515,7 +515,7 @@ chfdw_parse_options(const char *options_string, bool with_comma, bool with_equal
  * session_settings GUC.
  */
 kv_list    *
-chfdw_get_session_settings()
+chfdw_get_session_settings(void)
 {
 	return ch_session_settings_list;
 }
@@ -524,7 +524,7 @@ chfdw_get_session_settings()
  * Return the current value of the `pushdown_regex` GUC.
  */
 bool
-chfdw_pushdown_regex_ok()
+chfdw_pushdown_regex_ok(void)
 {
 	return ch_pushdown_regex;
 }

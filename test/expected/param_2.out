@@ -277,11 +277,11 @@ EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st6;
 
 PREPARE st7 AS INSERT INTO bin_test.ft1 (c1,c2,c3) VALUES (1001,101,'foo');
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st7;
-                                                                                  QUERY PLAN                                                                                   
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Insert on bin_test.ft1
    ->  Result
-         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying, 'ft1       '::character(10), NULL::text[]
+         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying(10), 'ft1       '::character(10), NULL::text[]
 (3 rows)
 
 SELECT clickhouse_raw_query('RENAME TABLE param_test.ft1 TO param_test.t1');
@@ -314,11 +314,11 @@ EXECUTE st6;
 (9 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st7;
-                                                                                  QUERY PLAN                                                                                   
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Insert on bin_test.ft1
    ->  Result
-         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying, 'ft1       '::character(10), NULL::text[]
+         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying(10), 'ft1       '::character(10), NULL::text[]
 (3 rows)
 
 SELECT clickhouse_raw_query('RENAME TABLE param_test.t1 TO param_test.ft1');
@@ -577,11 +577,11 @@ EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st6;
 
 PREPARE st7 AS INSERT INTO http_test.ft1 (c1,c2,c3) VALUES (1001,101,'foo');
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st7;
-                                                                                  QUERY PLAN                                                                                   
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Insert on http_test.ft1
    ->  Result
-         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying, 'ft1       '::character(10), NULL::text[]
+         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying(10), 'ft1       '::character(10), NULL::text[]
 (3 rows)
 
 SELECT clickhouse_raw_query('RENAME TABLE param_test.ft1 TO param_test.t1');
@@ -614,11 +614,11 @@ EXECUTE st6;
 (9 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) EXECUTE st7;
-                                                                                  QUERY PLAN                                                                                   
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Insert on http_test.ft1
    ->  Result
-         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying, 'ft1       '::character(10), NULL::text[]
+         Output: 1001, 101, 'foo'::text, NULL::timestamp with time zone, NULL::timestamp without time zone, NULL::character varying(10), 'ft1       '::character(10), NULL::text[]
 (3 rows)
 
 SELECT clickhouse_raw_query('RENAME TABLE param_test.t1 TO param_test.ft1');

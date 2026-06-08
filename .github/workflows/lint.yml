@@ -11,7 +11,7 @@ jobs:
     name: 🔎 Lint Code
     runs-on: ubuntu-latest
     container: pgxn/pgxn-tools
-    env: { pg: 18 }
+    env: { pg: 19 }
     steps:
       - name: Install Postgres
         run: NO_CLUSTER=1 pg-start ${{ env.pg }} libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev clang-tidy bear

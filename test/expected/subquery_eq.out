@@ -245,7 +245,7 @@ LIMIT 100;
    Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
    ->  Nested Loop
          Output: supplier.s_acctbal, supplier.s_name, nation.n_name, part.p_partkey, part.p_mfgr, supplier.s_address, supplier.s_phone, supplier.s_comment
-         Join Filter: ((part.p_partkey = partsupp.ps_partkey) AND ((SubPlan 1) = partsupp.ps_supplycost))
+         Join Filter: ((part.p_partkey = partsupp.ps_partkey) AND ((SubPlan expr_1) = partsupp.ps_supplycost))
          ->  Foreign Scan
                Output: supplier.s_acctbal, supplier.s_name, supplier.s_address, supplier.s_phone, supplier.s_comment, partsupp.ps_partkey, partsupp.ps_supplycost, nation.n_name
                Relations: (((supplier) INNER JOIN (partsupp)) INNER JOIN (nation)) INNER JOIN (region)
@@ -255,7 +255,7 @@ LIMIT 100;
                ->  Foreign Scan on sub_eq_test.part
                      Output: part.p_partkey, part.p_mfgr
                      Remote SQL: SELECT p_partkey, p_mfgr FROM sub_eq_test.part WHERE ((p_type LIKE '%BRASS')) AND ((p_size = 15))
-         SubPlan 1
+         SubPlan expr_1
            ->  Foreign Scan
                  Output: (min(partsupp_1.ps_supplycost))
                  Relations: Aggregate on ((((partsupp) INNER JOIN (supplier)) INNER JOIN (nation)) INNER JOIN (region))

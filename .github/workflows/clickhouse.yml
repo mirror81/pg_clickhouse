@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    env: { pg: 18 }
+    env: { pg: 19 }
     strategy:
       fail-fast: false
       matrix:

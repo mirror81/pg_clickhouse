@@ -5,14 +5,14 @@ Tables describing the various `*.out` files and the versions of PostgreSQL or
 ClickHouse they cover.
 
 *   Postgres coverage run using latest ClickHouse release.
-*   ClickHouse coverage run from PostgreSQL 18.
+*   ClickHouse coverage run from PostgreSQL 19.
 
 aggregates.sql
 --------------
 
  Postgres | File
 ----------|-----------------
- 16-18    | aggregates.out
+ 16-19    | aggregates.out
  14-15    | aggregates_1.out
  13       | aggregates_2.out
 
@@ -28,7 +28,7 @@ array_functions.sql
 
  Postgres | File
 ----------|----------------------
- 16-18    | array_functions.out
+ 16-19    | array_functions.out
  13-15    | array_functions_1.out
 
  ClickHouse | File
@@ -41,7 +41,7 @@ binary_inserts.sql
 
  Postgres | File
 ----------|----------------------
- 18       | binary_inserts.out
+ 18-19    | binary_inserts.out
  13-17    | binary_inserts_1.out
 
  ClickHouse | File
@@ -53,23 +53,24 @@ binary_queries.sql
 
  Postgres | File
 ----------|----------------------
- 18       | binary_queries.out
- 17       | binary_queries_1.out
- 16       | binary_queries_2.out
- 13-15    | binary_queries_3.out
+ 19       | binary_queries.out
+ 18       | binary_queries_1.out
+ 17       | binary_queries_2.out
+ 16       | binary_queries_3.out
+ 13-15    | binary_queries_4.out
 
  ClickHouse | File
 ------------|----------------------
  26         | binary_queries.out
- 23.8-25    | binary_queries_4.out
- 23.3       | binary_queries_5.out
+ 23.8-25    | binary_queries_5.out
+ 23.3       | binary_queries_6.out
 
 deparse_checks.sql
 ------------------
 
  Postgres | File
 ----------|----------------------
- 18       | deparse_checks.out
+ 18-19    | deparse_checks.out
  13-17    | deparse_checks_1.out
 
  ClickHouse | File
@@ -81,7 +82,7 @@ engines.sql
 
  Postgres | File
 ----------|---------------
- 18       | engines.out
+ 18-19    | engines.out
  13-17    | engines_1.out
 
  ClickHouse | File
@@ -93,7 +94,7 @@ functions.sql
 
  Postgres | File
 ----------|---------------
- 18       | functions.out
+ 18-19    | functions.out
  14-17    | functions_1.out
  13       | functions_2.out
 
@@ -111,22 +112,23 @@ http.sql
 
  Postgres | File
 ----------|------------
- 18       | http.out
- 17       | http_1.out
- 16       | http_2.out
- 13-15    | http_3.out
+ 19       | http.out
+ 18       | http_1.out
+ 17       | http_2.out
+ 16       | http_3.out
+ 13-15    | http_4.out
 
  ClickHouse | File
 ------------|------------
  23.8+      | http.out
- 23.3       | http_4.out
+ 23.3       | http_5.out
 
 http_inserts.sql
 ----------------
 
  Postgres | File
 ----------|--------------------
- 18       | http_inserts.out
+ 18-19    | http_inserts.out
  13-17    | http_inserts_1.out
 
  ClickHouse | File
@@ -138,7 +140,7 @@ ilike_regex.sql
 ---------------
  Postgres | File
 ----------|-----------------
- 13-18    | ilike_regex.out
+ 13-19    | ilike_regex.out
 
  ClickHouse | File
 ------------|-------------------
@@ -150,7 +152,7 @@ import_schema.sql
 
  Postgres | File
 ----------|---------------------
- 18       | import_schema.out
+ 18-19    | import_schema.out
  13-17    | import_schema_1.out
 
  ClickHouse | File
@@ -162,7 +164,7 @@ json.sql
 
  Postgres | File
 ----------|------------
- 14-18    | json.out
+ 14-19    | json.out
  13       | json_1.out
 
  ClickHouse | File
@@ -179,9 +181,10 @@ param.sql
 
  Postgres | File
 ----------|-------------
- 17-18    | param.out
- 14-16    | param_1.out
- 13       | param_2.out
+ 19       | param.out
+ 17-18    | param_1.out
+ 14-16    | param_2.out
+ 13       | param_3.out
 
  ClickHouse | File
 ------------|-----------
@@ -191,7 +194,7 @@ regex.sql
 ---------
  Postgres | File
 ----------|-----------
- 13-18    | regex.out
+ 13-19    | regex.out
 
  ClickHouse | File
 ------------|-------------
@@ -203,8 +206,9 @@ subquery_eq.sql
 
  Postgres | File
 ----------|-------------------
- 16-18    | subquery_eq.out
- 13-15    | subquery_eq_1.out
+ 19       | subquery_eq.out
+ 16-18    | subquery_eq_1.out
+ 13-18    | subquery_eq_2.out
 
  ClickHouse | File
 ------------|-----------------
@@ -215,7 +219,7 @@ subquery_pushdown.sql
 
  Postgres | File
 ----------|-------------------------
- 18       | subquery_pushdown.out
+ 18-19    | subquery_pushdown.out
  13-17    | subquery_pushdown_1.out
 
  ClickHouse | File
@@ -227,7 +231,7 @@ timezone.sql
 
  Postgres | File
 ----------|--------------
- 13-18    | timezone.out
+ 13-19    | timezone.out
 
  ClickHouse | File
 ------------|----------------
@@ -239,7 +243,7 @@ where_sub.sql
 
  Postgres | File
 ----------|-----------------
- 18       | where_sub.out
+ 18-19    | where_sub.out
  13-17    | where_sub_1.out
 
  ClickHouse | File
@@ -251,7 +255,7 @@ window_functions.sql
 
  Postgres | File
 ----------|------------------------
- 13-18    | window_functions.out
+ 13-19    | window_functions.out
 
  ClickHouse | File
 ------------|----------------------------

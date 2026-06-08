@@ -1,5 +1,5 @@
 # Run containers for each supported major version of ClickHouse. Each is based
-# on [pgxn-tools] to simplify testing and has PostgreSQL 18 running. Both
+# on [pgxn-tools] to simplify testing and has PostgreSQL 19 running. Both
 # databases servers are on their usual ports and trust local connections
 # without passwords.
 #
@@ -27,8 +27,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
   ch_26_3:
@@ -45,8 +45,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
   ch_25_8:
@@ -63,8 +63,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
 
@@ -82,8 +82,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
 
@@ -101,8 +101,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
 
@@ -120,8 +120,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
 
@@ -139,8 +139,8 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
 
@@ -158,7 +158,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 18 libcurl4-openssl-dev uuid-dev
-        printf "ClickHouse $$CH_RELEASE and Postgres 18 started"
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '

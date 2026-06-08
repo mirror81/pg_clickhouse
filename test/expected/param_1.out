@@ -335,7 +335,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT c1, c2 FROM bin_test.ft1 WHERE c1 = (SELECT 
  Foreign Scan on bin_test.ft1
    Output: ft1.c1, ft1.c2
    Remote SQL: SELECT c1, c2 FROM param_test.ft1 WHERE ((c1 = {p1:Int32}))
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Result
            Output: 4
 (6 rows)
@@ -635,7 +635,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT c1, c2 FROM http_test.ft1 WHERE c1 = (SELECT
  Foreign Scan on http_test.ft1
    Output: ft1.c1, ft1.c2
    Remote SQL: SELECT c1, c2 FROM param_test.ft1 WHERE ((c1 = {p1:Int32}))
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Result
            Output: 4
 (6 rows)

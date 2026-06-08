@@ -1,4 +1,4 @@
-ARG PG_MAJOR=18
+ARG PG_MAJOR=19
 
 FROM postgres:$PG_MAJOR-trixie AS build
 
