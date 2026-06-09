@@ -172,9 +172,9 @@ setup_curl(HttpStream * stream, const ch_query * query)
 }
 
 /* ----------------------------------------------------------------
- * write_callback — CURL write callback. Appends data to the
- * stream buffer and returns CURL_WRITEFUNC_PAUSE when buffered
- * data reaches fetch_size bytes.
+ * write_callback — CURL write callback. Appends data to the stream
+ * buffer and asks CURL to pause receipt once a row-aligned batch of
+ * approximately fetch_size bytes is buffered.
  * ----------------------------------------------------------------
  */
 static size_t
@@ -182,19 +182,7 @@ write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
 	size_t		realsize = size * nmemb;
 	HttpStream *self = (HttpStream *) userp;
-	size_t		needed;
-
-	/*
-	 * If we already have enough bytes, pause WITHOUT consuming this chunk.
-	 * CURL will re-deliver the same data when resumed.
-	 */
-	if (self->write_pos >= (size_t) self->fetch_size)
-	{
-		self->paused = true;
-		return CURL_WRITEFUNC_PAUSE;
-	}
-
-	needed = self->write_pos + realsize + 1;
+	size_t		needed = self->write_pos + realsize + 1;
 
 	/* Grow buffer if needed */
 	if (needed > self->buf_allocated)
@@ -216,6 +204,20 @@ write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 	memcpy(self->buf + self->write_pos, contents, realsize);
 	self->write_pos += realsize;
 	self->buf[self->write_pos] = '\0';
+
+	/*
+	 * Once we have buffered at least fetch_size bytes AND at least one
+	 * newline (so a row-aligned batch is ready), pause receipt. Pausing on
+	 * byte-count alone can starve the parser of the newline it needs when
+	 * fetch_size is small. We accept this chunk first and pause afterward via
+	 * curl_easy_pause so CURL does not redeliver bytes we already hold.
+	 */
+	if (self->write_pos >= (size_t) self->fetch_size
+		&& memchr(self->buf, '\n', self->write_pos) != NULL)
+	{
+		self->paused = true;
+		curl_easy_pause(self->curl, CURLPAUSE_RECV);
+	}
 
 	return realsize;
 }
