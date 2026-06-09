@@ -312,6 +312,7 @@ typedef enum
 	CF_REPLACE_REGEX,			/* regexp_replace → replaceRegexpOne or
 								 * replaceRegexpAll */
 	CF_REGEX_MATCH,				/* ~ POSIX regex operator */
+	CF_REGEX_PG_MATCH,			/* regexp_match → extract or extractAll */
 	CF_REGEX_NO_MATCH,			/* !~ POSIX regex operator */
 	CF_REGEX_ICASE_MATCH,		/* ~* case-insensitive regex operator */
 	CF_REGEX_ICASE_NO_MATCH,	/* !~* case-insensitive regex operator */

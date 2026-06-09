@@ -14,10 +14,25 @@ All notable changes to this project will be documented in this file. It uses the
 *   [#268] added a `compression` server option for the binary driver to enable
     ClickHouse native protocol compression of query results and `INSERT` data.
     Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4`.
+*   Added mapping for `regexp_match()` to pushdown to `extractGroups()`, or
+    `arraySlice(extractAll(text, pattern), 1, 1)` if the regex contains no
+    capturing groups.
 
 ### 🚀 Distribution
 
 *   [#269] added support for PostgreSQL 19beta1.
+
+### 🐞 Bug Fixes
+
+*   Fixed incorrect translation of regular expression flags introduced in
+    [v0.2.0](#v020--2026-04-13) to more accurately match the Postgres behavior
+    when executing in ClickHouse. We no longer automatically push down `-s`,
+    because it is enabled by default in both Postgres and ClickHouse. But the
+    Postgres flags `s` and `m` cancel each other out, so we always set `s`
+    unless `m` (or its alias, `n`) is enabled, and disable `-s` if `m` is
+    enabled.
+*   No longer push down regular expression functions if the regular expression
+    argument is not a constant.
 
   [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268
     "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"

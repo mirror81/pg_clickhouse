@@ -23,12 +23,14 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#include "fmgr.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/nodes.h"
 #include "nodes/primnodes.h"
 #include "optimizer/tlist.h"
 #include "parser/parsetree.h"
+#include "regex/regex.h"
 #include "utils/array.h"
 #include "utils/arrayaccess.h"
 #include "utils/builtins.h"
@@ -2563,30 +2565,39 @@ deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
 
 /*
  * Utility function to append regular expression flags to `context->buf`. All
- * flags have already been vetted by `regex_flags_ok()`; this function ignores
- * `t` and always passes `-s` unless `p` or `s` is present.
+ * flags have already been vetted by `regex_flags_ok()`. The flag treatment is:
+ *
+ *  - 't' is ignored
+ *  - 'p' is applied as 's'
+ *  - 's' is passed through
+ *  - 'm' is passed through
+ *  - 'n' is applied as "m-s"
+ *  - Any other flags are applied
+ *
+ * If, after processing all the flags, neither 's' nor 'm' was seen, it
+ * applies 's'. This matches the ClickHouse behavior where 's' is set by
+ * default.
+ *
 */
 static void
 appendRegexFlags(Const * arg, deparse_expr_cxt * context)
 {
-	if (!arg)
-	{
-		appendStringInfoString(context->buf, "-s");
-		return;
-	}
-
 	char	   *flags = TextDatumGetCString(arg->constvalue);
-	bool		got_s = false;
+	bool		got_m = false;
 
 	while (*flags)
 	{
 		switch (*flags)
 		{
-			case 's':
-			case 'p':
-				got_s = true;	/* ClickHouse enables s by default */
+			case 's':			/* Already applied above. */
+			case 'p':			/* Same as s, applied above. */
+				got_m = false;
 				break;
-			case 't':
+			case 't':			/* Always tight syntax, skip. */
+				break;
+			case 'n':			/* Postgres new name for m. */
+			case 'm':
+				got_m = true;
 				break;
 			default:
 				appendStringInfoChar(context->buf, *flags);
@@ -2594,12 +2605,12 @@ appendRegexFlags(Const * arg, deparse_expr_cxt * context)
 		flags++;
 	}
 
-	/*
-	 * Append -s because ClickHouse enables s by default.
-	 * https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match
-	 */
-	if (!got_s)
-		appendStringInfoString(context->buf, "-s");
+	/* Enable s unless m, in which case enable m and disable s. */
+	if (got_m)
+		appendStringInfoString(context->buf, "m-s");
+	else
+		/* Always apply, even though default, since explicitly passed. */
+		appendStringInfoChar(context->buf, 's');
 }
 
 /*
@@ -2607,20 +2618,23 @@ appendRegexFlags(Const * arg, deparse_expr_cxt * context)
  * regular expression argument. It expects the second item in `args` to be the
  * regular expression, and the third, optional item to be the flags. If there
  * are no flags it simply appends the regexp expression. If there are flags,
- * it emits the regular expression as `concat('(?$flags), $regexp)`. This is
- * safe to do because the Postgres parser validates the flags, which must be a
- * string constant.
+ * it emits the regular expression as `concat('(?$flags), $regexp)`,
+ * delegating the actually flag output to `appendRegexFlags()`.
 */
 static void
 appendRegex(List * args, deparse_expr_cxt * context)
 {
+
+	if (list_length(args) <= 2)
+	{
+		/* No flags argument, just append the regexp expression. */
+		deparseExpr((Expr *) list_nth(args, 1), context);
+		return;
+	}
+
 	/* Concatenate the flags with the regexp expression. */
 	appendStringInfoString(context->buf, "concat('(?");
-	if (list_length(args) <= 2)
-		appendRegexFlags(NULL, context);
-	else
-		appendRegexFlags((Const *) list_nth(args, 2), context);
-
+	appendRegexFlags((Const *) list_nth(args, 2), context);
 	appendStringInfoString(context->buf, ")', ");
 	deparseExpr((Expr *) list_nth(args, 1), context);
 	appendStringInfoChar(context->buf, ')');
@@ -3070,6 +3084,24 @@ deparseFuncExpr(FuncExpr * node, deparse_expr_cxt * context)
 					appendStringInfoString(buf, ", ");
 					deparseExpr((Expr *) list_nth(node->args, 2), context);
 					appendStringInfoChar(buf, ')');
+					return;
+				}
+			case CF_REGEX_PG_MATCH:
+				{
+					/* Parse the regex so we can determine if it has captures. */
+					Const	   *arg = (Const *) list_nth(((FuncExpr *) node)->args, 1);
+					pg_regex_t *regex = RE_compile_and_cache(DatumGetTextP(arg->constvalue),
+															 REG_ADVANCED, node->inputcollid);
+
+					/*
+					 * If no captures, use arraySlice(extractAll(), otherwise
+					 * use extractGroups().
+					 */
+					appendStringInfoString(buf, regex->re_nsub ? "extractGroups(" : "arraySlice(extractAll(");
+					deparseExpr((Expr *) linitial(node->args), context);
+					appendStringInfoString(buf, ", ");
+					appendRegex(node->args, context);
+					appendStringInfoString(buf, regex->re_nsub ? ")" : "), 1, 1)");
 					return;
 				}
 			case CF_ARRAY_LENGTH:

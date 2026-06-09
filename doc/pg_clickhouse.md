@@ -1102,6 +1102,10 @@ equivalents as follows:
 *   `reverse(bytea)`: [reverse](https://clickhouse.com/docs/sql-reference/functions/string-functions#reverse)
 *   `strpos`: [positionUTF8](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#positionutf8)
 *   `regexp_like`: [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
+*   `regexp_match`: [extractGroups](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extractGroups)
+    if the regular expression contains parenthesized subexpressions; otherwise
+    [extractAll](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extractAll)
+    sliced with [arraySlice](https://clickhouse.com/docs/sql-reference/functions/array-functions#arraySlice).
 *   `regexp_replace`: [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne) or [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll) when the `g` flag is present
 *   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
@@ -1315,28 +1319,23 @@ aware of the differences between the two and how pg_clickhouse handles them.
     Becomes
 
     ```sql
-    match(val, concat('(?i-s)', '^VAL\\d'))
+    match(val, concat('(?i)', '^VAL\\d'))
     ```
-
-    Note the inclusion of `-s`; this aligns the behavior with Postgres regular
-    expressions by disabling `s`, which ClickHouse enables by default.
-    pg_clickhouse will not include `-s` if the flags in the Postgres function
-    call include `s`. Unfortunately, this behavior breaks the compatibility of
-    some regular expression in Postgres 24 and earlier.
 
 *   The only flags both support, and therefore can be used when evaluated by
     ClickHouse, are:
 
     *   `i`: case-insensitive
-    *   `m`: multi-line mode:
+    *   `m`: `^` and `$` match begin/end line in addition to begin/end text
+    *   `n`: Postgres alias for `m`
     *   `s`: let `.` match `\n`
     *   `p`: partial newline-sensitive matching (treated the same as `s`)
     *   `t`: tight syntax (the default, removed by pg_clickhouse)
 
-    RE2 supports only these flags; don't use any other [Postgres flags]
+    RE2 supports only these flags; don't use any other [Postgres flags].
 
-*   Any other flags passed to regular expression functions will cause the
-    function not to be pushed down.
+*   Any other flags passed to regular expression functions will prevent
+    pushdown of the function.
 
 *   The exception is `regexp_replace()`, which also supports the `g` flag.
     When `g` is set, pg_clickhouse uses `replaceRegexpAll()` instead of
@@ -1346,6 +1345,10 @@ aware of the differences between the two and how pg_clickhouse handles them.
     refer to the entire match, while in ClickHouse supports `\0` for the
     entire match. Be sure to use `\0` when the function pushes down to
     ClickHouse.
+
+*   Postgres `regexp_match` returns `NULL` when there are no matches, while
+    the expressions it pushes down to return an empty array. Use `COALESCE()`
+    to compare return values compatibly.
 
 To avoid all ambiguity, consider setting
 [pg_clickhouse.pushdown_regex](#pg_clickhousepushdown_regex) to prevent

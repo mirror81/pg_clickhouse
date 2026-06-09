@@ -659,7 +659,7 @@ read_value(const chc_column * col, const chc_type * type, uint64_t row,
 				if (v > (uint64_t) PG_INT64_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-							 errmsg("value " UINT64_FORMAT " is out of range of bigint",
+							 errmsg("value %" PRIu64 " is out of range of bigint",
 									v)));
 				*valtype = INT8OID;
 				return Int64GetDatum((int64) v);

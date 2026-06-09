@@ -7,21 +7,22 @@ SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS regex_test');
 SELECT clickhouse_raw_query('CREATE DATABASE regex_test');
 
 SELECT clickhouse_raw_query($$
-	CREATE TABLE regex_test.strings(val String) engine=TinyLog()
+	CREATE TABLE regex_test.strings(id Int32, val String) engine=TinyLog()
 $$);
 
 SELECT clickhouse_raw_query($$
 	INSERT INTO regex_test.strings
-	VALUES ('val1'),
-		   ('val2'),
-		   ('a,b,c'),
-		   ('foo,bar,baz'),
-		   ('sleep   no   more'),
-		   ('aa-T-bb-t-cc')
+	VALUES (1, 'val1'),
+		   (2, 'val2'),
+		   (3, 'a,b,c'),
+		   (4, 'foo,bar,baz'),
+		   (5, 'sleep   no   more'),
+		   (6, 'aa-T-bb-t-cc'),
+           (7, 'test@example.com, user@hi.example'),
+           (8, 'line\ntarget')
 $$);
 
-CREATE FOREIGN TABLE strings (val text) SERVER regex_loopback;
-
+CREATE FOREIGN TABLE strings (id int, val text) SERVER regex_loopback;
 
 \unset ECHO
 -- Use DO to test functions available in Postgres 15+
@@ -35,21 +36,21 @@ DECLARE
         $${
           "func": "regexp_like",
           "where": "regexp_like(val, '^val\\d')",
-          "push": "(match(val, concat('(?-s)', '^val\\\\d')))"
+          "push": "(match(val, '^val\\\\d'))"
         }$$,
         $${
           "func": "case-insensitive regexp_like",
           "where": "regexp_like(val, '^VAL\\d', 'i')",
-          "push": "(match(val, concat('(?i-s)', '^VAL\\\\d')))"
+          "push": "(match(val, concat('(?is)', '^VAL\\\\d')))"
         }$$,
         $${
           "func": "regexp_like with unsupported flag",
-          "where": "regexp_like(val, '^VAL\\d', 'in')"
+          "where": "regexp_like(val, '^VAL\\d', 'iw')"
         }$$,
         $${
           "func": "regexp_like with t flag",
           "where": "regexp_like(val, '^VAL\\d', 'it')",
-          "push": "(match(val, concat('(?i-s)', '^VAL\\\\d')))"
+          "push": "(match(val, concat('(?is)', '^VAL\\\\d')))"
         }$$
     ];
 BEGIN
@@ -96,6 +97,8 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array
 SELECT val FROM strings WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,more}'::text[];
 EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
 SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
+-- No pushdown when the regex is not a constant.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, val) = '{}'::text[];
 
 -- Check regexp_replace().
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -121,11 +124,82 @@ SELECT * FROM strings WHERE regexp_replace(val, '[VL]', 'x', 'gig') = 'xax1';
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
 SELECT * FROM strings WHERE regexp_replace(val, '^val', 'x-\0', 'i') = 'x-val1';
+-- No pushdown when the regex is not a constant.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_replace(val, val, '') = '';
+
+-- Check regexp_match().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT regexp_match(val, '[01]$') FROM strings WHERE regexp_match(val, '[01]$') = '{1}'::text[];
+SELECT regexp_match(val, '[01]$') FROM strings WHERE regexp_match(val, '[01]$') = '{1}'::text[];
+-- No match.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id, regexp_match(val, '[34]$') FROM strings WHERE regexp_match(val, '[34]$') = '{}'::text[];
+SELECT id, regexp_match(val, '[34]$') FROM strings WHERE regexp_match(val, '[34]$') = '{}'::text[];
+-- Multiple matches.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT regexp_match(val, 'ba') FROM strings WHERE regexp_match(val, 'ba') = '{ba}'::text[];
+SELECT regexp_match(val, 'ba') FROM strings WHERE regexp_match(val, 'ba') = '{ba}'::text[];
+-- Capturing groups.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT regexp_match(val, '([a-zA-Z0-9]+)@') FROM strings WHERE regexp_match(val, '([a-zA-Z0-9]+)@') = '{test}'::text[];
+SELECT regexp_match(val, '([a-zA-Z0-9]+)@') FROM strings WHERE regexp_match(val, '([a-zA-Z0-9]+)@') = '{test}'::text[];
+-- Case-insensitive.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT regexp_match(val, 'VAL[01]$', 'i') FROM strings WHERE regexp_match(val, 'VAL[01]$', 'i') = '{val1}'::text[];
+SELECT regexp_match(val, 'VAL[01]$', 'i') FROM strings WHERE regexp_match(val, 'VAL[01]$', 'i') = '{val1}'::text[];
+-- No pushdown when the regex is not a constant.
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_match(val, val) = '{1}'::text[];
+
+-- Compare consistency of s and m flag behavior matching \n.
+SELECT regexp_match(val, 'line.') FROM strings
+ WHERE regexp_match(val, 'line.') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line.', 's') FROM strings
+ WHERE regexp_match(val, 'line.', 's') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line.', 'm'), id FROM strings
+ WHERE regexp_match(val, 'line.', 'm') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line.', 'n'), id FROM strings
+ WHERE regexp_match(val, 'line.', 'n') = '{}'::text[] ORDER BY id;
+-- Last flag overrides.
+SELECT regexp_match(val, 'line.', 'ms') FROM strings
+ WHERE regexp_match(val, 'line.', 'ms') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line.', 'sm'), id FROM strings
+ WHERE regexp_match(val, 'line.', 'sm') = '{}'::text[] ORDER BY id;
+
+-- Compare consistency of s and m flag behavior matching $.
+SELECT regexp_match(val, 'line$'), id FROM strings
+ WHERE regexp_match(val, 'line$') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line$', 'm') FROM strings
+ WHERE regexp_match(val, 'line$', 'm') = E'{line}'::text[];
+SELECT regexp_match(val, 'line$', 'n') FROM strings
+ WHERE regexp_match(val, 'line$', 'n') = E'{line}'::text[];
+SELECT regexp_match(val, 'line$', 's'), id FROM strings
+ WHERE regexp_match(val, 'line$', 's') = '{}'::text[] ORDER BY id;
+-- Last flag overrides.
+SELECT regexp_match(val, 'line$', 'ms'), id FROM strings
+ WHERE regexp_match(val, 'line$', 'ms') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line$', 'sm') FROM strings
+ WHERE regexp_match(val, 'line$', 'sm') = E'{line}'::text[];
+
+-- Compare consistency of s and m flag behavior matching ^.
+SELECT regexp_match(val, '^target'), id FROM strings
+ WHERE regexp_match(val, '^target') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, '^target', 'm') FROM strings
+ WHERE regexp_match(val, '^target', 'm') = E'{target}'::text[];
+SELECT regexp_match(val, '^target', 'n') FROM strings
+ WHERE regexp_match(val, '^target', 'n') = E'{target}'::text[];
+SELECT regexp_match(val, '^target', 's'), id FROM strings
+ WHERE regexp_match(val, '^target', 's') = '{}'::text[] ORDER BY id;
+-- Last flag overrides.
+SELECT regexp_match(val, '^target', 'ms'), id FROM strings
+ WHERE regexp_match(val, '^target', 'ms') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, '^target', 'sm') FROM strings
+ WHERE regexp_match(val, '^target', 'sm') = E'{target}'::text[];
 
 -- Ensure no pushdown when we disable it.
 SET pg_clickhouse.pushdown_regex = 'false';
 EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, ',') = '{a,b,c}'::text[];
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_replace(val, '^x', 'y') = 'val2';
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_match(val, '.') = '{1}'::text[];
 
 \unset ECHO
 -- Use DO to test functions available in Postgres 15+

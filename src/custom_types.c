@@ -45,6 +45,8 @@
 #define F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT 2768
 #define F_REGEXP_REPLACE_TEXT_TEXT_TEXT 2284
 #define F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT 2285
+#define F_REGEXP_MATCH_TEXT_TEXT 3396
+#define F_REGEXP_MATCH_TEXT_TEXT_TEXT 3397
 
 /*
  * Prior to Postgres 14 EXTRACT mapped directly to DATE_PART.
@@ -412,6 +414,8 @@ chfdw_check_for_custom_function(Oid funcid)
 			case F_BTRIM_TEXT:
 			case F_REGEXP_LIKE_TEXT_TEXT:
 			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
+			case F_REGEXP_MATCH_TEXT_TEXT:
+			case F_REGEXP_MATCH_TEXT_TEXT_TEXT:
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
 			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
@@ -672,6 +676,13 @@ chfdw_check_for_custom_function(Oid funcid)
 				{
 					entry->cf_type = CF_MATCH;
 					strcpy(entry->custom_name, "match");
+					break;
+				}
+			case F_REGEXP_MATCH_TEXT_TEXT:
+			case F_REGEXP_MATCH_TEXT_TEXT_TEXT:
+				{
+					entry->cf_type = CF_REGEX_PG_MATCH;
+					entry->custom_name[0] = '\1';
 					break;
 				}
 			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:

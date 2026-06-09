@@ -168,6 +168,7 @@ regex_flags_ok(char *flags, bool global_ok)
 			case 'p':			/* Removed by appendRegexFlags() */
 			case 's':
 			case 'i':
+			case 'n':			/* Replaced by appendRegexFlags() */
 			case 'm':
 				/* Pass through as-is. */
 				break;
@@ -279,7 +280,10 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 				case CF_MATCH:
 				case CF_SPLIT_BY_REGEX:
 				case CF_REPLACE_REGEX:
+				case CF_REGEX_PG_MATCH:
 					{
+						Expr	   *arg;
+
 						/*
 						 * Don't pushdown regular expressions if the GUC is
 						 * false.
@@ -293,7 +297,7 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 
 						if ((list_length(fn->args) >= flags_idx + 1))
 						{
-							Expr	   *arg = (Expr *) list_nth(((FuncExpr *) node)->args, flags_idx);
+							arg = (Expr *) list_nth(((FuncExpr *) node)->args, flags_idx);
 
 							if (!IsA(arg, Const))
 								/* No support for a dynamic value here. */
@@ -306,6 +310,11 @@ chfdw_is_shippable(Node * node, Oid objectId, Oid classId, CHFdwRelationInfo * f
 								/* Using flags unsupported by ClickHouse. */
 								return false;
 						}
+
+						arg = (Expr *) list_nth(((FuncExpr *) node)->args, 1);
+						if (!IsA(arg, Const))
+							/* No support for a dynamic value here. */
+							return false;
 
 						/*
 						 * XXX Additional checks: Examine the regex and:

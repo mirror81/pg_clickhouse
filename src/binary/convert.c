@@ -389,6 +389,9 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype)
 							   item_type, -1, 0);
 		}
 
+#if PG_VERSION_NUM >= 190000
+		TupleDescFinalize(state->indesc);
+#endif
 		state->indesc = BlessTupleDesc(state->indesc);
 
 		if (!(state->cdef || outtype == RECORDOID || outtype == TEXTOID))
