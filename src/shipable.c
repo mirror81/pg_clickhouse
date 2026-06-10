@@ -164,12 +164,13 @@ regex_flags_ok(char *flags, bool global_ok)
 	{
 		switch (*flags)
 		{
-			case 't':			/* Removed by appendRegexFlags() */
-			case 'p':			/* Removed by appendRegexFlags() */
-			case 's':
 			case 'i':
-			case 'n':			/* Replaced by appendRegexFlags() */
 			case 'm':
+			case 'n':
+			case 'p':
+			case 's':
+			case 't':
+			case 'w':
 				/* Pass through as-is. */
 				break;
 			case 'g':

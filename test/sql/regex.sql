@@ -41,16 +41,21 @@ DECLARE
         $${
           "func": "case-insensitive regexp_like",
           "where": "regexp_like(val, '^VAL\\d', 'i')",
+          "push": "(match(val, concat('(?i)', '^VAL\\\\d')))"
+        }$$,
+        $${
+          "func": "regexp_like with si",
+          "where": "regexp_like(val, '^VAL\\d', 'si')",
           "push": "(match(val, concat('(?is)', '^VAL\\\\d')))"
         }$$,
         $${
           "func": "regexp_like with unsupported flag",
-          "where": "regexp_like(val, '^VAL\\d', 'iw')"
+          "where": "regexp_like(val, '^VAL\\d', 'ix')"
         }$$,
         $${
           "func": "regexp_like with t flag",
           "where": "regexp_like(val, '^VAL\\d', 'it')",
-          "push": "(match(val, concat('(?is)', '^VAL\\\\d')))"
+          "push": "(match(val, concat('(?i)', '^VAL\\\\d')))"
         }$$
     ];
 BEGIN
@@ -76,6 +81,9 @@ BEGIN
         RAISE NOTICE '(val1)';
         RAISE NOTICE '(val2)';
         RAISE NOTICE 'case-insensitive regexp_like PUSHED DOWN: t';
+        RAISE NOTICE '(val1)';
+        RAISE NOTICE '(val2)';
+        RAISE NOTICE 'regexp_like with si PUSHED DOWN: t';
         RAISE NOTICE '(val1)';
         RAISE NOTICE '(val2)';
         RAISE NOTICE 'regexp_like with unsupported flag NOT PUSHED DOWN: t';
@@ -150,7 +158,7 @@ SELECT regexp_match(val, 'VAL[01]$', 'i') FROM strings WHERE regexp_match(val, '
 -- No pushdown when the regex is not a constant.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_match(val, val) = '{1}'::text[];
 
--- Compare consistency of s and m flag behavior matching \n.
+-- Compare consistency of `.` matching a newline.
 SELECT regexp_match(val, 'line.') FROM strings
  WHERE regexp_match(val, 'line.') = E'{"line\n"}'::text[];
 SELECT regexp_match(val, 'line.', 's') FROM strings
@@ -159,13 +167,38 @@ SELECT regexp_match(val, 'line.', 'm'), id FROM strings
  WHERE regexp_match(val, 'line.', 'm') = '{}'::text[] ORDER BY id;
 SELECT regexp_match(val, 'line.', 'n'), id FROM strings
  WHERE regexp_match(val, 'line.', 'n') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line.', 'p'), id FROM strings
+ WHERE regexp_match(val, 'line.', 'p') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line.', 'w') FROM strings
+ WHERE regexp_match(val, 'line.', 'w') = E'{"line\n"}'::text[];
 -- Last flag overrides.
 SELECT regexp_match(val, 'line.', 'ms') FROM strings
  WHERE regexp_match(val, 'line.', 'ms') = E'{"line\n"}'::text[];
 SELECT regexp_match(val, 'line.', 'sm'), id FROM strings
  WHERE regexp_match(val, 'line.', 'sm') = '{}'::text[] ORDER BY id;
+SELECT regexp_match(val, 'line.', 'mspw') FROM strings
+ WHERE regexp_match(val, 'line.', 'mspw') = E'{"line\n"}'::text[];
 
--- Compare consistency of s and m flag behavior matching $.
+ -- Compare consistency of `[^x]` matching a newline.
+SELECT regexp_match(val, 'line[^x]') FROM strings
+ WHERE regexp_match(val, 'line[^x]') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line[^x]', 's') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 's') = E'{"line\n"}'::text[];
+-- m, n match in CH but not PG
+SELECT regexp_match(val, 'line[^x]', 'm') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'm') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line[^x]', 'n') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'n') = E'{"line\n"}'::text[];
+SELECT regexp_match(val, 'line[^x]', 'p') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'p') = E'{"line\n"}'::text[];
+-- w matches in both.
+SELECT regexp_match(val, 'line[^x]', 'w') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'w') = E'{"line\n"}'::text[];
+-- Last flag overrides.
+SELECT regexp_match(val, 'line[^x]', 'msw') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'msw') = E'{"line\n"}'::text[];
+
+-- Compare consistency of `$` end of line.
 SELECT regexp_match(val, 'line$'), id FROM strings
  WHERE regexp_match(val, 'line$') = '{}'::text[] ORDER BY id;
 SELECT regexp_match(val, 'line$', 'm') FROM strings
@@ -174,13 +207,21 @@ SELECT regexp_match(val, 'line$', 'n') FROM strings
  WHERE regexp_match(val, 'line$', 'n') = E'{line}'::text[];
 SELECT regexp_match(val, 'line$', 's'), id FROM strings
  WHERE regexp_match(val, 'line$', 's') = '{}'::text[] ORDER BY id;
+-- p matches in CH but not PG.
+SELECT regexp_match(val, 'line$', 'p'), id FROM strings
+ WHERE regexp_match(val, 'line$', 'p') = '{}'::text[] ORDER BY id;
+-- w matches in both.
+SELECT regexp_match(val, 'line$', 'w') FROM strings
+ WHERE regexp_match(val, 'line$', 'w') = E'{line}'::text[];
 -- Last flag overrides.
 SELECT regexp_match(val, 'line$', 'ms'), id FROM strings
  WHERE regexp_match(val, 'line$', 'ms') = '{}'::text[] ORDER BY id;
 SELECT regexp_match(val, 'line$', 'sm') FROM strings
  WHERE regexp_match(val, 'line$', 'sm') = E'{line}'::text[];
+SELECT regexp_match(val, 'line$', 'smw') FROM strings
+ WHERE regexp_match(val, 'line$', 'smw') = E'{line}'::text[];
 
--- Compare consistency of s and m flag behavior matching ^.
+-- Compare consistency of `^` start of line.
 SELECT regexp_match(val, '^target'), id FROM strings
  WHERE regexp_match(val, '^target') = '{}'::text[] ORDER BY id;
 SELECT regexp_match(val, '^target', 'm') FROM strings
@@ -189,11 +230,19 @@ SELECT regexp_match(val, '^target', 'n') FROM strings
  WHERE regexp_match(val, '^target', 'n') = E'{target}'::text[];
 SELECT regexp_match(val, '^target', 's'), id FROM strings
  WHERE regexp_match(val, '^target', 's') = '{}'::text[] ORDER BY id;
+-- p matches in CH but not PG.
+SELECT regexp_match(val, '^target', 'p'), id FROM strings
+ WHERE regexp_match(val, '^target', 'p') = '{}'::text[] ORDER BY id;
+-- w matches in both.
+SELECT regexp_match(val, '^target', 'w') FROM strings
+ WHERE regexp_match(val, '^target', 'w') = E'{target}'::text[];
 -- Last flag overrides.
 SELECT regexp_match(val, '^target', 'ms'), id FROM strings
  WHERE regexp_match(val, '^target', 'ms') = '{}'::text[] ORDER BY id;
 SELECT regexp_match(val, '^target', 'sm') FROM strings
  WHERE regexp_match(val, '^target', 'sm') = E'{target}'::text[];
+SELECT regexp_match(val, '^target', 'msw') FROM strings
+ WHERE regexp_match(val, '^target', 'msw') = E'{target}'::text[];
 
 -- Ensure no pushdown when we disable it.
 SET pg_clickhouse.pushdown_regex = 'false';

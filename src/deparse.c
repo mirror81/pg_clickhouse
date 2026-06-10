@@ -2567,50 +2567,82 @@ deparseJsonbExtractPath(FuncExpr * node, deparse_expr_cxt * context,
  * Utility function to append regular expression flags to `context->buf`. All
  * flags have already been vetted by `regex_flags_ok()`. The flag treatment is:
  *
- *  - 't' is ignored
- *  - 'p' is applied as 's'
- *  - 's' is passed through
- *  - 'm' is passed through
- *  - 'n' is applied as "m-s"
- *  - Any other flags are applied
  *
- * If, after processing all the flags, neither 's' nor 'm' was seen, it
- * applies 's'. This matches the ClickHouse behavior where 's' is set by
- * default.
+ *  - 'i' is applied as 'i'
+ *  - 'm' is applied as "m-s"
+ *  - 'n' is applied as "m-s"
+ *  - 'p' is applied as "-s"
+ *  - 's' is applied as 's'
+ *  - 't' is ignored
+ *  - 'w' is applied as 'm'
+
+ *  Whichever of the `[smpw]` flags appears last is the only one applied.
  *
 */
 static void
 appendRegexFlags(Const * arg, deparse_expr_cxt * context)
 {
-	char	   *flags = TextDatumGetCString(arg->constvalue);
-	bool		got_m = false;
-
-	while (*flags)
+	char	   *str = TextDatumGetCString(arg->constvalue);
+	enum
 	{
-		switch (*flags)
+		flag_0 = 0,
+		flag_i = 1,
+		flag_m = 2,
+		flag_p = 4,
+		flag_s = 8,
+		flag_w = 16,
+	};
+	uint16		flags = flag_0;
+
+	/* Iterate over the flags. */
+	while (*str)
+	{
+		switch (*str)
 		{
-			case 's':			/* Already applied above. */
-			case 'p':			/* Same as s, applied above. */
-				got_m = false;
+			case 'i':
+				flags |= flag_i;
+				break;
+			case 'm':
+			case 'n':			/* Postgres new name for m. */
+				flags |= flag_m;
+				flags &= ~flag_s;	/* Cancels out s. */
+				flags &= ~flag_p;	/* Cancels out p. */
+				flags &= ~flag_w;	/* Cancels out w. */
+				break;
+			case 'p':
+				flags |= flag_p;
+				flags &= ~flag_m;	/* Cancels out m. */
+				flags &= ~flag_s;	/* Cancels out s. */
+				flags &= ~flag_w;	/* Cancels out w. */
+				break;
+			case 's':
+				flags |= flag_s;
+				flags &= ~flag_m;	/* Cancels out m. */
+				flags &= ~flag_p;	/* Cancels out p. */
+				flags &= ~flag_w;	/* Cancels out w. */
 				break;
 			case 't':			/* Always tight syntax, skip. */
 				break;
-			case 'n':			/* Postgres new name for m. */
-			case 'm':
-				got_m = true;
+			case 'w':
+				flags |= flag_w;
+				flags &= ~flag_m;	/* Cancels out m. */
+				flags &= ~flag_p;	/* Cancels out p. */
+				flags &= ~flag_s;	/* Cancels out s. */
 				break;
-			default:
-				appendStringInfoChar(context->buf, *flags);
 		}
-		flags++;
+		str++;
 	}
 
-	/* Enable s unless m, in which case enable m and disable s. */
-	if (got_m)
+	if (flags & flag_i)
+		appendStringInfoChar(context->buf, 'i');
+	if (flags & flag_m)
 		appendStringInfoString(context->buf, "m-s");
-	else
-		/* Always apply, even though default, since explicitly passed. */
+	if (flags & flag_p)
+		appendStringInfoString(context->buf, "-s");
+	if (flags & flag_s)
 		appendStringInfoChar(context->buf, 's');
+	if (flags & flag_w)
+		appendStringInfoChar(context->buf, 'm');
 }
 
 /*

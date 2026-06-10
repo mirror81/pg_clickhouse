@@ -28,9 +28,10 @@ All notable changes to this project will be documented in this file. It uses the
     [v0.2.0](#v020--2026-04-13) to more accurately match the Postgres behavior
     when executing in ClickHouse. We no longer automatically push down `-s`,
     because it is enabled by default in both Postgres and ClickHouse. But the
-    Postgres flags `s` and `m` cancel each other out, so we always set `s`
-    unless `m` (or its alias, `n`) is enabled, and disable `-s` if `m` is
-    enabled.
+    Postgres flags `s` and `m` cancel each other out, so we only set `s` if
+    there is no `m` and if there is an `m` we set `(?m-s)`.
+*   Pushdown of the `p` regular expression fag as `-s` instead of `s` to more
+    accurately match the Postgres behavior.
 *   No longer push down regular expression functions if the regular expression
     argument is not a constant.
 
@@ -64,6 +65,8 @@ pg_clickhouse v0.3 will get its benefits on reload without needing to
     `re2extractallgroupshorizontal`, `re2extractallgroupsvertical`,
     `re2regexpquotemeta`, and `re2splitbyregexp`. Thanks to serprex for the PR
     ([#232]).
+*   Add pushdown for the Postgres regular expression flag `w` as `m` in
+    ClickHouse.
 
 ### 🐞 Bug Fixes
 

@@ -1325,14 +1325,25 @@ aware of the differences between the two and how pg_clickhouse handles them.
 *   The only flags both support, and therefore can be used when evaluated by
     ClickHouse, are:
 
-    *   `i`: case-insensitive
-    *   `m`: `^` and `$` match begin/end line in addition to begin/end text
-    *   `n`: Postgres alias for `m`
-    *   `s`: let `.` match `\n`
-    *   `p`: partial newline-sensitive matching (treated the same as `s`)
-    *   `t`: tight syntax (the default, removed by pg_clickhouse)
+    | Flag | As    | Notes |
+    | ---- | ----- | -------------------------------------------------------------- |
+    | `i`  | `i`   | case-insensitive matching                                      |
+    | `m`  | `m-s` | `^` and `$` match begin/end line in addition to begin/end text |
+    | `n`  | `m-s` | Postgres alias for `m`                                         |
+    | `p`  | `-s`  | don't let `.` and `[^x]` match `\n`                            |
+    | `s`  | `s`   | let `.` and `[^x]` match `\n`                                  |
+    | `t`  |       | tight syntax, ignored                                          |
+    | `w`  | `m`   | inverse partial newline-sensitive matching                     |
 
     RE2 supports only these flags; don't use any other [Postgres flags].
+
+*   In Postgres, `m` and `p` prevent negated character classes (`[^xyz]`) from
+    matching a newline, while the ClickHouse equivalents do not. For example,
+    when evaluating either of these regular expressions against the string
+    `a\nb`, Postgres returns false and ClickHouse returns true:
+
+    *   `(?m)a[^x]b`
+    *   `(?p)a[^x]b`
 
 *   Any other flags passed to regular expression functions will prevent
     pushdown of the function.

@@ -25,6 +25,9 @@ NOTICE:  (val2)
 NOTICE:  case-insensitive regexp_like PUSHED DOWN: t
 NOTICE:  (val1)
 NOTICE:  (val2)
+NOTICE:  regexp_like with si PUSHED DOWN: t
+NOTICE:  (val1)
+NOTICE:  (val2)
 NOTICE:  regexp_like with unsupported flag NOT PUSHED DOWN: t
 NOTICE:  (val1)
 NOTICE:  (val2)
@@ -61,11 +64,11 @@ SELECT val FROM strings WHERE regexp_split_to_array(val, '\s+') = '{sleep,no,mor
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
-                                                        QUERY PLAN                                                        
---------------------------------------------------------------------------------------------------------------------------
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.strings
    Output: val
-   Remote SQL: SELECT val FROM regex_test.strings WHERE ((splitByRegexp(concat('(?is)', '-t-'), val) = ['aa','bb','cc']))
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((splitByRegexp(concat('(?i)', '-t-'), val) = ['aa','bb','cc']))
 (3 rows)
 
 SELECT val FROM strings WHERE regexp_split_to_array(val, '-t-', 'i') = '{aa,bb,cc}'::text[];
@@ -264,11 +267,11 @@ SELECT regexp_match(val, '([a-zA-Z0-9]+)@') FROM strings WHERE regexp_match(val,
 -- Case-insensitive.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT regexp_match(val, 'VAL[01]$', 'i') FROM strings WHERE regexp_match(val, 'VAL[01]$', 'i') = '{val1}'::text[];
-                                                              QUERY PLAN                                                              
---------------------------------------------------------------------------------------------------------------------------------------
+                                                             QUERY PLAN                                                              
+-------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.strings
    Output: regexp_match(val, 'VAL[01]$'::text, 'i'::text)
-   Remote SQL: SELECT val FROM regex_test.strings WHERE ((arraySlice(extractAll(val, concat('(?is)', 'VAL[01]$')), 1, 1) = ['val1']))
+   Remote SQL: SELECT val FROM regex_test.strings WHERE ((arraySlice(extractAll(val, concat('(?i)', 'VAL[01]$')), 1, 1) = ['val1']))
 (3 rows)
 
 SELECT regexp_match(val, 'VAL[01]$', 'i') FROM strings WHERE regexp_match(val, 'VAL[01]$', 'i') = '{val1}'::text[];
@@ -287,7 +290,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM strings WHERE regexp_match(val, val) 
    Remote SQL: SELECT id, val FROM regex_test.strings
 (4 rows)
 
--- Compare consistency of s and m flag behavior matching \n.
+-- Compare consistency of `.` matching a newline.
 SELECT regexp_match(val, 'line.') FROM strings
  WHERE regexp_match(val, 'line.') = E'{"line\n"}'::text[];
  regexp_match 
@@ -332,6 +335,28 @@ SELECT regexp_match(val, 'line.', 'n'), id FROM strings
               |  8
 (8 rows)
 
+SELECT regexp_match(val, 'line.', 'p'), id FROM strings
+ WHERE regexp_match(val, 'line.', 'p') = '{}'::text[] ORDER BY id;
+ regexp_match | id 
+--------------+----
+              |  1
+              |  2
+              |  3
+              |  4
+              |  5
+              |  6
+              |  7
+              |  8
+(8 rows)
+
+SELECT regexp_match(val, 'line.', 'w') FROM strings
+ WHERE regexp_match(val, 'line.', 'w') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
 -- Last flag overrides.
 SELECT regexp_match(val, 'line.', 'ms') FROM strings
  WHERE regexp_match(val, 'line.', 'ms') = E'{"line\n"}'::text[];
@@ -355,7 +380,72 @@ SELECT regexp_match(val, 'line.', 'sm'), id FROM strings
               |  8
 (8 rows)
 
--- Compare consistency of s and m flag behavior matching $.
+SELECT regexp_match(val, 'line.', 'mspw') FROM strings
+ WHERE regexp_match(val, 'line.', 'mspw') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
+ -- Compare consistency of `[^x]` matching a newline.
+SELECT regexp_match(val, 'line[^x]') FROM strings
+ WHERE regexp_match(val, 'line[^x]') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
+SELECT regexp_match(val, 'line[^x]', 's') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 's') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
+-- m, n match in CH but not PG
+SELECT regexp_match(val, 'line[^x]', 'm') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'm') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ 
+(1 row)
+
+SELECT regexp_match(val, 'line[^x]', 'n') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'n') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ 
+(1 row)
+
+SELECT regexp_match(val, 'line[^x]', 'p') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'p') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ 
+(1 row)
+
+-- w matches in both.
+SELECT regexp_match(val, 'line[^x]', 'w') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'w') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
+-- Last flag overrides.
+SELECT regexp_match(val, 'line[^x]', 'msw') FROM strings
+ WHERE regexp_match(val, 'line[^x]', 'msw') = E'{"line\n"}'::text[];
+ regexp_match 
+--------------
+ {"line      +
+ "}
+(1 row)
+
+-- Compare consistency of `$` end of line.
 SELECT regexp_match(val, 'line$'), id FROM strings
  WHERE regexp_match(val, 'line$') = '{}'::text[] ORDER BY id;
  regexp_match | id 
@@ -398,6 +488,29 @@ SELECT regexp_match(val, 'line$', 's'), id FROM strings
               |  8
 (8 rows)
 
+-- p matches in CH but not PG.
+SELECT regexp_match(val, 'line$', 'p'), id FROM strings
+ WHERE regexp_match(val, 'line$', 'p') = '{}'::text[] ORDER BY id;
+ regexp_match | id 
+--------------+----
+              |  1
+              |  2
+              |  3
+              |  4
+              |  5
+              |  6
+              |  7
+              |  8
+(8 rows)
+
+-- w matches in both.
+SELECT regexp_match(val, 'line$', 'w') FROM strings
+ WHERE regexp_match(val, 'line$', 'w') = E'{line}'::text[];
+ regexp_match 
+--------------
+ {line}
+(1 row)
+
 -- Last flag overrides.
 SELECT regexp_match(val, 'line$', 'ms'), id FROM strings
  WHERE regexp_match(val, 'line$', 'ms') = '{}'::text[] ORDER BY id;
@@ -420,7 +533,14 @@ SELECT regexp_match(val, 'line$', 'sm') FROM strings
  {line}
 (1 row)
 
--- Compare consistency of s and m flag behavior matching ^.
+SELECT regexp_match(val, 'line$', 'smw') FROM strings
+ WHERE regexp_match(val, 'line$', 'smw') = E'{line}'::text[];
+ regexp_match 
+--------------
+ {line}
+(1 row)
+
+-- Compare consistency of `^` start of line.
 SELECT regexp_match(val, '^target'), id FROM strings
  WHERE regexp_match(val, '^target') = '{}'::text[] ORDER BY id;
  regexp_match | id 
@@ -463,6 +583,29 @@ SELECT regexp_match(val, '^target', 's'), id FROM strings
               |  8
 (8 rows)
 
+-- p matches in CH but not PG.
+SELECT regexp_match(val, '^target', 'p'), id FROM strings
+ WHERE regexp_match(val, '^target', 'p') = '{}'::text[] ORDER BY id;
+ regexp_match | id 
+--------------+----
+              |  1
+              |  2
+              |  3
+              |  4
+              |  5
+              |  6
+              |  7
+              |  8
+(8 rows)
+
+-- w matches in both.
+SELECT regexp_match(val, '^target', 'w') FROM strings
+ WHERE regexp_match(val, '^target', 'w') = E'{target}'::text[];
+ regexp_match 
+--------------
+ {target}
+(1 row)
+
 -- Last flag overrides.
 SELECT regexp_match(val, '^target', 'ms'), id FROM strings
  WHERE regexp_match(val, '^target', 'ms') = '{}'::text[] ORDER BY id;
@@ -480,6 +623,13 @@ SELECT regexp_match(val, '^target', 'ms'), id FROM strings
 
 SELECT regexp_match(val, '^target', 'sm') FROM strings
  WHERE regexp_match(val, '^target', 'sm') = E'{target}'::text[];
+ regexp_match 
+--------------
+ {target}
+(1 row)
+
+SELECT regexp_match(val, '^target', 'msw') FROM strings
+ WHERE regexp_match(val, '^target', 'msw') = E'{target}'::text[];
  regexp_match 
 --------------
  {target}
