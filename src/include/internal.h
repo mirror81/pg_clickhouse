@@ -8,6 +8,7 @@ typedef struct ch_http_connection_t
 	CURL	   *curl;
 	char	   *dbname;
 	char	   *base_url;
+	long		ssl_version;	/* CURLOPT_SSLVERSION min; DEFAULT means unset */
 }			ch_http_connection_t;
 
 typedef struct ch_binary_connection_t

@@ -14,6 +14,14 @@ All notable changes to this project will be documented in this file. It uses the
 *   [#268] added a `compression` server option for the binary driver to enable
     ClickHouse native protocol compression of query results and `INSERT` data.
     Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4`.
+*   [#227] added a `secure` server option giving explicit control over TLS for
+    both the binary and HTTP drivers, rather than inferring it from the host
+    name and port. Accepts `on` (force TLS), `off` (force plaintext), or `auto`
+    (the previous cloud-host/port heuristic, still the default). Thanks to
+    Andrey Borodin for the PR ([#227]).
+*   Added a `min_tls_version` server option to set the minimum TLS protocol
+    version negotiated by both drivers. Accepts `TLSv1`, `TLSv1.1`, `TLSv1.2`,
+    or `TLSv1.3`, and defaults to the TLS library's own minimum.
 *   Added mapping for `regexp_match()` to pushdown to `extractGroups()`, or
     `arraySlice(extractAll(text, pattern), 1, 1)` if the regex contains no
     capturing groups.
@@ -35,6 +43,8 @@ All notable changes to this project will be documented in this file. It uses the
 *   No longer push down regular expression functions if the regular expression
     argument is not a constant.
 
+  [#227]: https://github.com/ClickHouse/pg_clickhouse/pull/227
+    "ClickHouse/pg_clickhouse#227 add three-state secure option for TLS control"
   [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268
     "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"
   [#269]: https://github.com/ClickHouse/pg_clickhouse/pull/269

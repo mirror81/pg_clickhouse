@@ -50,6 +50,29 @@ ch_http_get_verbose(void)
 #define CLICKHOUSE_TLS_PORT 8443
 #define HTTP_TLS_PORT 443
 
+/*
+ * Map the min_tls_version option to a CURLOPT_SSLVERSION value, which libcurl
+ * treats as the minimum acceptable version. Returns CURL_SSLVERSION_DEFAULT to
+ * leave curl's default (no minimum forced).
+ */
+static long
+curl_min_tls_version(tls_version v)
+{
+	switch (v)
+	{
+		case CH_TLS_V1_0:
+			return CURL_SSLVERSION_TLSv1_0;
+		case CH_TLS_V1_1:
+			return CURL_SSLVERSION_TLSv1_1;
+		case CH_TLS_V1_2:
+			return CURL_SSLVERSION_TLSv1_2;
+		case CH_TLS_V1_3:
+			return CURL_SSLVERSION_TLSv1_3;
+		default:
+			return CURL_SSLVERSION_DEFAULT;
+	}
+}
+
 ch_http_connection_t *
 ch_http_connection(ch_connection_details * details)
 {
@@ -70,6 +93,8 @@ ch_http_connection(ch_connection_details * details)
 	conn->curl = curl_easy_init();
 	if (!conn->curl)
 		goto cleanup;
+
+	conn->ssl_version = curl_min_tls_version(details->min_tls_version);
 
 	if (details->dbname)
 	{

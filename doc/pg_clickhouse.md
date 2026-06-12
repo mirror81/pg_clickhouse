@@ -147,6 +147,9 @@ The supported options are:
     streaming and buffers the full response. Foreign tables can override this
     value.
 *   `host`: The host name of the ClickHouse server. Defaults to "localhost";
+*   `min_tls_version`: Minimum TLS protocol version to negotiate on connections
+    that use TLS. One of `TLSv1`, `TLSv1.1`, `TLSv1.2`, or `TLSv1.3`. Defaults
+    to the TLS library's own minimum. Applies to both drivers.
 *   `port`: The port to connect to on the ClickHouse server. Defaults as
     follows:
     *   9440 if `driver` is "binary" and `host` is a ClickHouse Cloud host

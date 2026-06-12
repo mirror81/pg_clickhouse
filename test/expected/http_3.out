@@ -1083,6 +1083,25 @@ CREATE SERVER http_secure_bad FOREIGN DATA WRAPPER clickhouse_fdw
     OPTIONS(dbname 'http_test', driver 'http', secure 'maybe');
 ERROR:  invalid value for option "secure": "maybe"
 HINT:  Valid values are: on, off, auto.
+/* ===== min_tls_version option tests ===== */
+/* All accepted values for the min_tls_version option should pass validation. */
+CREATE SERVER http_min_tls_v1 FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', min_tls_version 'TLSv1');
+DROP SERVER http_min_tls_v1;
+CREATE SERVER http_min_tls_v11 FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', min_tls_version 'TLSv1.1');
+DROP SERVER http_min_tls_v11;
+CREATE SERVER http_min_tls_v12 FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', min_tls_version 'TLSv1.2');
+DROP SERVER http_min_tls_v12;
+CREATE SERVER http_min_tls_v13 FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', min_tls_version 'TLSv1.3');
+DROP SERVER http_min_tls_v13;
+/* An unknown value must be rejected. */
+CREATE SERVER http_min_tls_bad FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS(dbname 'http_test', driver 'http', min_tls_version 'TLSv2');
+ERROR:  invalid value for option "min_tls_version": "TLSv2"
+HINT:  Valid values are: TLSv1, TLSv1.1, TLSv1.2, TLSv1.3.
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback_bad;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback2;
 DROP USER MAPPING FOR CURRENT_USER SERVER http_loopback;

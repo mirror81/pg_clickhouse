@@ -143,8 +143,30 @@ tcp_connect(const char *host, int port)
 	return fd;
 }
 
+/*
+ * Map the min_tls_version option to an OpenSSL protocol-version constant.
+ * Returns 0 to leave OpenSSL's default (no minimum forced).
+ */
+static int
+openssl_min_proto_version(tls_version v)
+{
+	switch (v)
+	{
+		case CH_TLS_V1_0:
+			return TLS1_VERSION;
+		case CH_TLS_V1_1:
+			return TLS1_1_VERSION;
+		case CH_TLS_V1_2:
+			return TLS1_2_VERSION;
+		case CH_TLS_V1_3:
+			return TLS1_3_VERSION;
+		default:
+			return 0;
+	}
+}
+
 static void
-tls_connect(struct ch_binary_state *s, const char *host)
+tls_connect(struct ch_binary_state *s, const char *host, tls_version min_version)
 {
 	static int	openssl_init_done = 0;
 
@@ -162,6 +184,15 @@ tls_connect(struct ch_binary_state *s, const char *host)
 				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 				 errmsg("pg_clickhouse: failed to initialize opensssl"),
 				 errdetail("SSL_CTX_new failed")));
+
+	int			min_proto = openssl_min_proto_version(min_version);
+
+	if (min_proto != 0 &&
+		SSL_CTX_set_min_proto_version(s->ssl_ctx, min_proto) != 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+				 errmsg("pg_clickhouse: failed to initialize openssl"),
+				 errdetail("could not set minimum TLS protocol version")));
 	/* Authenticate server: verify chain against system CAs and hostname. */
 	SSL_CTX_set_verify(s->ssl_ctx, SSL_VERIFY_PEER, NULL);
 	if (SSL_CTX_set_default_verify_paths(s->ssl_ctx) != 1)
@@ -256,7 +287,7 @@ ch_binary_connect(ch_connection_details * details)
 		s->fd = tcp_connect(host, port);
 		if (tls)
 		{
-			tls_connect(s, host);
+			tls_connect(s, host, details->min_tls_version);
 			chc_openssl_io_init(&s->openssl_state, &s->io, s->ssl,
 								cancel_adapter, s);
 		}

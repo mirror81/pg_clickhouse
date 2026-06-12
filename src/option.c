@@ -59,6 +59,7 @@ static const ChFdwOption ch_options[] =
 {
 	{"host", 0, false},
 	{"secure", 0, false},
+	{"min_tls_version", 0, false},
 	{"port", 0, false},
 	{"dbname", 0, false},
 	{"user", 0, false},
@@ -81,6 +82,7 @@ static void InitChFdwOptions(void);
 static bool is_valid_option(const char *keyword, Oid context);
 static bool is_ch_option(const char *keyword);
 static void validate_fetch_size_option(DefElem * def);
+static bool parse_min_tls_version(const char *val, tls_version * out);
 
 /*
  * Validate the generic options given to a FOREIGN DATA WRAPPER, SERVER,
@@ -149,6 +151,19 @@ clickhouse_fdw_validator(PG_FUNCTION_ARGS)
 						 errmsg("invalid value for option \"secure\": \"%s\"",
 								val),
 						 errhint("Valid values are: on, off, auto.")));
+		}
+
+		if (strcmp(def->defname, "min_tls_version") == 0)
+		{
+			const char *val = defGetString(def);
+			tls_version v;
+
+			if (!parse_min_tls_version(val, &v))
+				ereport(ERROR,
+						(errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
+						 errmsg("invalid value for option \"min_tls_version\": \"%s\"",
+								val),
+						 errhint("Valid values are: TLSv1, TLSv1.1, TLSv1.2, TLSv1.3.")));
 		}
 	}
 
@@ -253,6 +268,27 @@ validate_fetch_size_option(DefElem * def)
 }
 
 /*
+ * Map a min_tls_version option value to tls_version. Accepts the same spellings
+ * as Postgres's ssl_min_protocol_version GUC, case-insensitively. Returns false
+ * if the value is unrecognized.
+ */
+static bool
+parse_min_tls_version(const char *val, tls_version * out)
+{
+	if (pg_strcasecmp(val, "TLSv1") == 0)
+		*out = CH_TLS_V1_0;
+	else if (pg_strcasecmp(val, "TLSv1.1") == 0)
+		*out = CH_TLS_V1_1;
+	else if (pg_strcasecmp(val, "TLSv1.2") == 0)
+		*out = CH_TLS_V1_2;
+	else if (pg_strcasecmp(val, "TLSv1.3") == 0)
+		*out = CH_TLS_V1_3;
+	else
+		return false;
+	return true;
+}
+
+/*
  * Check whether the given option is one of the valid clickhouse_fdw options.
  * context is the Oid of the catalog holding the object the option is for.
  */
@@ -303,7 +339,8 @@ is_ch_option(const char *keyword)
 void
 chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
 					  char **dbname, char **username, char **password,
-					  char **compression, tls_mode * tls)
+					  char **compression, tls_mode * tls,
+					  tls_version * min_tls_version)
 {
 	ListCell   *lc;
 
@@ -354,6 +391,9 @@ chfdw_extract_options(List * defelems, char **driver, char **host, int *port,
 					*tls = CH_TLS_OFF;
 				/* else: "auto" or anything else → CH_TLS_AUTO (already 0) */
 			}
+			else if (min_tls_version && strcmp(def->defname, "min_tls_version") == 0)
+				/* invalid values rejected by the validator; ignore here */
+				parse_min_tls_version(defGetString(def), min_tls_version);
 		}
 	}
 }

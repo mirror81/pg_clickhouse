@@ -15,6 +15,16 @@ typedef enum
 	CH_TLS_OFF,					/* force plaintext; default port 8123 or 9000 */
 }			tls_mode;
 
+/* Minimum TLS protocol version for the "min_tls_version" FDW option */
+typedef enum
+{
+	CH_TLS_DEFAULT = 0,			/* library default; no minimum forced */
+	CH_TLS_V1_0,
+	CH_TLS_V1_1,
+	CH_TLS_V1_2,
+	CH_TLS_V1_3,
+}			tls_version;
+
 typedef struct
 {
 	char	   *host;
@@ -24,6 +34,8 @@ typedef struct
 	char	   *dbname;
 	char	   *compression;
 	tls_mode	tls;			/* TLS mode; CH_TLS_AUTO when not specified */
+	tls_version min_tls_version;	/* minimum TLS version; CH_TLS_DEFAULT
+									 * when not specified */
 }			ch_connection_details;
 
 /*

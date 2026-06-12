@@ -128,6 +128,10 @@ setup_curl(HttpStream * stream, const ch_query * query)
 	curl_easy_setopt(stream->curl, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(stream->curl, CURLOPT_VERBOSE, ch_http_get_verbose());
 
+	if (stream->conn->ssl_version != CURL_SSLVERSION_DEFAULT)
+		curl_easy_setopt(stream->curl, CURLOPT_SSLVERSION,
+						 stream->conn->ssl_version);
+
 	if (ch_http_get_progress_func())
 	{
 		curl_easy_setopt(stream->curl, CURLOPT_NOPROGRESS, 0L);

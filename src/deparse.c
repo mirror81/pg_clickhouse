@@ -1791,7 +1791,7 @@ deparseRelation(StringInfo buf, Relation rel)
 	ForeignServer *server = chfdw_get_foreign_server(rel);
 	ListCell   *lc;
 
-	chfdw_extract_options(server->options, NULL, NULL, NULL, &dbname, NULL, NULL, NULL, NULL);
+	chfdw_extract_options(server->options, NULL, NULL, NULL, &dbname, NULL, NULL, NULL, NULL, NULL);
 
 	/* obtain additional catalog information. */
 	table = GetForeignTable(RelationGetRelid(rel));
