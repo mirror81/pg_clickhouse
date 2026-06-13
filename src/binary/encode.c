@@ -37,49 +37,14 @@
 static Oid
 ch_kind_to_pg_oid_for_insert(const chc_type * type, const char *colname)
 {
-	switch (chc_type_kind(type))
+	chc_kind	kind = chc_type_kind(type);
+	Oid			oid = ch_scalar_oids[kind];
+
+	if (OidIsValid(oid))
+		return oid;
+
+	switch (kind)
 	{
-		case CHC_INT8:
-		case CHC_INT16:
-		case CHC_UINT8:
-			return INT2OID;
-		case CHC_BOOL:
-			return BOOLOID;
-		case CHC_INT32:
-		case CHC_UINT16:
-			return INT4OID;
-		case CHC_INT64:
-		case CHC_UINT32:
-		case CHC_UINT64:
-			return INT8OID;
-		case CHC_FLOAT32:
-			return FLOAT4OID;
-		case CHC_FLOAT64:
-			return FLOAT8OID;
-		case CHC_DECIMAL32:
-		case CHC_DECIMAL64:
-		case CHC_DECIMAL128:
-		case CHC_DECIMAL256:
-			return NUMERICOID;
-		case CHC_STRING:
-		case CHC_FIXED_STRING:
-		case CHC_ENUM8:
-		case CHC_ENUM16:
-			return TEXTOID;
-		case CHC_JSON:
-		case CHC_OBJECT:
-			return JSONBOID;
-		case CHC_DATE:
-		case CHC_DATE32:
-			return DATEOID;
-		case CHC_DATETIME:
-		case CHC_DATETIME64:
-			return TIMESTAMPTZOID;
-		case CHC_UUID:
-			return UUIDOID;
-		case CHC_IPV4:
-		case CHC_IPV6:
-			return INETOID;
 		case CHC_ARRAY:
 			{
 				/*

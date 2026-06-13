@@ -134,6 +134,9 @@ conn_state(ch_binary_connection_t * conn)
 /* chc allocator wired through palloc; defined in binary.c. */
 extern const chc_alloc pg_chc_alloc;
 
+/* Scalar CH kind -> PG type OID; InvalidOid for wrapper/unsupported kinds. */
+extern const Oid ch_scalar_oids[CHC_KIND_COUNT];
+
 /* power-of-10 lookup; CH bounds DateTime64 / Decimal scale to [0, 9] */
 extern const int64_t pow10i[10];
 

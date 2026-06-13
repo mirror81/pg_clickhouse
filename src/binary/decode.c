@@ -51,77 +51,23 @@ rd_bool(const bool *p, uint64_t row)
 	return (bool) p[row];
 }
 
-static inline int16_t
-rd_i16(const uint8_t * p, uint64_t row)
-{
-	int16_t		v;
+#define RD_FIXED(suffix, T) \
+	static inline T \
+	rd_##suffix(const uint8_t *p, uint64_t row) \
+	{ \
+		T			v; \
+		memcpy(&v, p + row * sizeof(T), sizeof(T)); \
+		return v; \
+	}
 
-	memcpy(&v, p + row * sizeof(int16_t), sizeof(int16_t));
-	return v;
-}
-
-static inline uint16_t
-rd_u16(const uint8_t * p, uint64_t row)
-{
-	uint16_t	v;
-
-	memcpy(&v, p + row * sizeof(uint16_t), sizeof(uint16_t));
-	return v;
-}
-
-static inline int32_t
-rd_i32(const uint8_t * p, uint64_t row)
-{
-	int32_t		v;
-
-	memcpy(&v, p + row * sizeof(int32_t), sizeof(int32_t));
-	return v;
-}
-
-static inline uint32_t
-rd_u32(const uint8_t * p, uint64_t row)
-{
-	uint32_t	v;
-
-	memcpy(&v, p + row * sizeof(uint32_t), sizeof(uint32_t));
-	return v;
-}
-
-static inline int64_t
-rd_i64(const uint8_t * p, uint64_t row)
-{
-	int64_t		v;
-
-	memcpy(&v, p + row * sizeof(int64_t), sizeof(int64_t));
-	return v;
-}
-
-static inline uint64_t
-rd_u64(const uint8_t * p, uint64_t row)
-{
-	uint64_t	v;
-
-	memcpy(&v, p + row * sizeof(uint64_t), sizeof(uint64_t));
-	return v;
-}
-
-static inline float
-rd_f32(const uint8_t * p, uint64_t row)
-{
-	float		v;
-
-	memcpy(&v, p + row * sizeof(float), sizeof(float));
-	return v;
-}
-
-static inline double
-rd_f64(const uint8_t * p, uint64_t row)
-{
-	double		v;
-
-	memcpy(&v, p + row * sizeof(double), sizeof(double));
-	return v;
-}
+RD_FIXED(i16, int16_t)
+RD_FIXED(u16, uint16_t)
+RD_FIXED(i32, int32_t)
+RD_FIXED(u32, uint32_t)
+RD_FIXED(i64, int64_t)
+RD_FIXED(u64, uint64_t)
+RD_FIXED(f32, float)
+RD_FIXED(f64, double)
 
 static inline void
 slice_str(const chc_column * col, uint64_t row,
@@ -139,7 +85,13 @@ slice_str(const chc_column * col, uint64_t row,
 static Oid
 ch_kind_to_pg_oid(const chc_type * type)
 {
-	switch (chc_type_kind(type))
+	chc_kind	kind = chc_type_kind(type);
+	Oid			oid = ch_scalar_oids[kind];
+
+	if (OidIsValid(oid))
+		return oid;
+
+	switch (kind)
 	{
 		case CHC_VOID:
 		case CHC_NOTHING:
@@ -147,47 +99,6 @@ ch_kind_to_pg_oid(const chc_type * type)
 		case CHC_NULLABLE:
 		case CHC_LOW_CARDINALITY:
 			return ch_kind_to_pg_oid(chc_type_child(type, 0));
-		case CHC_INT8:
-		case CHC_INT16:
-		case CHC_UINT8:
-			return INT2OID;
-		case CHC_BOOL:
-			return BOOLOID;
-		case CHC_INT32:
-		case CHC_UINT16:
-			return INT4OID;
-		case CHC_INT64:
-		case CHC_UINT32:
-		case CHC_UINT64:
-			return INT8OID;
-		case CHC_FLOAT32:
-			return FLOAT4OID;
-		case CHC_FLOAT64:
-			return FLOAT8OID;
-		case CHC_DECIMAL32:
-		case CHC_DECIMAL64:
-		case CHC_DECIMAL128:
-		case CHC_DECIMAL256:
-			return NUMERICOID;
-		case CHC_STRING:
-		case CHC_FIXED_STRING:
-		case CHC_ENUM8:
-		case CHC_ENUM16:
-			return TEXTOID;
-		case CHC_JSON:
-		case CHC_OBJECT:
-			return JSONBOID;
-		case CHC_DATE:
-		case CHC_DATE32:
-			return DATEOID;
-		case CHC_DATETIME:
-		case CHC_DATETIME64:
-			return TIMESTAMPTZOID;
-		case CHC_UUID:
-			return UUIDOID;
-		case CHC_IPV4:
-		case CHC_IPV6:
-			return INETOID;
 		case CHC_ARRAY:
 			return ANYARRAYOID;
 		case CHC_TUPLE:

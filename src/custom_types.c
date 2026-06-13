@@ -378,220 +378,367 @@ ch_func_name(char *proname)
 	return proname;
 }
 
+/*
+ * Describes how a recognized builtin maps to ClickHouse.
+ *   ch_name = literal: deparse emits ch_name
+ *   ch_name = NULL:    deparse emits PG name
+ *   ch_name = "\1":    specialized cf_type handler
+ */
+typedef struct
+{
+	custom_object_type cf_type;
+	const char *ch_name;
+	int			paren_count;
+}			builtin_func_def;
+
+/*
+ * Classify a builtin function and, when we rewrite it, describe the
+ * ClickHouse form. Returns false for builtins we do not handle.
+ *
+ * ch_name "\1" means deparse.c emits the name itself; leaving a field
+ * untouched keeps the caller-supplied default (PG name, CF_USUAL, 1 paren).
+ */
+static bool
+lookup_builtin_func(Oid funcid, builtin_func_def * def)
+{
+	switch (funcid)
+	{
+		case F_DATE_TRUNC_TEXT_TIMESTAMPTZ:
+		case F_DATE_TRUNC_TEXT_TIMESTAMP:
+			def->cf_type = CF_DATE_TRUNC;
+			def->ch_name = "\1";
+			return true;
+		case F_DATE_PART_TEXT_TIMESTAMPTZ:
+		case F_DATE_PART_TEXT_TIMESTAMP:
+		case F_DATE_PART_TEXT_DATE:
+		case F_EXTRACT_TEXT_TIMESTAMP:
+		case F_EXTRACT_TEXT_TIMESTAMPTZ:
+		case F_EXTRACT_TEXT_DATE:
+			def->cf_type = CF_DATE_PART;
+			def->ch_name = "\1";
+			return true;
+		case F_TIMEZONE_TEXT_TIMESTAMP:
+		case F_TIMEZONE_TEXT_TIMESTAMPTZ:
+			def->cf_type = CF_TIMEZONE;
+			def->ch_name = "toTimeZone";
+			return true;
+		case F_ARRAY_POSITION_ANYCOMPATIBLEARRAY_ANYCOMPATIBLE:
+			def->ch_name = "indexOf";
+			return true;
+		case F_BTRIM_TEXT_TEXT:
+		case F_BTRIM_TEXT:
+			def->ch_name = "trimBoth";
+			return true;
+		case F_STRPOS:
+			def->ch_name = "positionUTF8";
+			return true;
+			/* PG strpos counts code points, CH position counts bytes */
+		case F_LOWER_TEXT:
+			def->ch_name = "lowerUTF8";
+			return true;
+			/* PG lower(text) is locale-aware on code points */
+		case F_UPPER_TEXT:
+			def->ch_name = "upperUTF8";
+			return true;
+			/* PG upper(text) is locale-aware on code points */
+		case F_SUBSTR_TEXT_INT4_INT4:
+		case F_SUBSTR_TEXT_INT4:
+		case F_SUBSTRING_TEXT_INT4_INT4:
+		case F_SUBSTRING_TEXT_INT4:
+			def->ch_name = "substringUTF8";
+			return true;
+			/* PG substring(text, ...) counts code points */
+		case F_SUBSTR_BYTEA_INT4_INT4:
+		case F_SUBSTR_BYTEA_INT4:
+		case F_SUBSTRING_BYTEA_INT4_INT4:
+		case F_SUBSTRING_BYTEA_INT4:
+			def->ch_name = "substring";
+			return true;
+			/* bytea variant is byte-based; CH substring matches */
+		case F_REGEXP_LIKE_TEXT_TEXT:
+		case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
+			def->cf_type = CF_MATCH;
+			def->ch_name = "match";
+			return true;
+		case F_REGEXP_MATCH_TEXT_TEXT:
+		case F_REGEXP_MATCH_TEXT_TEXT_TEXT:
+			def->cf_type = CF_REGEX_PG_MATCH;
+			def->ch_name = "\1";
+			return true;
+		case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
+		case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
+			def->cf_type = CF_SPLIT_BY_REGEX;
+			def->ch_name = "splitByRegexp";
+			return true;
+		case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
+		case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
+			def->cf_type = CF_REPLACE_REGEX;
+			def->ch_name = "\1";
+			return true;
+		case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
+		case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
+			def->ch_name = "quantile";
+			return true;
+		case F_ARRAY_AGG_ANYNONARRAY:
+			def->ch_name = "groupArray";
+			return true;
+		case F_MD5_BYTEA:
+		case F_MD5_TEXT:
+			def->ch_name = "lower(hex(MD5";
+			def->paren_count = 3;
+			return true;
+			/* Special hashing function returns lowercase hex. */
+		case F_REVERSE_TEXT:
+			def->ch_name = "reverseUTF8";
+			return true;
+			/* reverse code points, not bytes */
+		case F_LENGTH_TEXT:
+			def->ch_name = "lengthUTF8";
+			return true;
+			/* PG length(text) counts code points, CH length() counts */
+			/* bytes */
+		case F_OCTET_LENGTH_TEXT:
+		case F_OCTET_LENGTH_BPCHAR:
+		case F_OCTET_LENGTH_BYTEA:
+			def->ch_name = "length";
+			return true;
+		case F_BIT_AND_INT2:
+		case F_BIT_AND_INT4:
+		case F_BIT_AND_INT8:
+			def->ch_name = "groupBitAnd";
+			return true;
+		case F_BIT_OR_INT2:
+		case F_BIT_OR_INT4:
+		case F_BIT_OR_INT8:
+			def->ch_name = "groupBitOr";
+			return true;
+		case F_BIT_XOR_INT2:
+		case F_BIT_XOR_INT4:
+		case F_BIT_XOR_INT8:
+			def->ch_name = "groupBitXor";
+			return true;
+		case F_BIT_COUNT_BYTEA:
+			def->ch_name = "bitCount";
+			return true;
+		case F_MOD_INT2_INT2:
+		case F_MOD_INT4_INT4:
+		case F_MOD_INT8_INT8:
+		case F_MOD_NUMERIC_NUMERIC:
+			def->ch_name = "modulo";
+			return true;
+		case F_POW_FLOAT8_FLOAT8:
+		case F_POWER_FLOAT8_FLOAT8:
+		case F_POW_NUMERIC_NUMERIC:
+		case F_POWER_NUMERIC_NUMERIC:
+			def->ch_name = "pow";
+			return true;
+			/* CH lacks "power", maps to pow */
+		case F_TO_TIMESTAMP_FLOAT8:
+			def->ch_name = "fromUnixTimestamp(toInt64";
+			def->paren_count = 2;
+			return true;
+			/* ClickHouse doesn't work with subsecond precision */
+			/* timestamps. */
+		case F_TO_CHAR_TIMESTAMP_TEXT:
+		case F_TO_CHAR_TIMESTAMPTZ_TEXT:
+			def->cf_type = CF_TO_CHAR;
+			def->ch_name = "formatDateTime";
+			return true;
+		case F_JSONB_EXTRACT_PATH_TEXT:
+		case F_JSON_EXTRACT_PATH_TEXT:
+			def->cf_type = CF_JSON_EXTRACT_PATH_TEXT;
+			def->ch_name = "\1";
+			return true;
+		case F_JSONB_EXTRACT_PATH:
+		case F_JSON_EXTRACT_PATH:
+			def->cf_type = CF_JSON_EXTRACT_PATH;
+			def->ch_name = "\1";
+			return true;
+		case F_NOW:
+			def->ch_name = "now64";
+			return true;
+			/* Postgres NOW() produces subsecond precision, to map to */
+			/* now64() */
+		case F_STATEMENT_TIMESTAMP:
+		case F_TRANSACTION_TIMESTAMP:
+		case F_CLOCK_TIMESTAMP:
+			def->cf_type = CF_CLOCK_TIMESTAMP;
+			def->ch_name = "\1";
+			return true;
+		case F_CURRENT_SCHEMA:
+			def->cf_type = CF_CURRENT_SCHEMA;
+			def->ch_name = "\1";
+			return true;
+		case F_CURRENT_DATABASE:
+			def->cf_type = CF_CURRENT_DATABASE;
+			def->ch_name = "\1";
+			return true;
+			/* array functions: simple mappings */
+		case F_ARRAY_CAT:
+			def->ch_name = "arrayConcat";
+			return true;
+		case F_ARRAY_APPEND:
+			def->ch_name = "arrayPushBack";
+			return true;
+		case F_ARRAY_REMOVE:
+			def->ch_name = "arrayRemove";
+			return true;
+		case F_ARRAY_TO_STRING_ANYARRAY_TEXT:
+			def->ch_name = "arrayStringConcat";
+			return true;
+		case F_CARDINALITY:
+		case F_ARRAY_LENGTH:
+			def->cf_type = CF_ARRAY_LENGTH;
+			def->ch_name = "length";
+			return true;
+		case F_ARRAY_REVERSE:
+			def->ch_name = "arrayReverse";
+			return true;
+		case F_ARRAY_SORT_ANYARRAY:
+			def->ch_name = "arraySort";
+			return true;
+		case F_ARRAY_SHUFFLE:
+			def->ch_name = "arrayShuffle";
+			return true;
+		case F_ARRAY_SAMPLE:
+			def->ch_name = "arrayRandomSample";
+			return true;
+		case F_ARRAY_PREPEND:
+			def->cf_type = CF_ARRAY_PREPEND;
+			def->ch_name = "arrayPushFront";
+			return true;
+		case F_STRING_TO_ARRAY_TEXT_TEXT:
+			def->cf_type = CF_STRING_TO_ARRAY;
+			def->ch_name = "splitByString";
+			return true;
+		case F_SPLIT_PART:
+			def->cf_type = CF_STRING_TO_ARRAY_PART;
+			def->ch_name = "splitByString";
+			return true;
+		case F_TRIM_ARRAY:
+			def->cf_type = CF_TRIM_ARRAY;
+			def->ch_name = "arrayResize";
+			return true;
+		case F_ARRAY_FILL_ANYELEMENT__INT4:
+			def->cf_type = CF_ARRAY_FILL;
+			def->ch_name = "arrayWithConstant";
+			return true;
+		case F_ARRAY_SORT_ANYARRAY_BOOL:
+			def->cf_type = CF_ARRAY_SORT_DESC;
+			def->ch_name = "\1";
+			return true;
+
+			/* 1:1 pass-through: PG and CH agree on name and semantics */
+		case F_ARRAY_AGG_ANYARRAY:
+		case F_AVG_INT8:
+		case F_AVG_INT4:
+		case F_AVG_INT2:
+		case F_AVG_NUMERIC:
+		case F_AVG_FLOAT4:
+		case F_AVG_FLOAT8:
+		case F_AVG_INTERVAL:
+		case F_SUM_INT8:
+		case F_SUM_INT4:
+		case F_SUM_INT2:
+		case F_SUM_FLOAT4:
+		case F_SUM_FLOAT8:
+		case F_SUM_INTERVAL:
+		case F_SUM_NUMERIC:
+		case F_COUNT_ANY:
+		case F_COUNT_:
+		case F_MIN_INT8:
+		case F_MIN_INT4:
+		case F_MIN_INT2:
+		case F_MIN_FLOAT4:
+		case F_MIN_FLOAT8:
+		case F_MIN_DATE:
+		case F_MIN_TIMESTAMP:
+		case F_MIN_TIMESTAMPTZ:
+		case F_MIN_INTERVAL:
+		case F_MIN_TEXT:
+		case F_MIN_NUMERIC:
+		case F_MIN_BPCHAR:
+		case F_MAX_INT8:
+		case F_MAX_INT4:
+		case F_MAX_INT2:
+		case F_MAX_FLOAT4:
+		case F_MAX_FLOAT8:
+		case F_MAX_DATE:
+		case F_MAX_TIMESTAMP:
+		case F_MAX_TIMESTAMPTZ:
+		case F_MAX_INTERVAL:
+		case F_MAX_TEXT:
+		case F_MAX_NUMERIC:
+		case F_MAX_BPCHAR:
+		case F_BOOL_AND:
+		case F_BOOL_OR:
+		case F_EVERY:
+		case F_STRING_AGG_TEXT_TEXT:
+			/* window functions sharing PG and CH names */
+		case F_ROW_NUMBER:
+		case F_RANK_:
+		case F_DENSE_RANK_:
+		case F_PERCENT_RANK_:
+		case F_CUME_DIST_:
+		case F_NTILE:
+			/* trig: PG and CH agree on all finite inputs. Skipping */
+			/* asin/acos/atanh/acosh because PG errors on out-of-range */
+			/* input where CH returns NaN; sin/cos/tan share the same */
+			/* error-vs-NaN divergence only at infinity. */
+		case F_SIN:
+		case F_COS:
+		case F_TAN:
+		case F_ATAN:
+		case F_ATAN2:
+		case F_SINH:
+		case F_COSH:
+		case F_TANH:
+		case F_ASINH:
+		case F_DEGREES:
+		case F_RADIANS:
+		case F_PI:
+		case F_REVERSE_BYTEA:
+			/* numeric scalar functions, names match ClickHouse */
+		case F_ABS_INT2:
+		case F_ABS_INT4:
+		case F_ABS_INT8:
+		case F_ABS_FLOAT4:
+		case F_ABS_FLOAT8:
+		case F_ABS_NUMERIC:
+		case F_ROUND_FLOAT8:
+		case F_ROUND_NUMERIC:
+		case F_ROUND_NUMERIC_INT4:
+		case F_FACTORIAL:
+			/* string functions: CH ltrim/rtrim/concat_ws are aliases */
+		case F_LTRIM_TEXT:
+		case F_RTRIM_TEXT:
+		case F_CONCAT_WS:
+		case F_LENGTH_BYTEA:
+			/* date(ts), date(tstz) deparse as CH date() (alias toDate) */
+		case F_DATE_TIMESTAMP:
+		case F_DATE_TIMESTAMPTZ:
+			/* window functions: lead/lag share PG and CH names */
+		case F_LEAD_ANYELEMENT:
+		case F_LEAD_ANYELEMENT_INT4:
+		case F_LEAD_ANYCOMPATIBLE_INT4_ANYCOMPATIBLE:
+		case F_LAG_ANYELEMENT:
+		case F_LAG_ANYELEMENT_INT4:
+		case F_LAG_ANYCOMPATIBLE_INT4_ANYCOMPATIBLE:
+			return true;
+		default:
+			return false;
+	}
+}
+
 CustomObjectDef *
 chfdw_check_for_custom_function(Oid funcid)
 {
-	bool		special_builtin = false;
 	CustomObjectDef *entry;
+	builtin_func_def def = {.paren_count = 1};
+	bool		is_builtin = chfdw_is_builtin(funcid);
 
-	if (chfdw_is_builtin(funcid))
-	{
-		switch (funcid)
-		{
-			case F_DATE_TRUNC_TEXT_TIMESTAMP:
-			case F_DATE_TRUNC_TEXT_TIMESTAMPTZ:
-			case F_TIMEZONE_TEXT_TIMESTAMP:
-			case F_TIMEZONE_TEXT_TIMESTAMPTZ:
-			case F_DATE_PART_TEXT_TIMESTAMP:
-			case F_DATE_PART_TEXT_TIMESTAMPTZ:
-			case F_DATE_PART_TEXT_DATE:
-			case F_EXTRACT_TEXT_TIMESTAMP:
-			case F_EXTRACT_TEXT_TIMESTAMPTZ:
-			case F_EXTRACT_TEXT_DATE:
-			case F_ARRAY_POSITION_ANYCOMPATIBLEARRAY_ANYCOMPATIBLE:
-			case F_STRPOS:
-			case F_LOWER_TEXT:
-			case F_UPPER_TEXT:
-			case F_SUBSTR_TEXT_INT4_INT4:
-			case F_SUBSTR_TEXT_INT4:
-			case F_SUBSTRING_TEXT_INT4_INT4:
-			case F_SUBSTRING_TEXT_INT4:
-			case F_SUBSTR_BYTEA_INT4_INT4:
-			case F_SUBSTR_BYTEA_INT4:
-			case F_SUBSTRING_BYTEA_INT4_INT4:
-			case F_SUBSTRING_BYTEA_INT4:
-			case F_BTRIM_TEXT_TEXT:
-			case F_BTRIM_TEXT:
-			case F_REGEXP_LIKE_TEXT_TEXT:
-			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
-			case F_REGEXP_MATCH_TEXT_TEXT:
-			case F_REGEXP_MATCH_TEXT_TEXT_TEXT:
-			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
-			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
-			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
-			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
-			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
-			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
-				/* aggregates with matching name and 1:1 semantics */
-			case F_ARRAY_AGG_ANYNONARRAY:
-			case F_ARRAY_AGG_ANYARRAY:
-			case F_AVG_INT8:
-			case F_AVG_INT4:
-			case F_AVG_INT2:
-			case F_AVG_NUMERIC:
-			case F_AVG_FLOAT4:
-			case F_AVG_FLOAT8:
-			case F_AVG_INTERVAL:
-			case F_SUM_INT8:
-			case F_SUM_INT4:
-			case F_SUM_INT2:
-			case F_SUM_FLOAT4:
-			case F_SUM_FLOAT8:
-			case F_SUM_INTERVAL:
-			case F_SUM_NUMERIC:
-			case F_COUNT_ANY:
-			case F_COUNT_:
-			case F_MIN_INT8:
-			case F_MIN_INT4:
-			case F_MIN_INT2:
-			case F_MIN_FLOAT4:
-			case F_MIN_FLOAT8:
-			case F_MIN_DATE:
-			case F_MIN_TIMESTAMP:
-			case F_MIN_TIMESTAMPTZ:
-			case F_MIN_INTERVAL:
-			case F_MIN_TEXT:
-			case F_MIN_NUMERIC:
-			case F_MIN_BPCHAR:
-			case F_MAX_INT8:
-			case F_MAX_INT4:
-			case F_MAX_INT2:
-			case F_MAX_FLOAT4:
-			case F_MAX_FLOAT8:
-			case F_MAX_DATE:
-			case F_MAX_TIMESTAMP:
-			case F_MAX_TIMESTAMPTZ:
-			case F_MAX_INTERVAL:
-			case F_MAX_TEXT:
-			case F_MAX_NUMERIC:
-			case F_MAX_BPCHAR:
-			case F_BOOL_AND:
-			case F_BOOL_OR:
-			case F_EVERY:
-			case F_STRING_AGG_TEXT_TEXT:
-				/* window functions sharing PG and CH names */
-			case F_ROW_NUMBER:
-			case F_RANK_:
-			case F_DENSE_RANK_:
-			case F_PERCENT_RANK_:
-			case F_CUME_DIST_:
-			case F_NTILE:
-
-				/*
-				 * trig: PG and CH agree on all finite inputs. Skipping
-				 * asin/acos/atanh/acosh because PG errors on out-of-range
-				 * input where CH returns NaN; sin/cos/tan share the same
-				 * error-vs-NaN divergence only at infinity.
-				 */
-			case F_SIN:
-			case F_COS:
-			case F_TAN:
-			case F_ATAN:
-			case F_ATAN2:
-			case F_SINH:
-			case F_COSH:
-			case F_TANH:
-			case F_ASINH:
-			case F_DEGREES:
-			case F_RADIANS:
-			case F_PI:
-				/* scalar 1:1 mappings */
-			case F_REVERSE_TEXT:
-			case F_REVERSE_BYTEA:
-			case F_BIT_COUNT_BYTEA:
-			case F_MOD_INT2_INT2:
-			case F_MOD_INT4_INT4:
-			case F_MOD_INT8_INT8:
-			case F_MOD_NUMERIC_NUMERIC:
-			case F_POW_FLOAT8_FLOAT8:
-			case F_POWER_FLOAT8_FLOAT8:
-			case F_POW_NUMERIC_NUMERIC:
-			case F_POWER_NUMERIC_NUMERIC:
-			case F_MD5_BYTEA:
-			case F_MD5_TEXT:
-			case F_TO_TIMESTAMP_FLOAT8:
-			case F_TO_CHAR_TIMESTAMP_TEXT:
-			case F_TO_CHAR_TIMESTAMPTZ_TEXT:
-			case F_JSONB_EXTRACT_PATH:
-			case F_JSONB_EXTRACT_PATH_TEXT:
-			case F_JSON_EXTRACT_PATH:
-			case F_JSON_EXTRACT_PATH_TEXT:
-			case F_NOW:
-			case F_STATEMENT_TIMESTAMP:
-			case F_TRANSACTION_TIMESTAMP:
-			case F_CLOCK_TIMESTAMP:
-			case F_CURRENT_SCHEMA:
-			case F_CURRENT_DATABASE:
-				/* numeric scalar functions, names match ClickHouse */
-			case F_ABS_INT2:
-			case F_ABS_INT4:
-			case F_ABS_INT8:
-			case F_ABS_FLOAT4:
-			case F_ABS_FLOAT8:
-			case F_ABS_NUMERIC:
-			case F_ROUND_FLOAT8:
-			case F_ROUND_NUMERIC:
-			case F_ROUND_NUMERIC_INT4:
-			case F_FACTORIAL:
-				/* string functions: CH ltrim/rtrim/concat_ws are aliases */
-			case F_LTRIM_TEXT:
-			case F_RTRIM_TEXT:
-			case F_CONCAT_WS:
-
-				/*
-				 * length(text) deparses to lengthUTF8 (code points);
-				 * length(bytea) keeps byte count
-				 */
-			case F_LENGTH_TEXT:
-			case F_LENGTH_BYTEA:
-				/* octet_length deparses to CH length (bytes) */
-			case F_OCTET_LENGTH_TEXT:
-			case F_OCTET_LENGTH_BPCHAR:
-			case F_OCTET_LENGTH_BYTEA:
-				/* bit_and/or/xor aggregates map to CH groupBitAnd/Or/Xor */
-			case F_BIT_AND_INT2:
-			case F_BIT_AND_INT4:
-			case F_BIT_AND_INT8:
-			case F_BIT_OR_INT2:
-			case F_BIT_OR_INT4:
-			case F_BIT_OR_INT8:
-			case F_BIT_XOR_INT2:
-			case F_BIT_XOR_INT4:
-			case F_BIT_XOR_INT8:
-				/* date(ts), date(tstz) deparse as CH date() (alias toDate) */
-			case F_DATE_TIMESTAMP:
-			case F_DATE_TIMESTAMPTZ:
-				/* window functions: lead/lag share PG and CH names */
-			case F_LEAD_ANYELEMENT:
-			case F_LEAD_ANYELEMENT_INT4:
-			case F_LEAD_ANYCOMPATIBLE_INT4_ANYCOMPATIBLE:
-			case F_LAG_ANYELEMENT:
-			case F_LAG_ANYELEMENT_INT4:
-			case F_LAG_ANYCOMPATIBLE_INT4_ANYCOMPATIBLE:
-				/* array functions: simple mappings */
-			case F_ARRAY_CAT:
-			case F_ARRAY_APPEND:
-			case F_ARRAY_REMOVE:
-			case F_ARRAY_TO_STRING_ANYARRAY_TEXT:
-			case F_CARDINALITY:
-			case F_ARRAY_REVERSE:
-			case F_ARRAY_SORT_ANYARRAY:
-			case F_ARRAY_SHUFFLE:
-			case F_ARRAY_SAMPLE:
-				/* array functions: arg rewriting */
-			case F_ARRAY_LENGTH:
-			case F_ARRAY_PREPEND:
-			case F_STRING_TO_ARRAY_TEXT_TEXT:
-			case F_SPLIT_PART:
-			case F_TRIM_ARRAY:
-			case F_ARRAY_FILL_ANYELEMENT__INT4:
-			case F_ARRAY_SORT_ANYARRAY_BOOL:
-				special_builtin = true;
-				break;
-			default:
-				return NULL;
-		}
-	}
+	if (is_builtin && !lookup_builtin_func(funcid, &def))
+		return NULL;
 
 	if (!custom_objects_cache)
 		custom_objects_cache = create_custom_objects_cache();
@@ -605,285 +752,15 @@ chfdw_check_for_custom_function(Oid funcid)
 		entry = hash_search(custom_objects_cache, (void *) &funcid, HASH_ENTER, NULL);
 		entry->cf_oid = funcid;
 		init_custom_entry(entry);
-		switch (funcid)
+
+		if (is_builtin)
 		{
-			case F_DATE_TRUNC_TEXT_TIMESTAMPTZ:
-			case F_DATE_TRUNC_TEXT_TIMESTAMP:
-				{
-					entry->cf_type = CF_DATE_TRUNC;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_DATE_PART_TEXT_TIMESTAMPTZ:
-			case F_DATE_PART_TEXT_TIMESTAMP:
-			case F_DATE_PART_TEXT_DATE:
-			case F_EXTRACT_TEXT_TIMESTAMP:
-			case F_EXTRACT_TEXT_TIMESTAMPTZ:
-			case F_EXTRACT_TEXT_DATE:
-				{
-					entry->cf_type = CF_DATE_PART;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_TIMEZONE_TEXT_TIMESTAMP:
-			case F_TIMEZONE_TEXT_TIMESTAMPTZ:
-				{
-					entry->cf_type = CF_TIMEZONE;
-					strcpy(entry->custom_name, "toTimeZone");
-					break;
-				}
-			case F_ARRAY_POSITION_ANYCOMPATIBLEARRAY_ANYCOMPATIBLE:
-				{
-					strcpy(entry->custom_name, "indexOf");
-					break;
-				}
-			case F_BTRIM_TEXT_TEXT:
-			case F_BTRIM_TEXT:
-				{
-					strcpy(entry->custom_name, "trimBoth");
-					break;
-				}
-			case F_STRPOS:
-				{
-					/* PG strpos counts code points, CH position counts bytes */
-					strcpy(entry->custom_name, "positionUTF8");
-					break;
-				}
-			case F_LOWER_TEXT:
-				/* PG lower(text) is locale-aware on code points */
-				strcpy(entry->custom_name, "lowerUTF8");
-				break;
-			case F_UPPER_TEXT:
-				/* PG upper(text) is locale-aware on code points */
-				strcpy(entry->custom_name, "upperUTF8");
-				break;
-			case F_SUBSTR_TEXT_INT4_INT4:
-			case F_SUBSTR_TEXT_INT4:
-			case F_SUBSTRING_TEXT_INT4_INT4:
-			case F_SUBSTRING_TEXT_INT4:
-				/* PG substring(text, ...) counts code points */
-				strcpy(entry->custom_name, "substringUTF8");
-				break;
-			case F_SUBSTR_BYTEA_INT4_INT4:
-			case F_SUBSTR_BYTEA_INT4:
-			case F_SUBSTRING_BYTEA_INT4_INT4:
-			case F_SUBSTRING_BYTEA_INT4:
-				/* bytea variant is byte-based; CH substring matches */
-				strcpy(entry->custom_name, "substring");
-				break;
-			case F_REGEXP_LIKE_TEXT_TEXT:
-			case F_REGEXP_LIKE_TEXT_TEXT_TEXT:
-				{
-					entry->cf_type = CF_MATCH;
-					strcpy(entry->custom_name, "match");
-					break;
-				}
-			case F_REGEXP_MATCH_TEXT_TEXT:
-			case F_REGEXP_MATCH_TEXT_TEXT_TEXT:
-				{
-					entry->cf_type = CF_REGEX_PG_MATCH;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT:
-			case F_REGEXP_SPLIT_TO_ARRAY_TEXT_TEXT_TEXT:
-				{
-					entry->cf_type = CF_SPLIT_BY_REGEX;
-					strcpy(entry->custom_name, "splitByRegexp");
-					break;
-				}
-			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT:
-			case F_REGEXP_REPLACE_TEXT_TEXT_TEXT_TEXT:
-				{
-					entry->cf_type = CF_REPLACE_REGEX;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
-			case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
-				{
-					strcpy(entry->custom_name, "quantile");
-					break;
-				}
-			case F_ARRAY_AGG_ANYNONARRAY:
-				{
-					strcpy(entry->custom_name, "groupArray");
-					break;
-				}
-			case F_MD5_BYTEA:
-			case F_MD5_TEXT:
-				{
-					/* Special hashing function returns lowercase hex. */
-					strcpy(entry->custom_name, "lower(hex(MD5");
-					entry->paren_count = 3;
-					break;
-				}
-			case F_REVERSE_TEXT:
-				/* reverse code points, not bytes */
-				strcpy(entry->custom_name, "reverseUTF8");
-				break;
-			case F_LENGTH_TEXT:
-
-				/*
-				 * PG length(text) counts code points, CH length() counts
-				 * bytes
-				 */
-				strcpy(entry->custom_name, "lengthUTF8");
-				break;
-			case F_OCTET_LENGTH_TEXT:
-			case F_OCTET_LENGTH_BPCHAR:
-			case F_OCTET_LENGTH_BYTEA:
-				strcpy(entry->custom_name, "length");
-				break;
-			case F_BIT_AND_INT2:
-			case F_BIT_AND_INT4:
-			case F_BIT_AND_INT8:
-				strcpy(entry->custom_name, "groupBitAnd");
-				break;
-			case F_BIT_OR_INT2:
-			case F_BIT_OR_INT4:
-			case F_BIT_OR_INT8:
-				strcpy(entry->custom_name, "groupBitOr");
-				break;
-			case F_BIT_XOR_INT2:
-			case F_BIT_XOR_INT4:
-			case F_BIT_XOR_INT8:
-				strcpy(entry->custom_name, "groupBitXor");
-				break;
-			case F_BIT_COUNT_BYTEA:
-				strcpy(entry->custom_name, "bitCount");
-				break;
-			case F_MOD_INT2_INT2:
-			case F_MOD_INT4_INT4:
-			case F_MOD_INT8_INT8:
-			case F_MOD_NUMERIC_NUMERIC:
-				strcpy(entry->custom_name, "modulo");
-				break;
-			case F_POW_FLOAT8_FLOAT8:
-			case F_POWER_FLOAT8_FLOAT8:
-			case F_POW_NUMERIC_NUMERIC:
-			case F_POWER_NUMERIC_NUMERIC:
-				/* CH lacks "power", maps to pow */
-				strcpy(entry->custom_name, "pow");
-				break;
-			case F_TO_TIMESTAMP_FLOAT8:
-				{
-					/*
-					 * ClickHouse doesn't work with subsecond precision
-					 * timestamps.
-					 */
-					strcpy(entry->custom_name, "fromUnixTimestamp(toInt64");
-					entry->paren_count = 2;
-					break;
-				}
-			case F_TO_CHAR_TIMESTAMP_TEXT:
-			case F_TO_CHAR_TIMESTAMPTZ_TEXT:
-				{
-					entry->cf_type = CF_TO_CHAR;
-					strcpy(entry->custom_name, "formatDateTime");
-					break;
-				}
-			case F_JSONB_EXTRACT_PATH_TEXT:
-			case F_JSON_EXTRACT_PATH_TEXT:
-				{
-					entry->cf_type = CF_JSON_EXTRACT_PATH_TEXT;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_JSONB_EXTRACT_PATH:
-			case F_JSON_EXTRACT_PATH:
-				{
-					entry->cf_type = CF_JSON_EXTRACT_PATH;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_NOW:
-				{
-					/*
-					 * Postgres NOW() produces subsecond precision, to map to
-					 * now64()
-					 */
-					strcpy(entry->custom_name, "now64");
-					break;
-				}
-			case F_STATEMENT_TIMESTAMP:
-			case F_TRANSACTION_TIMESTAMP:
-			case F_CLOCK_TIMESTAMP:
-				{
-					entry->cf_type = CF_CLOCK_TIMESTAMP;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_CURRENT_SCHEMA:
-				{
-					entry->cf_type = CF_CURRENT_SCHEMA;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-			case F_CURRENT_DATABASE:
-				{
-					entry->cf_type = CF_CURRENT_DATABASE;
-					entry->custom_name[0] = '\1';
-					break;
-				}
-				/* array functions: simple mappings */
-			case F_ARRAY_CAT:
-				strcpy(entry->custom_name, "arrayConcat");
-				break;
-			case F_ARRAY_APPEND:
-				strcpy(entry->custom_name, "arrayPushBack");
-				break;
-			case F_ARRAY_REMOVE:
-				strcpy(entry->custom_name, "arrayRemove");
-				break;
-			case F_ARRAY_TO_STRING_ANYARRAY_TEXT:
-				strcpy(entry->custom_name, "arrayStringConcat");
-				break;
-			case F_CARDINALITY:
-			case F_ARRAY_LENGTH:
-				entry->cf_type = CF_ARRAY_LENGTH;
-				strcpy(entry->custom_name, "length");
-				break;
-			case F_ARRAY_REVERSE:
-				strcpy(entry->custom_name, "arrayReverse");
-				break;
-			case F_ARRAY_SORT_ANYARRAY:
-				strcpy(entry->custom_name, "arraySort");
-				break;
-			case F_ARRAY_SHUFFLE:
-				strcpy(entry->custom_name, "arrayShuffle");
-				break;
-			case F_ARRAY_SAMPLE:
-				strcpy(entry->custom_name, "arrayRandomSample");
-				break;
-			case F_ARRAY_PREPEND:
-				entry->cf_type = CF_ARRAY_PREPEND;
-				strcpy(entry->custom_name, "arrayPushFront");
-				break;
-			case F_STRING_TO_ARRAY_TEXT_TEXT:
-				entry->cf_type = CF_STRING_TO_ARRAY;
-				strcpy(entry->custom_name, "splitByString");
-				break;
-			case F_SPLIT_PART:
-				entry->cf_type = CF_STRING_TO_ARRAY_PART;
-				strcpy(entry->custom_name, "splitByString");
-				break;
-			case F_TRIM_ARRAY:
-				entry->cf_type = CF_TRIM_ARRAY;
-				strcpy(entry->custom_name, "arrayResize");
-				break;
-			case F_ARRAY_FILL_ANYELEMENT__INT4:
-				entry->cf_type = CF_ARRAY_FILL;
-				strcpy(entry->custom_name, "arrayWithConstant");
-				break;
-			case F_ARRAY_SORT_ANYARRAY_BOOL:
-				entry->cf_type = CF_ARRAY_SORT_DESC;
-				entry->custom_name[0] = '\1';
-				break;
-		}
-
-		if (special_builtin)
+			entry->cf_type = def.cf_type;
+			entry->paren_count = def.paren_count;
+			if (def.ch_name)
+				strlcpy(entry->custom_name, def.ch_name, NAMEDATALEN);
 			return entry;
+		}
 
 		extoid = getExtensionOfObject(ProcedureRelationId, funcid);
 		extname = get_extension_name(extoid);

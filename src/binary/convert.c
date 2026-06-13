@@ -21,6 +21,41 @@
 #include "binary_internal.h"
 #include <stdint.h>
 
+/*
+ * Scalar CH column kind -> PG type OID, indexed by chc_kind. InvalidOid for
+ * wrapper kinds (Nullable, LowCardinality, Array, Tuple) and unset entries.
+ */
+const		Oid ch_scalar_oids[CHC_KIND_COUNT] = {
+	[CHC_INT8] = INT2OID,
+	[CHC_INT16] = INT2OID,
+	[CHC_UINT8] = INT2OID,
+	[CHC_BOOL] = BOOLOID,
+	[CHC_INT32] = INT4OID,
+	[CHC_UINT16] = INT4OID,
+	[CHC_INT64] = INT8OID,
+	[CHC_UINT32] = INT8OID,
+	[CHC_UINT64] = INT8OID,
+	[CHC_FLOAT32] = FLOAT4OID,
+	[CHC_FLOAT64] = FLOAT8OID,
+	[CHC_DECIMAL32] = NUMERICOID,
+	[CHC_DECIMAL64] = NUMERICOID,
+	[CHC_DECIMAL128] = NUMERICOID,
+	[CHC_DECIMAL256] = NUMERICOID,
+	[CHC_STRING] = TEXTOID,
+	[CHC_FIXED_STRING] = TEXTOID,
+	[CHC_ENUM8] = TEXTOID,
+	[CHC_ENUM16] = TEXTOID,
+	[CHC_JSON] = JSONBOID,
+	[CHC_OBJECT] = JSONBOID,
+	[CHC_DATE] = DATEOID,
+	[CHC_DATE32] = DATEOID,
+	[CHC_DATETIME] = TIMESTAMPTZOID,
+	[CHC_DATETIME64] = TIMESTAMPTZOID,
+	[CHC_UUID] = UUIDOID,
+	[CHC_IPV4] = INETOID,
+	[CHC_IPV6] = INETOID,
+};
+
 typedef struct ch_convert_state ch_convert_state;
 typedef struct ch_convert_output_state ch_convert_output_state;
 typedef Datum(*convert_func) (ch_convert_state *, Datum);
