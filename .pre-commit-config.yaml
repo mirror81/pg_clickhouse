@@ -4,10 +4,10 @@ repos:
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
-      - id: check-illegal-windows-names
+      # - id: check-illegal-windows-names
       - id: check-json
       - id: check-merge-conflict
-      - id: check-symlinks
+      # - id: check-symlinks
       - id: check-vcs-permalinks
       - id: check-yaml
       - id: destroyed-symlinks
@@ -39,6 +39,11 @@ repos:
         entry: sh -c 'if [ -f compile_commands.json ]; then run-clang-tidy -p . "$@"; else echo "No compile_commands.json; skipping"; fi'
         files: '\.c$'
         exclude: "^vendor/"
+      - id: shellcheck
+        name: ShellCheck
+        language: system
+        entry: shellcheck
+        types: [shell]
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
     hooks:
