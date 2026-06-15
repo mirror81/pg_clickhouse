@@ -1,9 +1,45 @@
-ClickHouse Version Testing Containers
-=====================================
+# pg_clickhouse Development Tools
+
+This directory contains various scripts and configurations to assist with the
+development of pg_clickhouse.
+
+*   `bear.json`: [Bear Configuration](#bear-configuration)
+*   `bear.yml`: [Bear Configuration](#bear-configuration)
+*   `docker-compose.yml`: [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
+*   `indent.sh`: Run by `make indent`; requires [pg_bsd_indent]
+*   `Makefile`: Automates [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
+*   `README.md`: This file
+*   `runch`: [Run ClickHouse Server](#run-clickhouse-server)
+*   [`tpch`]: [TPC-H Benchmark Scripts](./tpch/README.md)
+
+## Run ClickHouse Server
+
+Use `runch` to run a specific version of the ClickHouse server. For a complete
+list of commands, run:
+
+```sh
+runch help
+```
+
+`runch` relies on [clickhousectl] to start or stop a local ClickHouse server
+on the default ports (assuming [clickhousectl] is not currently running any
+other servers). Useful for testing against a specific version of ClickHouse.
+For example, to test pg_clickhouse against ClickHouse 23.8:
+
+```sh
+./dev/runch start 23.8
+make installcheck
+./dev/runch stop
+```
+
+Specify any version supported by [clickhousectl]. Currently defaults to
+`26.6`.
+
+## ClickHouse Version Testing Containers
 
 This directory's [docker-compose.yml](docker-compose.yml) starts images for
 each supported major version of ClickHouse. Each container also runs
-PostgreSQL 18. Both ClickHouse and PostgreSQL run on their default ports
+PostgreSQL 19. Both ClickHouse and PostgreSQL run on their default ports
 (unexported) and trust all local connections. The containers are based on
 [pgxn-tools].
 
@@ -20,4 +56,38 @@ pg-build-test # or make && make install && make installcheck
 The containers should remain until you `make stop`; if you restart Docker (or
 your system), they may need to be started again, e.g., `docker start ch_26_3`.
 
+To run a single version, use:
+
+```sh
+(cd dev && docker compose -f docker-compose.yml up -d ch_24_3)
+```
+
+Run `(cd dev && docker compose config --services)` to get a list of service
+versions.
+
+## Bear Configuration
+
+Configuration files for [Bear], used to generate the `compile_commands.json`
+file:
+
+```sh
+make compile_commands.json
+```
+
+This file is used by the `clang-tidy` and `lint` targets to analyze the
+pg_clickhouse source code to report issues. The pg_clickhouse project converts
+enables all warnings and converts them to errors, but this configuration gives
+`clang-tidy` indigestion. We use the Bear configuration to disable all errors
+to avoid this issue.
+
+There are currently two files:
+
+*   `bear.yml` works with Bear 4 and later, the current release
+*   `bear.json` works with Bear 3, which ships with Debian
+
+The `compile_commands.json` target determines which to use.
+
+  [pg_bsd_indent]: https://github.com/postgres/postgres/tree/master/src/tools/pg_bsd_indent
+  [clickhousectl]: https://clickhouse.com/docs/interfaces/cli "ClickHouse Docs: clickhousectl"
   [pgxn-tools]: https://github.com/pgxn/docker-pgxn-tools/
+  [Bear]: https://github.com/rizsotto/Bear "Bear generates a compilation database for Clang tooling"
