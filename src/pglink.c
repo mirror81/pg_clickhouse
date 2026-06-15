@@ -250,7 +250,7 @@ static ch_cursor *
 http_simple_query(void *conn, const ch_query * query)
 {
 	int			attempts = 0;
-	MemoryContext tempcxt,
+	MemoryContext tempcxt = NULL,
 				oldcxt;
 	ch_cursor  *cursor;
 	ch_http_response_t *resp;
@@ -304,28 +304,39 @@ again:
 						));
 	}
 
-	/*
-	 * we could not control properly deallocation of libclickhouse memory, so
-	 * we use memory context callbacks for that
-	 */
-	tempcxt = AllocSetContextCreate(PortalContext, "pg_clickhouse cursor",
-									ALLOCSET_DEFAULT_SIZES);
-	oldcxt = MemoryContextSwitchTo(tempcxt);
+	PG_TRY();
+	{
+		/*
+		 * If any palloc below throws, use PG_CATCH to free the Curl response.
+		 */
+		tempcxt = AllocSetContextCreate(PortalContext, "pg_clickhouse cursor",
+										ALLOCSET_DEFAULT_SIZES);
+		oldcxt = MemoryContextSwitchTo(tempcxt);
 
-	cursor = palloc0(sizeof(ch_cursor));
-	cursor->conn = conn;
-	cursor->query_response = resp;
-	cursor->read_state = palloc0(sizeof(ch_http_read_state));
-	cursor->query = pstrdup(query->sql);
-	cursor->request_time = resp->pretransfer_time * 1000;
-	cursor->total_time = resp->total_time * 1000;
-	ch_http_read_state_init(cursor->read_state, resp->data, resp->datasize);
+		cursor = palloc0(sizeof(ch_cursor));
+		cursor->conn = conn;
+		cursor->query_response = resp;
+		cursor->read_state = palloc0(sizeof(ch_http_read_state));
+		cursor->query = pstrdup(query->sql);
+		cursor->request_time = resp->pretransfer_time * 1000;
+		cursor->total_time = resp->total_time * 1000;
+		ch_http_read_state_init(cursor->read_state, resp->data, resp->datasize);
 
-	cursor->memcxt = tempcxt;
-	cursor->callback.func = http_cursor_free;
-	cursor->callback.arg = cursor;
-	MemoryContextRegisterResetCallback(tempcxt, &cursor->callback);
-	MemoryContextSwitchTo(oldcxt);
+		cursor->memcxt = tempcxt;
+		cursor->callback.func = http_cursor_free;
+		cursor->callback.arg = cursor;
+		MemoryContextRegisterResetCallback(tempcxt, &cursor->callback);
+		MemoryContextSwitchTo(oldcxt);
+	}
+	PG_CATCH();
+	{
+		if (resp)
+			ch_http_response_free(resp);
+		if (tempcxt)
+			MemoryContextDelete(tempcxt);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
 	return cursor;
 }

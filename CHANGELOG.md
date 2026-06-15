@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file. It uses the
     accurately match the Postgres behavior.
 *   No longer push down regular expression functions if the regular expression
     argument is not a constant.
+*   Fixed a memory leak in the http driver when not using streaming ([#281]).
 
   [#227]: https://github.com/ClickHouse/pg_clickhouse/pull/227
     "ClickHouse/pg_clickhouse#227 add three-state secure option for TLS control"
@@ -49,6 +50,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"
   [#269]: https://github.com/ClickHouse/pg_clickhouse/pull/269
     "ClickHouse/pg_clickhouse#269 Add support for PostgreSQL 19beta1"
+  [#218]: https://github.com/ClickHouse/pg_clickhouse/pull/218
+    "ClickHouse/pg_clickhouse#218 Properly free Curl memory on palloc error"
 
 ## [v0.3.1] — 2026-05-02
 
