@@ -22,47 +22,55 @@
 
 #define CHC_IMPLEMENTATION
 #define CHC_NO_ASYNC
-#include "clickhouse.h"
-#include "clickhouse-compression.h"
-#include "clickhouse-posix-io.h"
-#include "clickhouse-openssl.h"
 #include "clickhouse-client.h"
+#include "clickhouse-compression.h"
+#include "clickhouse-openssl.h"
+#include "clickhouse-posix-io.h"
+#include "clickhouse.h"
 
 #include "binary_internal.h"
 
-static void *
-pg_chc_palloc(void *ud pg_attribute_unused(), size_t n)
-{
-	return MemoryContextAllocExtended(CurrentMemoryContext, n, MCXT_ALLOC_HUGE);
+static void*
+pg_chc_palloc(void* ud pg_attribute_unused(), size_t n) {
+    return MemoryContextAllocExtended(CurrentMemoryContext, n, MCXT_ALLOC_HUGE);
 }
 
-static void *
-pg_chc_repalloc(void *ud pg_attribute_unused(), void *p,
-				size_t old_bytes pg_attribute_unused(), size_t new_bytes)
-{
-	if (!p)
-		return MemoryContextAllocExtended(CurrentMemoryContext, new_bytes, MCXT_ALLOC_HUGE);
-	return repalloc_huge(p, new_bytes);
+static void*
+pg_chc_repalloc(
+    void* ud pg_attribute_unused(),
+    void* p,
+    size_t old_bytes pg_attribute_unused(),
+    size_t new_bytes
+) {
+    if (!p) {
+        return MemoryContextAllocExtended(
+            CurrentMemoryContext, new_bytes, MCXT_ALLOC_HUGE
+        );
+    }
+    return repalloc_huge(p, new_bytes);
 }
 
 static void
-pg_chc_pfree(void *ud pg_attribute_unused(), void *p, size_t bytes pg_attribute_unused())
-{
-	if (p)
-		pfree(p);
+pg_chc_pfree(
+    void* ud pg_attribute_unused(),
+    void* p,
+    size_t bytes pg_attribute_unused()
+) {
+    if (p) {
+        pfree(p);
+    }
 }
 
-const		chc_alloc pg_chc_alloc = {
-	.ud = NULL,
-	.alloc = pg_chc_palloc,
-	.realloc = pg_chc_repalloc,
-	.free = pg_chc_pfree,
+const chc_alloc pg_chc_alloc = {
+    .ud      = NULL,
+    .alloc   = pg_chc_palloc,
+    .realloc = pg_chc_repalloc,
+    .free    = pg_chc_pfree,
 };
 
 /* power-of-10 lookup; CH bounds DateTime64 / Decimal scale to [0, 9] */
-const		int64_t pow10i[10] = {
-	1, 10, 100, 1000, 10000, 100000, 1000000,
-	10000000, 100000000, 1000000000
+const int64_t pow10i[10] = {
+    1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000,
 };
 
 /*
@@ -71,25 +79,27 @@ const		int64_t pow10i[10] = {
  * fail the query, so gate.
  */
 bool
-server_supports_json_as_string(const chc_client * c)
-{
-	const		chc_server_info *info = chc_client_server_info(c);
+server_supports_json_as_string(const chc_client* c) {
+    const chc_server_info* info = chc_client_server_info(c);
 
-	if (!info)
-		return false;
-	if (info->version_major > 24)
-		return true;
-	if (info->version_major == 24 && info->version_minor >= 10)
-		return true;
-	return false;
+    if (!info) {
+        return false;
+    }
+    if (info->version_major > 24) {
+        return true;
+    }
+    if (info->version_major == 24 && info->version_minor >= 10) {
+        return true;
+    }
+    return false;
 }
 
 void
-raise_chc(const chc_err * err, int sqlstate, const char *prefix)
-{
-	const char *m = (err && err->msg[0]) ? err->msg : "unknown error";
+raise_chc(const chc_err* err, int sqlstate, const char* prefix) {
+    const char* m = (err && err->msg[0]) ? err->msg : "unknown error";
 
-	ereport(ERROR,
-			(errcode(sqlstate),
-			 errmsg("pg_clickhouse: %s%s", prefix ? prefix : "", m)));
+    ereport(
+        ERROR,
+        (errcode(sqlstate), errmsg("pg_clickhouse: %s%s", prefix ? prefix : "", m))
+    );
 }

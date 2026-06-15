@@ -24,13 +24,12 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-  - repo: local
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v22.1.5
     hooks:
-      - id: indent
-        name: indent code
-        language: system
-        entry: ./dev/indent.sh
-        pass_filenames: false
+      - id: clang-format
+        name: format code
+        types: [c]
   - repo: local
     hooks:
       - id: clang-tidy

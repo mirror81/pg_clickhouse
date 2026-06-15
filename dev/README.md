@@ -6,7 +6,6 @@ development of pg_clickhouse.
 *   `bear.json`: [Bear Configuration](#bear-configuration)
 *   `bear.yml`: [Bear Configuration](#bear-configuration)
 *   `docker-compose.yml`: [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
-*   `indent.sh`: Run by `make indent`; requires [pg_bsd_indent]
 *   `Makefile`: Automates [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
 *   `README.md`: This file
 *   `runch`: [Run ClickHouse Server](#run-clickhouse-server)
@@ -87,7 +86,6 @@ There are currently two files:
 
 The `compile_commands.json` target determines which to use.
 
-  [pg_bsd_indent]: https://github.com/postgres/postgres/tree/master/src/tools/pg_bsd_indent
   [clickhousectl]: https://clickhouse.com/docs/interfaces/cli "ClickHouse Docs: clickhousectl"
   [pgxn-tools]: https://github.com/pgxn/docker-pgxn-tools/
   [Bear]: https://github.com/rizsotto/Bear "Bear generates a compilation database for Clang tooling"

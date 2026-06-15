@@ -16,9 +16,9 @@
 #include "postgres.h"
 
 #include "access/htup_details.h"
+#include "access/xact.h"
 #include "catalog/pg_user_mapping.h"
 #include "common/int.h"
-#include "access/xact.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "pgstat.h"
@@ -34,141 +34,151 @@
 /*
  * Connection cache (initialized on first use)
  */
-static HTAB * ConnectionHash = NULL;
-static void chfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue);
+static HTAB* ConnectionHash = NULL;
+static void
+chfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue);
 
 static ch_connection
-clickhouse_connect(ForeignServer * server, UserMapping * user)
-{
-	char	   *driver = "http";
+clickhouse_connect(ForeignServer* server, UserMapping* user) {
+    char* driver = "http";
 
-	/* default settings */
-	ch_connection_details details = {"127.0.0.1", 0, NULL, NULL, "default"};
+    /* default settings */
+    ch_connection_details details = { "127.0.0.1", 0, NULL, NULL, "default" };
 
-	chfdw_extract_options(server->options, &driver, &details.host,
-						  &details.port, &details.dbname, &details.username,
-						  &details.password, &details.compression, &details.tls,
-						  &details.min_tls_version);
-	chfdw_extract_options(user->options, &driver, &details.host,
-						  &details.port, &details.dbname, &details.username,
-						  &details.password, &details.compression, &details.tls,
-						  &details.min_tls_version);
+    chfdw_extract_options(
+        server->options,
+        &driver,
+        &details.host,
+        &details.port,
+        &details.dbname,
+        &details.username,
+        &details.password,
+        &details.compression,
+        &details.tls,
+        &details.min_tls_version
+    );
+    chfdw_extract_options(
+        user->options,
+        &driver,
+        &details.host,
+        &details.port,
+        &details.dbname,
+        &details.username,
+        &details.password,
+        &details.compression,
+        &details.tls,
+        &details.min_tls_version
+    );
 
-	if (strcmp(driver, "http") == 0)
-	{
-		return chfdw_http_connect(&details);
-	}
-	else if (strcmp(driver, "binary") == 0)
-	{
-		return chfdw_binary_connect(&details);
-	}
-	else
-		ereport(ERROR,
-				(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
-				 errmsg("invalid ClickHouse connection driver")));
+    if (strcmp(driver, "http") == 0) {
+        return chfdw_http_connect(&details);
+    } else if (strcmp(driver, "binary") == 0) {
+        return chfdw_binary_connect(&details);
+    } else {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+             errmsg("invalid ClickHouse connection driver"))
+        );
+    }
 }
 
 ch_connection
-chfdw_get_connection(UserMapping * user)
-{
-	bool		found;
-	ConnCacheEntry *entry;
-	ConnCacheKey key;
+chfdw_get_connection(UserMapping* user) {
+    bool found;
+    ConnCacheEntry* entry;
+    ConnCacheKey key;
 
-	/* First time through, initialize connection cache hashtable */
-	if (ConnectionHash == NULL)
-	{
-		HASHCTL		ctl;
+    /* First time through, initialize connection cache hashtable */
+    if (ConnectionHash == NULL) {
+        HASHCTL ctl;
 
-		MemSet(&ctl, 0, sizeof(ctl));
-		ctl.keysize = sizeof(ConnCacheKey);
-		ctl.entrysize = sizeof(ConnCacheEntry);
-		/* allocate ConnectionHash in the cache context */
-		ctl.hcxt = CacheMemoryContext;
-		ConnectionHash = hash_create("pg_clickhouse connections", 8,
-									 &ctl,
-									 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+        MemSet(&ctl, 0, sizeof(ctl));
+        ctl.keysize   = sizeof(ConnCacheKey);
+        ctl.entrysize = sizeof(ConnCacheEntry);
+        /* allocate ConnectionHash in the cache context */
+        ctl.hcxt       = CacheMemoryContext;
+        ConnectionHash = hash_create(
+            "pg_clickhouse connections", 8, &ctl, HASH_ELEM | HASH_BLOBS | HASH_CONTEXT
+        );
 
-		/*
-		 * Register some callback functions that manage connection cleanup.
-		 * This should be done just once in each backend.
-		 */
-		CacheRegisterSyscacheCallback(FOREIGNSERVEROID,
-									  chfdw_inval_callback, (Datum) 0);
-		CacheRegisterSyscacheCallback(USERMAPPINGOID,
-									  chfdw_inval_callback, (Datum) 0);
-	}
+        /*
+         * Register some callback functions that manage connection cleanup.
+         * This should be done just once in each backend.
+         */
+        CacheRegisterSyscacheCallback(FOREIGNSERVEROID, chfdw_inval_callback, (Datum)0);
+        CacheRegisterSyscacheCallback(USERMAPPINGOID, chfdw_inval_callback, (Datum)0);
+    }
 
-	/* Create hash key for the entry. Assume no pad bytes in key struct */
-	key.userid = user->umid;
+    /* Create hash key for the entry. Assume no pad bytes in key struct */
+    key.userid = user->umid;
 
-	/*
-	 * Find or create cached entry for requested connection.
-	 */
-	entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
-	if (!found)
-	{
-		/*
-		 * We need only clear "conn" here; remaining fields will be filled
-		 * later when "conn" is set.
-		 */
-		entry->gate.conn = NULL;
-	}
+    /*
+     * Find or create cached entry for requested connection.
+     */
+    entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
+    if (!found) {
+        /*
+         * We need only clear "conn" here; remaining fields will be filled
+         * later when "conn" is set.
+         */
+        entry->gate.conn = NULL;
+    }
 
-	/*
-	 * If the connection needs to be remade due to invalidation, disconnect as
-	 * soon as we're out of all transactions.
-	 */
-	if (entry->gate.conn != NULL && entry->invalidated)
-	{
-		elog(LOG, "closing connection to ClickHouse due to invalidation");
-		entry->gate.methods->disconnect(entry->gate.conn);
-		entry->gate.conn = NULL;
-	}
+    /*
+     * If the connection needs to be remade due to invalidation, disconnect as
+     * soon as we're out of all transactions.
+     */
+    if (entry->gate.conn != NULL && entry->invalidated) {
+        elog(LOG, "closing connection to ClickHouse due to invalidation");
+        entry->gate.methods->disconnect(entry->gate.conn);
+        entry->gate.conn = NULL;
+    }
 
-	/*
-	 * Drop connections that hit an unrecoverable protocol/IO error on the
-	 * previous statement (server raised mid-INSERT and closed the socket,
-	 * write hit EPIPE, etc). Without this, a subsequent statement would write
-	 * to the dead socket and surface a useless "Broken pipe" instead of the
-	 * real error from the next request.
-	 */
-	if (entry->gate.conn != NULL &&
-		entry->gate.methods->is_broken != NULL &&
-		entry->gate.methods->is_broken(entry->gate.conn))
-	{
-		elog(LOG, "closing broken pg_clickhouse connection");
-		entry->gate.methods->disconnect(entry->gate.conn);
-		entry->gate.conn = NULL;
-	}
+    /*
+     * Drop connections that hit an unrecoverable protocol/IO error on the
+     * previous statement (server raised mid-INSERT and closed the socket,
+     * write hit EPIPE, etc). Without this, a subsequent statement would write
+     * to the dead socket and surface a useless "Broken pipe" instead of the
+     * real error from the next request.
+     */
+    if (entry->gate.conn != NULL && entry->gate.methods->is_broken != NULL &&
+        entry->gate.methods->is_broken(entry->gate.conn)) {
+        elog(LOG, "closing broken pg_clickhouse connection");
+        entry->gate.methods->disconnect(entry->gate.conn);
+        entry->gate.conn = NULL;
+    }
 
-	/*
-	 * If cache entry doesn't have a connection, we have to establish a new
-	 * connection. (If clickhouse_connect throws an error, the cache entry
-	 * will remain in a valid empty state, ie conn == NULL.)
-	 */
-	if (entry->gate.conn == NULL)
-	{
-		ForeignServer *server = GetForeignServer(user->serverid);
+    /*
+     * If cache entry doesn't have a connection, we have to establish a new
+     * connection. (If clickhouse_connect throws an error, the cache entry
+     * will remain in a valid empty state, ie conn == NULL.)
+     */
+    if (entry->gate.conn == NULL) {
+        ForeignServer* server = GetForeignServer(user->serverid);
 
-		/* Reset all transient state fields, to be sure all are clean */
-		entry->invalidated = false;
-		entry->server_hashvalue =
-			GetSysCacheHashValue1(FOREIGNSERVEROID,
-								  ObjectIdGetDatum(server->serverid));
-		entry->mapping_hashvalue =
-			GetSysCacheHashValue1(USERMAPPINGOID,
-								  ObjectIdGetDatum(user->umid));
+        /* Reset all transient state fields, to be sure all are clean */
+        entry->invalidated = false;
+        entry->server_hashvalue =
+            GetSysCacheHashValue1(FOREIGNSERVEROID, ObjectIdGetDatum(server->serverid));
+        entry->mapping_hashvalue =
+            GetSysCacheHashValue1(USERMAPPINGOID, ObjectIdGetDatum(user->umid));
 
-		/* Now try to make the connection */
-		entry->gate = clickhouse_connect(server, user);
+        /* Now try to make the connection */
+        entry->gate = clickhouse_connect(server, user);
 
-		elog(DEBUG3,
-			 "new pg_clickhouse connection %p for server \"%s\" (user mapping oid %u, userid %u)",
-			 entry->gate.conn, server->servername, user->umid, user->userid);
-	}
+        elog(
+            DEBUG3,
+            "new pg_clickhouse connection %p for server \"%s\" (user mapping oid %u, "
+            "userid %u)",
+            entry->gate.conn,
+            server->servername,
+            user->umid,
+            user->userid
+        );
+    }
 
-	return entry->gate;
+    return entry->gate;
 }
 
 /*
@@ -187,78 +197,64 @@ chfdw_get_connection(UserMapping * user)
  * individual option values, but it seems too much effort for the gain.
  */
 static void
-chfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue)
-{
-	HASH_SEQ_STATUS scan;
-	ConnCacheEntry *entry;
+chfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue) {
+    HASH_SEQ_STATUS scan;
+    ConnCacheEntry* entry;
 
-	Assert(cacheid == FOREIGNSERVEROID || cacheid == USERMAPPINGOID);
+    Assert(cacheid == FOREIGNSERVEROID || cacheid == USERMAPPINGOID);
 
-	/* ConnectionHash must exist already, if we're registered */
-	hash_seq_init(&scan, ConnectionHash);
-	while ((entry = (ConnCacheEntry *) hash_seq_search(&scan)))
-	{
-		/* Ignore empty entries */
-		if (entry->gate.conn == NULL)
-			continue;
+    /* ConnectionHash must exist already, if we're registered */
+    hash_seq_init(&scan, ConnectionHash);
+    while ((entry = (ConnCacheEntry*)hash_seq_search(&scan))) {
+        /* Ignore empty entries */
+        if (entry->gate.conn == NULL) {
+            continue;
+        }
 
-		/* hashvalue == 0 means a cache reset, must clear all state */
-		if (hashvalue == 0 ||
-			(cacheid == FOREIGNSERVEROID &&
-			 entry->server_hashvalue == hashvalue) ||
-			(cacheid == USERMAPPINGOID &&
-			 entry->mapping_hashvalue == hashvalue))
-		{
-			entry->invalidated = true;
-		}
-	}
+        /* hashvalue == 0 means a cache reset, must clear all state */
+        if (hashvalue == 0 ||
+            (cacheid == FOREIGNSERVEROID && entry->server_hashvalue == hashvalue) ||
+            (cacheid == USERMAPPINGOID && entry->mapping_hashvalue == hashvalue)) {
+            entry->invalidated = true;
+        }
+    }
 }
 
-ch_connection_details *
-connstring_parse(const char *connstring)
-{
-	ListCell   *lc;
-	List	   *options = chfdw_parse_options(connstring, false, true);
-	ch_connection_details *details = palloc0(sizeof(ch_connection_details));
+ch_connection_details*
+connstring_parse(const char* connstring) {
+    ListCell* lc;
+    List* options                  = chfdw_parse_options(connstring, false, true);
+    ch_connection_details* details = palloc0(sizeof(ch_connection_details));
 
-	if (options == NIL)
-		return details;
+    if (options == NIL) {
+        return details;
+    }
 
-	foreach(lc, options)
-	{
-		DefElem    *elem = (DefElem *) lfirst(lc);
-		char	   *pname = elem->defname;
-		char	   *pval = strVal(elem->arg);
+    foreach (lc, options) {
+        DefElem* elem = (DefElem*)lfirst(lc);
+        char* pname   = elem->defname;
+        char* pval    = strVal(elem->arg);
 
-		if (strcmp(pname, "host") == 0)
-		{
-			details->host = pval;
-		}
-		else if (strcmp(pname, "port") == 0)
-		{
-			details->port = pg_strtoint32(pval);
-		}
-		else if (strcmp(pname, "username") == 0)
-		{
-			details->username = pval;
-		}
-		else if (strcmp(pname, "password") == 0)
-		{
-			details->password = pval;
-		}
-		else if (strcmp(pname, "dbname") == 0)
-		{
-			details->dbname = pval;
-		}
-		else if (strcmp(pname, "") != 0)
-		{
-			ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-					 errmsg("pg_clickhouse: invalid connection option \"%s\"", pname)));
-		}
-	}
+        if (strcmp(pname, "host") == 0) {
+            details->host = pval;
+        } else if (strcmp(pname, "port") == 0) {
+            details->port = pg_strtoint32(pval);
+        } else if (strcmp(pname, "username") == 0) {
+            details->username = pval;
+        } else if (strcmp(pname, "password") == 0) {
+            details->password = pval;
+        } else if (strcmp(pname, "dbname") == 0) {
+            details->dbname = pval;
+        } else if (strcmp(pname, "") != 0) {
+            ereport(
+                ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("pg_clickhouse: invalid connection option \"%s\"", pname))
+            );
+        }
+    }
 
-	list_free(options);
+    list_free(options);
 
-	return details;
+    return details;
 }

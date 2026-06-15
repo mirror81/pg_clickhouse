@@ -44,6 +44,12 @@ All notable changes to this project will be documented in this file. It uses the
     argument is not a constant.
 *   Fixed a memory leak in the http driver when not using streaming ([#281]).
 
+### 🏗️ Build Setup
+
+*   Replaced code formatting, previously performed by `pg_bsd_indent`, with
+    [clang-format] using a modified "Mozilla style" with an emphasis on
+    legibility and safety ([#283]).
+
   [#227]: https://github.com/ClickHouse/pg_clickhouse/pull/227
     "ClickHouse/pg_clickhouse#227 add three-state secure option for TLS control"
   [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268
@@ -52,6 +58,9 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#269 Add support for PostgreSQL 19beta1"
   [#218]: https://github.com/ClickHouse/pg_clickhouse/pull/218
     "ClickHouse/pg_clickhouse#218 Properly free Curl memory on palloc error"
+  [clang-format]: https://clang.llvm.org/docs/ClangFormat.html
+  [#283]: https://github.com/ClickHouse/pg_clickhouse/pull/283
+    "ClickHouse/pg_clickhouse#283 clang-format"
 
 ## [v0.3.1] — 2026-05-02
 
