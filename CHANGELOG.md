@@ -7,28 +7,32 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [Unreleased]
+## [v0.3.2] — 2026-06-16
+
+This release makes binary-only changes. Once installed, any existing use of
+pg_clickhouse v0.3 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 
-*   [#268] added a `compression` server option for the binary driver to enable
+*   Added a `compression` server option for the binary driver to enable
     ClickHouse native protocol compression of query results and `INSERT` data.
-    Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4`.
-*   [#227] added a `secure` server option giving explicit control over TLS for
+    Accepts `none`, `lz4`, or `zstd`, and defaults to `lz4` ([#268]).
+*   Added a `secure` server option giving explicit control over TLS for
     both the binary and HTTP drivers, rather than inferring it from the host
     name and port. Accepts `on` (force TLS), `off` (force plaintext), or `auto`
     (the previous cloud-host/port heuristic, still the default). Thanks to
-    Andrey Borodin for the PR ([#227]).
+    Andrey Borodin for the PR ([#272]).
 *   Added a `min_tls_version` server option to set the minimum TLS protocol
     version negotiated by both drivers. Accepts `TLSv1`, `TLSv1.1`, `TLSv1.2`,
-    or `TLSv1.3`, and defaults to the TLS library's own minimum.
+    or `TLSv1.3`, and defaults to the TLS library's own minimum ([#272]).
 *   Added mapping for `regexp_match()` to pushdown to `extractGroups()`, or
     `arraySlice(extractAll(text, pattern), 1, 1)` if the regex contains no
-    capturing groups.
+    capturing groups ([#270]).
 
 ### 🚀 Distribution
 
-*   [#269] added support for PostgreSQL 19beta1.
+*   Added support for PostgreSQL 19beta1 ([#269]).
 
 ### 🐞 Bug Fixes
 
@@ -38,14 +42,14 @@ All notable changes to this project will be documented in this file. It uses the
     because it is enabled by default in both Postgres and ClickHouse. But the
     Postgres flags `s` and `m` cancel each other out, so we only set `s` if
     there is no `m` and if there is an `m` we set `(?m-s)`.
-*   Pushdown of the `p` regular expression fag as `-s` instead of `s` to more
-    accurately match the Postgres behavior.
-*   No longer push down regular expression functions if the regular expression
-    argument is not a constant.
+*   Changed the pushdown of the `p` regular expression fag as `-s` instead of
+    `s` to more accurately match the Postgres behavior ([#271]).
+*   Eliminated push down of regular expression functions when the regular
+    expression argument is not a constant ([#270]).
 *   Fixed a memory leak in the http driver when not using streaming ([#281]).
 *   Fixed a memory leak when a foreign scan repeatedly re-scans, typically a
     nested-loop join with a parameterized inner foreign scan ([#282]).
-*   Change the deparsing of `ANY()` with an empty array (`WHERE x = ANY('{}')`)
+*   Changed the deparsing of `ANY()` with an empty array (`WHERE x = ANY('{}')`)
     to a `has()` function rather than an `IN()` expression. This fixes errors
     on versions prior to ClickHouse 25, where `IN()` with no list returns an
     error ([#285])
@@ -56,12 +60,19 @@ All notable changes to this project will be documented in this file. It uses the
     [clang-format] using a modified "Mozilla style" with an emphasis on
     legibility and safety ([#283]).
 
+  [v0.3.2]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.1...v0.3.2
   [#227]: https://github.com/ClickHouse/pg_clickhouse/pull/227
     "ClickHouse/pg_clickhouse#227 add three-state secure option for TLS control"
   [#268]: https://github.com/ClickHouse/pg_clickhouse/pull/268
     "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"
   [#269]: https://github.com/ClickHouse/pg_clickhouse/pull/269
     "ClickHouse/pg_clickhouse#269 Add support for PostgreSQL 19beta1"
+  [#270]: https://github.com/ClickHouse/pg_clickhouse/pull/270
+    "ClickHouse/pg_clickhouse#270 Improve Regex flag mapping & support regexp_match"
+  [#271]: https://github.com/ClickHouse/pg_clickhouse/pull/271
+    "ClickHouse/pg_clickhouse#271 Parse regex flags separate from emitting them"
+  [#272]: https://github.com/ClickHouse/pg_clickhouse/pull/272
+    "ClickHouse/pg_clickhouse#272 feat: add three-state secure option (on/off/auto) for TLS control"
   [#281]: https://github.com/ClickHouse/pg_clickhouse/pull/281
     "ClickHouse/pg_clickhouse#281 Properly free Curl memory on palloc error"
   [#282]: https://github.com/ClickHouse/pg_clickhouse/pull/282
@@ -69,7 +80,7 @@ All notable changes to this project will be documented in this file. It uses the
   [clang-format]: https://clang.llvm.org/docs/ClangFormat.html
   [#283]: https://github.com/ClickHouse/pg_clickhouse/pull/283
     "ClickHouse/pg_clickhouse#283 clang-format"
- [#285]: https://github.com/ClickHouse/pg_clickhouse/pull/285
+  [#285]: https://github.com/ClickHouse/pg_clickhouse/pull/285
     "ClickHouse/pg_clickhouse#285 Don't use `IN` for empty array (`ANY('{}')`)"
 
 ## [v0.3.1] — 2026-05-02
@@ -451,8 +462,8 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 ## [v0.1.4] — 2026-02-17
 
 This release makes binary-only changes. Once installed, any existing use of
-pg_clickhouse v0.1 will get its benefits on reload without needing to `ALTER
-EXTENSION UPDATE`.
+pg_clickhouse v0.1 will get its benefits on reload without needing to
+`ALTER EXTENSION UPDATE`.
 
 ### ⚡ Improvements
 

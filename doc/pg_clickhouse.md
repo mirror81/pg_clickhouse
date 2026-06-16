@@ -1,4 +1,4 @@
-pg_clickhouse 0.3.1
+pg_clickhouse 0.3.2
 ===================
 
 ## Synopsis
@@ -1319,8 +1319,8 @@ aware of the differences between the two and how pg_clickhouse handles them.
     a `WHERE` clause) and POSIX when it will be evaluated by Postgres (e.g.,
     in a `SELECT` clause).
 
-*   pg_clickhouse pushes down the Postgres [Regex flags] by prepending them
-    to ClickHouse regular expression inside `(?)`. For example:
+*   pg_clickhouse pushes down the [Postgres flags] by prepending them to
+    ClickHouse regular expression inside `(?)`. For example:
 
     ``` sql
     regexp_like(val, '^VAL\d', 'i')
