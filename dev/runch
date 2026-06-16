@@ -3,7 +3,6 @@
 # Start and stop various versions of ClickHouse. Requires:
 #
 # *   `clickhousectl` (a.k.a., `chctl`) v0.3.0 or later
-# *   `mkdir -p ~/.clickhouse/configs && echo 'timezone: UTC' > ~/.clickhouse/configs/default.yaml`
 
 set -e
 
@@ -15,12 +14,34 @@ The runch commands are:
     start [<version>]   Start ClickHouse version; defaults to 26.6
     stop                Stop the current ClickHouse server
     status              Show status of all running severs
+    remove <version>    Remove a version
+    versions            Show currently-installed versions
     help                Show this usage statement and command summary
-
 EOF
 }
 
-name="$(basename "$0")"
+# https://stackoverflow.com/a/246128
+dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+name="$(basename "${BASH_SOURCE[0]}")"
+
+cfg_file() {
+    # Determine which file from ./configs to use.
+    local version="$1"
+    # Default config.
+    fn=default
+    if [ "${version%%.*}" -lt 25 ]; then
+        fn=allow_object
+        # Enable the JSON type in release prior to 2025.
+        if [ "${version:0:4}" == "24.8" ]; then
+            # The setting was renamed.
+            fn=allow_json
+        fi
+    fi
+
+    mkdir -p "$HOME/.clickhouse/configs"
+    cp "$dir/configs/$fn.yaml" "$HOME/.clickhouse/configs/runch-$fn.yaml"
+    echo "runch-$fn"
+}
 
 case "$1" in
     stop)
@@ -29,14 +50,23 @@ case "$1" in
     start)
         version="${2:-26.6}"
 
-        # cfg_file="$(dirname "$0")/clickhouse.yaml"
-        cfg_file=default
-
         chctl local server stop-all # stop "$name"
-        chctl local server start --name "$name" --version "$version" --config-file "$cfg_file"
+        chctl local server start --name "$name-$version" --version "$version" --config-file "$(cfg_file "$version")"
         ;;
     status)
         chctl local server list
+        ;;
+    versions)
+        chctl local list
+        ;;
+    remove)
+        version="$2"
+        if [ -z "$version" ]; then
+            printf 'No version specified\n'
+            usage
+            exit 1;
+        fi
+        chctl local remove "$version"
         ;;
     help)
         usage

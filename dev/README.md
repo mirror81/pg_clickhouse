@@ -5,16 +5,18 @@ development of pg_clickhouse.
 
 *   `bear.json`: [Bear Configuration](#bear-configuration)
 *   `bear.yml`: [Bear Configuration](#bear-configuration)
+*   `choci`: [Run ClickHouse Server](#run-local-clickhouse-server)
+*   `configs`: Configuration files for `choci` and `runch`
 *   `docker-compose.yml`: [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
 *   `Makefile`: Automates [ClickHouse Version Testing Containers](#clickhouse-version-testing-containers)
 *   `README.md`: This file
 *   `runch`: [Run ClickHouse Server](#run-clickhouse-server)
 *   [`tpch`]: [TPC-H Benchmark Scripts](./tpch/README.md)
 
-## Run ClickHouse Server
+## Run Local ClickHouse Server
 
-Use `runch` to run a specific version of the ClickHouse server. For a complete
-list of commands, run:
+Use `runch` to locally run a specific version of the ClickHouse server. For a
+complete list of commands, run:
 
 ```sh
 runch help
@@ -33,6 +35,28 @@ make installcheck
 
 Specify any version supported by [clickhousectl]. Currently defaults to
 `26.6`.
+
+## Run Docker ClickHouse Server
+
+Use `choci` to run a specific version of ClickHouse in an OCI (Docker)
+container. For a complete list of commands, run:
+
+```sh
+choci help
+```
+
+`choci` relies on [docker] to start or stop a ClickHouse server with the
+default ports mapped to localhost. Useful for testing against a specific
+version of ClickHouse. For example, to test pg_clickhouse against ClickHouse
+23.8:
+
+```sh
+./dev/choci start 23.8
+make installcheck
+./dev/choci stop
+```
+
+Specify any tag supported by the [Docker image]. Defaults to `latest`.
 
 ## ClickHouse Version Testing Containers
 
@@ -87,5 +111,7 @@ There are currently two files:
 The `compile_commands.json` target determines which to use.
 
   [clickhousectl]: https://clickhouse.com/docs/interfaces/cli "ClickHouse Docs: clickhousectl"
+  [Docker image]: https://hub.docker.com/r/clickhouse/clickhouse-server
+    "clickhouse/clickhouse-server on DockerHub"
   [pgxn-tools]: https://github.com/pgxn/docker-pgxn-tools/
   [Bear]: https://github.com/rizsotto/Bear "Bear generates a compilation database for Clang tooling"

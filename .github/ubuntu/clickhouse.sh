@@ -40,7 +40,6 @@ done
 
 if [ "${CH_VERSION%%.*}" -lt 25 ]; then
     # Enable the JSON type in release prior to 2025.
-    printf "~~~~ Starting ClickHouse %s ~~~~\n" "$CH_VERSION"
     setting=allow_experimental_object_type
     if [ "${CH_VERSION:0:4}" == "24.8" ]; then
         # The setting was renamed.
