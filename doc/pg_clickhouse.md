@@ -1347,13 +1347,33 @@ aware of the differences between the two and how pg_clickhouse handles them.
 
     RE2 supports only these flags; don't use any other [Postgres flags].
 
-*   In Postgres, `m` and `p` prevent negated character classes (`[^xyz]`) from
-    matching a newline, while the ClickHouse equivalents do not. For example,
-    when evaluating either of these regular expressions against the string
-    `a\nb`, Postgres returns false and ClickHouse returns true:
+*   This table summarizes the affects of the various flags (and no flag, which
+    is the same as `s`) when matching newlines and line endings. Note that in
+    Postgres, `m` and `p` prevent negated character classes (`[^xyz]`) from
+    matching a newline, while the ClickHouse equivalents do not. Otherwise,
+    the behaviors are the same in ClickHouse as in Postgres:
 
-    *   `(?m)a[^x]b`
-    *   `(?p)a[^x]b`
+    | Pattern applied to `a\nb` | Postgres | ClickHouse | Same? |
+    | ------------------------- | :------: | :--------: | :---: |
+    | `a.b`                     | true     | true       |   ✔︎   |
+    | `a[^x]b`                  | true     | true       |   ✔︎   |
+    | `a$`                      | false    | false      |   ✔︎   |
+    | **`s` Flag**              |          |            |       |
+    | `(?s)a.b`                 | true     | true       |   ✔︎   |
+    | `(?s)a[^x]b`              | true     | true       |   ✔︎   |
+    | `(?s)a$`                  | false    | false      |   ✔︎   |
+    | **`m` Flag**              |          |            |       |
+    | `(?m)a.b`                 | false    | false      |   ✔︎   |
+    | `(?m)a[^x]b`              | true     | false      |   ✘   |
+    | `(?m)a$`                  | true     | true       |   ✔︎   |
+    | **`p` Flag**              |          |            |       |
+    | `(?p)a.b`                 | false    | false      |   ✔︎   |
+    | `(?p)a[^x]b`              | true     | false      |   ✘   |
+    | `(?p)a$`                  | false    | false      |   ✔︎   |
+    | **`w` Flag**              |          |            |       |
+    | `(?w)a.b`                 | true     | true       |   ✔   |
+    | `(?w)a[^x]b`              | true     | true       |   ✔   |
+    | `(?w)a$`                  | true     | true       |   ✔   |
 
 *   Any other flags passed to regular expression functions will prevent
     pushdown of the function.
@@ -1369,7 +1389,12 @@ aware of the differences between the two and how pg_clickhouse handles them.
 
 *   Postgres `regexp_match` returns `NULL` when there are no matches, while
     the expressions it pushes down to return an empty array. Use `COALESCE()`
-    to compare return values compatibly.
+    to return an empty array instead of `NULL` to compare return values
+    compatibly. For example:
+
+    ```sql
+    SELECT * FROM events WHERE COALESCE(regexp_match(msg, '^ERR'), '{}');
+    ```
 
 To avoid all ambiguity, consider setting
 [pg_clickhouse.pushdown_regex](#pg_clickhousepushdown_regex) to prevent
