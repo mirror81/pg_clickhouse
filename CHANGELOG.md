@@ -45,6 +45,10 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed a memory leak in the http driver when not using streaming ([#281]).
 *   Fixed a memory leak when a foreign scan repeatedly re-scans, typically a
     nested-loop join with a parameterized inner foreign scan ([#282]).
+*   Change the deparsing of `ANY()` with an empty array (`WHERE x = ANY('{}')`)
+    to a `has()` function rather than an `IN()` expression. This fixes errors
+    on versions prior to ClickHouse 25, where `IN()` with no list returns an
+    error ([#285])
 
 ### 🏗️ Build Setup
 
@@ -65,6 +69,8 @@ All notable changes to this project will be documented in this file. It uses the
   [clang-format]: https://clang.llvm.org/docs/ClangFormat.html
   [#283]: https://github.com/ClickHouse/pg_clickhouse/pull/283
     "ClickHouse/pg_clickhouse#283 clang-format"
+ [#285]: https://github.com/ClickHouse/pg_clickhouse/pull/285
+    "ClickHouse/pg_clickhouse#285 Don't use `IN` for empty array (`ANY('{}')`)"
 
 ## [v0.3.1] — 2026-05-02
 

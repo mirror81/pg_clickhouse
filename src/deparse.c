@@ -3853,6 +3853,39 @@ deparseAsIn(ScalarArrayOpExpr* node, deparse_expr_cxt* context, int optype) {
 }
 
 /*
+ * Returns true if `node` is a constant and, if it's output is an array, the
+ * array has more than one value. Replace with `IsA(expr, Const)` when
+ * ClickHouse 24 support dropped.
+ */
+static bool
+is_ok_in_expr(Expr* expr) {
+    Const* node;
+    Oid typoutput;
+    bool typIsVarlena;
+    AnyArrayType* array;
+
+    if (!IsA(expr, Const)) {
+        return false;
+    }
+
+    node = (Const*)expr;
+    getTypeOutputInfo(node->consttype, &typoutput, &typIsVarlena);
+    if (typoutput != F_ARRAY_OUT) {
+        return true;
+    }
+
+    /*
+     * An empty `IN()` was invalid prior to ClickHouse 25, so disqualify an
+     * empty array. We could change things to `WHERE false` in this situation,
+     * but hopefully this workaround is temporary until we drop ClickHouse 24
+     * support someday, so just leave it to the ClickHouse optimizer to deal
+     * with it.
+     */
+    array = DatumGetAnyArrayP((Datum)node->constvalue);
+    return AARR_NDIM(array) > 0;
+}
+
+/*
  * Deparse given ScalarArrayOpExpr expression. To avoid problems around
  * priority of operations, we always parenthesize the arguments.
  */
@@ -3883,8 +3916,8 @@ deparseScalarArrayOpExpr(ScalarArrayOpExpr* node, deparse_expr_cxt* context) {
     if (node->useOr) {
         arg2 = lsecond(node->args);
 
-        /* very narrow case for = ANY(ARRAY) */
-        if (optype == 1 && IsA(arg2, Const)) {
+        /* very narrow case for IN() and = ANY(ARRAY) */
+        if (optype == 1 && is_ok_in_expr(arg2)) {
             deparseAsIn(node, context, optype);
         } else {
             if (optype == 1) {
@@ -3907,8 +3940,8 @@ deparseScalarArrayOpExpr(ScalarArrayOpExpr* node, deparse_expr_cxt* context) {
     } else {
         arg2 = lsecond(node->args);
 
-        /* very narrow case for <> ALL(ARRAY) */
-        if (optype == 2 && IsA(arg2, Const)) {
+        /* very narrow case for NOT IN() and <> ANY(ARRAY) */
+        if (optype == 2 && is_ok_in_expr(arg2)) {
             deparseAsIn(node, context, optype);
         } else {
             appendStringInfoString(buf, "countEqual(");
