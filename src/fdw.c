@@ -1230,9 +1230,12 @@ clickhouseEndForeignScan(ForeignScanState* node) {
     ChFdwScanState* fsstate = (ChFdwScanState*)node->fdw_state;
 
     time_used = 0;
-    if (fsstate && fsstate->ch_cursor) {
-        MemoryContextDelete(fsstate->ch_cursor->memcxt);
-        fsstate->ch_cursor = NULL;
+    if (fsstate) {
+        if (fsstate->ch_cursor) {
+            MemoryContextDelete(fsstate->ch_cursor->memcxt);
+            fsstate->ch_cursor = NULL;
+        }
+        MemoryContextDelete(fsstate->batch_cxt);
     }
 }
 

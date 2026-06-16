@@ -43,6 +43,8 @@ All notable changes to this project will be documented in this file. It uses the
 *   No longer push down regular expression functions if the regular expression
     argument is not a constant.
 *   Fixed a memory leak in the http driver when not using streaming ([#281]).
+*   Fixed a memory leak when a foreign scan repeatedly re-scans, typically a
+    nested-loop join with a parameterized inner foreign scan ([#282]).
 
 ### 🏗️ Build Setup
 
@@ -56,8 +58,10 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#268 add compression option for binary protocol"
   [#269]: https://github.com/ClickHouse/pg_clickhouse/pull/269
     "ClickHouse/pg_clickhouse#269 Add support for PostgreSQL 19beta1"
-  [#218]: https://github.com/ClickHouse/pg_clickhouse/pull/218
-    "ClickHouse/pg_clickhouse#218 Properly free Curl memory on palloc error"
+  [#281]: https://github.com/ClickHouse/pg_clickhouse/pull/281
+    "ClickHouse/pg_clickhouse#281 Properly free Curl memory on palloc error"
+  [#282]: https://github.com/ClickHouse/pg_clickhouse/pull/282
+    "ClickHouse/pg_clickhouse#282 Free batch context on re-scan"
   [clang-format]: https://clang.llvm.org/docs/ClangFormat.html
   [#283]: https://github.com/ClickHouse/pg_clickhouse/pull/283
     "ClickHouse/pg_clickhouse#283 clang-format"
