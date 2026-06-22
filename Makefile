@@ -121,10 +121,9 @@ bake-vars:
 	@echo "revision=$(REVISION)"
 	@echo "pg_versions=$(PG_VERSIONS)"
 
-# Format the .c and .h files according to the PostgreSQL indentation
-# standard. Requires `pg_bsd_indent` to be in the path.
-indent: dev/indent.sh
-	@$<
+.PHONY: format # Format .c and .h files to project standard in .clang-format.
+format: $(wildcard src/*.c src/*/*.c src/*/*.h)
+	@clang-format --style=file:.clang-format -i $^
 
 # Linting.
 .PHONY: lint # Lint the project
@@ -133,7 +132,7 @@ lint: .pre-commit-config.yaml
 
 .PHONY: clang-tidy # Run clang-tidy static analysis (requires compile_commands.json)
 clang-tidy: compile_commands.json
-	run-clang-tidy -p . $(wildcard src/*.c src/*/*.c)
+	run-clang-tidy -p . $(wildcard src/*.c src/*/*.c src/*/*.h)
 
 ## .git/hooks/pre-commit: Install the pre-commit hook
 .git/hooks/pre-commit:
