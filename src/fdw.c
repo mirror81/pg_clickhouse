@@ -186,6 +186,7 @@ PG_FUNCTION_INFO_V1(clickhouse_op_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_noop);
 PG_FUNCTION_INFO_V1(pgch_version);
+PG_FUNCTION_INFO_V1(clickhouse_server_version);
 static double time_used = 0;
 
 /*
@@ -391,6 +392,20 @@ clickhouse_raw_query(PG_FUNCTION_ARGS) {
     }
 
     PG_RETURN_NULL();
+}
+
+/*
+ * Report the ClickHouse server version for a foreign server as
+ * "major.minor.patch", connecting if necessary.
+ */
+Datum
+clickhouse_server_version(PG_FUNCTION_ARGS) {
+    char* servername      = text_to_cstring(PG_GETARG_TEXT_P(0));
+    ForeignServer* server = GetForeignServerByName(servername, false);
+    UserMapping* user     = GetUserMapping(GetUserId(), server->serverid);
+    ch_server_version v   = chfdw_get_server_version(user);
+
+    PG_RETURN_TEXT_P(cstring_to_text(psprintf("%d.%d.%d", v.major, v.minor, v.patch)));
 }
 
 /* calculate difference */

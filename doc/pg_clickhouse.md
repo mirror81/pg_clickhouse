@@ -1047,6 +1047,27 @@ SELECT clickhouse_raw_query(
 (1 row)
 ```
 
+#### `clickhouse_server_version`
+
+```sql
+SELECT clickhouse_server_version('taxi_srv');
+```
+
+Report the ClickHouse server version, as `major.minor.patch`, for the named
+foreign server, connecting if necessary using the server's options and the
+current user's user mapping:
+
+```sql
+ clickhouse_server_version
+---------------------------
+ 25.8.1
+(1 row)
+```
+
+Reads the version from the native-protocol connection handshake, or over HTTP
+from a single `SELECT version()` query, and caches it for the life of the
+connection.
+
 ### Pushdown Functions
 
 `pg_clickhouse` pushes down a subset of the PostgreSQL builtin functions used

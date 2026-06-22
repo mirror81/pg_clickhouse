@@ -1,0 +1,23 @@
+-- Verify the server-version plumbing: clickhouse_server_version() reports a
+-- plausible ClickHouse version over both the binary and HTTP drivers. The
+-- exact version is environment-specific, so assert only that a real version is
+-- returned in "major.minor.patch" form with a non-zero major.
+
+-- Suppress the env-dependent "drop cascades to user mapping for <user>" notice.
+SET client_min_messages = warning;
+CREATE SERVER srv_ver_binary FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS (driver 'binary');
+CREATE USER MAPPING FOR CURRENT_USER SERVER srv_ver_binary;
+
+CREATE SERVER srv_ver_http FOREIGN DATA WRAPPER clickhouse_fdw
+    OPTIONS (driver 'http');
+CREATE USER MAPPING FOR CURRENT_USER SERVER srv_ver_http;
+
+SELECT clickhouse_server_version('srv_ver_binary') ~ '^[1-9][0-9]*\.[0-9]+\.[0-9]+$'
+           AS binary_well_formed;
+
+SELECT clickhouse_server_version('srv_ver_http') ~ '^[1-9][0-9]*\.[0-9]+\.[0-9]+$'
+           AS http_well_formed;
+
+DROP SERVER srv_ver_binary CASCADE;
+DROP SERVER srv_ver_http CASCADE;

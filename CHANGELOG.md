@@ -7,10 +7,13 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
-## [0.3.3] — Unreleased
+## [0.4.0] — Unreleased
 
 ### ⚡ Improvements
 
+*   Added the `clickhouse_server_version(server)` function, which reports the
+    ClickHouse server version ("major.minor.patch") for a foreign server
+    ([#293]).
 *   Added pushdown for more aggregate functions ([#290]):
     *   [corr]
     *   [covarpop]
@@ -57,7 +60,7 @@ All notable changes to this project will be documented in this file. It uses the
     Postgres ordered set aggregate functions, putting them under their own
     header, "Custom Ordered Set Aggregates".
 
-  [v0.3.3]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.2...v0.3.3
+  [v0.4.0]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.2...v0.4.0
   [#290]: https://github.com/ClickHouse/pg_clickhouse/pull/290
     "ClickHouse/pg_clickhouse#290 Add pushdown for statistical aggregate functions"
   [corr]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/corr
@@ -69,6 +72,8 @@ All notable changes to this project will be documented in this file. It uses the
   [var_samp/variance]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varSamp
   [#291]: https://github.com/ClickHouse/pg_clickhouse/pull/291
     "ClickHouse/pg_clickhouse#291 Push down ordered set aggregate functions"
+  [#293]: https://github.com/ClickHouse/pg_clickhouse/pull/293
+    "ClickHouse/pg_clickhouse#293 Add ClickHouse server-version detection plumbing"
   [#296]: https://github.com/ClickHouse/pg_clickhouse/pull/296
     "ClickHouse/pg_clickhouse#296 Fix benchmark queries that crash/hang with binary driver"
   [#300]: https://github.com/ClickHouse/pg_clickhouse/pull/300

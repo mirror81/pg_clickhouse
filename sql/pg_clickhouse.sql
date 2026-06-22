@@ -21,6 +21,13 @@ LANGUAGE C STRICT;
 -- explicit access.
 REVOKE EXECUTE ON FUNCTION clickhouse_raw_query(text, text) FROM PUBLIC;
 
+-- Report the ClickHouse server version ("major.minor.patch") for a foreign
+-- server, connecting if necessary.
+CREATE FUNCTION clickhouse_server_version(server_name TEXT)
+RETURNS TEXT
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT;
+
 CREATE FUNCTION clickhouse_fdw_validator(text[], oid)
 RETURNS VOID
 AS 'MODULE_PATHNAME'
