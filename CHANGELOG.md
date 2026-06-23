@@ -7,6 +7,30 @@ All notable changes to this project will be documented in this file. It uses the
   [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
     "Semantic Versioning 2.0.0"
 
+## [0.3.3] — Unreleased
+
+### ⚡ Improvements
+
+*   Added pushdown for more aggregate functions ([#290]):
+    *   [corr]
+    *   [covarpop]
+    *   [covarsamp]
+    *   [stddev_pop]
+    *   [stddev_samp/stddev]
+    *   [var_op]
+    *   [var_samp/variance]
+
+  [v0.3.3]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.2...v0.3.3
+  [#290]: https://github.com/ClickHouse/pg_clickhouse/pull/281
+    "ClickHouse/pg_clickhouse#281 Add pushdown for statistical aggregate functions"
+  [corr]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/corr
+  [covarpop]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarpop
+  [covarsamp]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarsamp
+  [stddev_pop]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/stddevpop
+  [stddev_samp/stddev]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/stddevsamp
+  [var_op]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varPop
+  [var_samp/variance]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varSamp
+
 ## [v0.3.2] — 2026-06-16
 
 This release makes binary-only changes. Once installed, any existing use of

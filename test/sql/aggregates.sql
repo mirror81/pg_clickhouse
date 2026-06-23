@@ -103,12 +103,28 @@ SELECT clickhouse_raw_query($$
     (1538392900,'7e3f2fe1-5312-4257-ba3e-54662ba14b56','2025-12-19 07:24:50.960198','2025-12-19','/users/802683',216,5.9)
 $$);
 
+-- Set up a table with some numeric values.
+SELECT clickhouse_raw_query($$
+    CREATE TABLE agg_test.agg_numbers (
+        a Int16,
+        b Float32
+    ) ENGINE = MergeTree ORDER BY (a);
+$$);
+ 
+SELECT clickhouse_raw_query($$
+    INSERT INTO agg_test.agg_numbers
+    VALUES (56, 7.8)
+         , (100, 99.097)
+         , (0, 0.09561)
+         , (42, 324.78)
+$$);
+
 CREATE SCHEMA agg_bin;
 CREATE SCHEMA agg_http;
 IMPORT FOREIGN SCHEMA "agg_test" FROM SERVER agg_bin_svr INTO agg_bin;
-\d agg_bin.hits
+\d agg_bin.*
 IMPORT FOREIGN SCHEMA "agg_test" FROM SERVER agg_http_svr INTO agg_http;
-\d agg_http.hits
+\d agg_http.*
 
 \set id_limit 1000000000
 
@@ -450,6 +466,94 @@ SELECT bit_xor(duration::int4) FROM agg_bin.hits WHERE id = 3498231651;
 \echo -- regr_slope local fallback
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT regr_slope(cost::float8, duration::float8) FROM agg_bin.hits;
+
+-- corr()
+\echo -- corr(int, float) corr(float, int)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT corr(a, b), corr(b, a) FROM agg_bin.agg_numbers;
+SELECT corr(a, b), corr(b, a) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT corr(a, b), corr(b, a) FROM agg_http.agg_numbers;
+SELECT corr(a, b), corr(b, a) FROM agg_http.agg_numbers;
+
+-- covar_pop, covar_samp()
+\echo -- corr(int, float) corr(float, int)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_bin.agg_numbers;
+SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_bin.agg_numbers;
+SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_bin.agg_numbers;
+
+-- stddev(), stddev_samp(), stddev_pop()
+\echo -- stddev(int2), stddev_samp(int2), stddev_pop(int2)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a), stddev_samp(a), stddev_pop(a) FROM agg_bin.agg_numbers;
+SELECT stddev(a), stddev_samp(a), stddev_pop(a) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a), stddev_samp(a), stddev_pop(a) FROM agg_http.agg_numbers;
+SELECT stddev(a), stddev_samp(a), stddev_pop(a) FROM agg_http.agg_numbers;;
+
+\echo -- stddev(int4), stddev_samp(int4), stddev_pop(int4)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a::int4), stddev_samp(a::int4), stddev_pop(a::int4) FROM agg_bin.agg_numbers;
+SELECT stddev(a::int4), stddev_samp(a::int4), stddev_pop(a::int4) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a::int4), stddev_samp(a::int4), stddev_pop(a::int4) FROM agg_http.agg_numbers;
+SELECT stddev(a::int4), stddev_samp(a::int4), stddev_pop(a::int4) FROM agg_http.agg_numbers;;
+
+\echo -- stddev(int8), stddev_samp(int8), stddev_pop(int8)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a::int8), stddev_samp(a::int8), stddev_pop(a::int8) FROM agg_bin.agg_numbers;
+SELECT stddev(a::int8), stddev_samp(a::int8), stddev_pop(a::int8) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(a::int8), stddev_samp(a::int8), stddev_pop(a::int8) FROM agg_http.agg_numbers;
+SELECT stddev(a::int8), stddev_samp(a::int8), stddev_pop(a::int8) FROM agg_http.agg_numbers;;
+
+\echo -- stddev(float), stddev_samp(float), stddev_pop(float)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b), stddev_samp(b), stddev_pop(b) FROM agg_bin.agg_numbers;
+SELECT stddev(b), stddev_samp(b), stddev_pop(b) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b), stddev_samp(b), stddev_pop(b) FROM agg_http.agg_numbers;
+SELECT stddev(b), stddev_samp(b), stddev_pop(b) FROM agg_http.agg_numbers;;
+
+\echo -- stddev(float8), stddev_samp(float8), stddev_pop(float8)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b::float8), stddev_samp(b::float8), stddev_pop(b::float8) FROM agg_bin.agg_numbers;
+SELECT stddev(b::float8), stddev_samp(b::float8), stddev_pop(b::float8) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b::float8), stddev_samp(b::float8), stddev_pop(b::float8) FROM agg_http.agg_numbers;
+SELECT stddev(b::float8), stddev_samp(b::float8), stddev_pop(b::float8) FROM agg_http.agg_numbers;;
+
+\echo -- stddev(numeric), stddev_samp(numeric), stddev_pop(numeric)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b::numeric), stddev_samp(b::numeric), stddev_pop(b::numeric) FROM agg_bin.agg_numbers;
+SELECT stddev(b::numeric), stddev_samp(b::numeric), stddev_pop(b::numeric) FROM agg_bin.agg_numbers;;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT stddev(b::numeric), stddev_samp(b::numeric), stddev_pop(b::numeric) FROM agg_http.agg_numbers;
+SELECT stddev(b::numeric), stddev_samp(b::numeric), stddev_pop(b::numeric) FROM agg_http.agg_numbers;;
+
+-- var_pop, var_samp(), variance()
+\echo -- var_pop(int2), var_samp(int2), variance(int2)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a), var_samp(a), variance(a) FROM agg_bin.agg_numbers;
+SELECT var_pop(a), var_samp(a), variance(a) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a), var_samp(a), variance(a) FROM agg_http.agg_numbers;
+SELECT var_pop(a), var_samp(a), variance(a) FROM agg_http.agg_numbers;
+
+\echo -- var_pop(int4), var_samp(int4), variance(int4)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a::int4), var_samp(a::int4), variance(a::int4) FROM agg_bin.agg_numbers;
+SELECT var_pop(a::int4), var_samp(a::int4), variance(a::int4) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a::int4), var_samp(a::int4), variance(a::int4) FROM agg_http.agg_numbers;
+SELECT var_pop(a::int4), var_samp(a::int4), variance(a::int4) FROM agg_http.agg_numbers;
+
+\echo -- var_pop(int8), var_samp(int8), variance(int8)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a::int8), var_samp(a::int8), variance(a::int8) FROM agg_bin.agg_numbers;
+SELECT var_pop(a::int8), var_samp(a::int8), variance(a::int8) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(a::int8), var_samp(a::int8), variance(a::int8) FROM agg_http.agg_numbers;
+SELECT var_pop(a::int8), var_samp(a::int8), variance(a::int8) FROM agg_http.agg_numbers;
+
+\echo -- var_pop(float), var_samp(float), variance(float)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b), var_samp(b), variance(b) FROM agg_bin.agg_numbers;
+SELECT var_pop(b), var_samp(b), variance(b) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b), var_samp(b), variance(b) FROM agg_http.agg_numbers;
+SELECT var_pop(b), var_samp(b), variance(b) FROM agg_http.agg_numbers;
+
+\echo -- var_pop(float8), var_samp(float8), variance(float8)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b::float8), var_samp(b::float8), variance(b::float8) FROM agg_bin.agg_numbers;
+SELECT var_pop(b::float8), var_samp(b::float8), variance(b::float8) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b::float8), var_samp(b::float8), variance(b::float8) FROM agg_http.agg_numbers;
+SELECT var_pop(b::float8), var_samp(b::float8), variance(b::float8) FROM agg_http.agg_numbers;
+
+\echo -- var_pop(numeric), var_samp(numeric), variance(numeric)
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_bin.agg_numbers;
+SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_bin.agg_numbers;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_http.agg_numbers;
+SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_http.agg_numbers;
 
 -- Clean up.
 DROP USER MAPPING FOR CURRENT_USER SERVER agg_bin_svr;

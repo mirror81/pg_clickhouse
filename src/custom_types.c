@@ -135,6 +135,45 @@
 #define F_COUNT_ 2803
 #define F_STRING_AGG_TEXT_TEXT 3538
 #define F_ARRAY_AGG_ANYARRAY 4053
+#define F_CORR 2829
+#define F_COVAR_POP 2827
+#define F_COVAR_SAMP 2828
+#define F_STDDEV_INT2 2156
+#define F_STDDEV_INT4 2155
+#define F_STDDEV_INT8 2154
+#define F_STDDEV_FLOAT4 2157
+#define F_STDDEV_FLOAT8 2158
+#define F_STDDEV_NUMERIC 2159
+#define F_STDDEV_SAMP_INT2 2714
+#define F_STDDEV_SAMP_INT4 2713
+#define F_STDDEV_SAMP_INT8 2712
+#define F_STDDEV_SAMP_FLOAT4 2715
+#define F_STDDEV_SAMP_FLOAT8 2716
+#define F_STDDEV_SAMP_NUMERIC 2717
+#define F_STDDEV_POP_INT2 2726
+#define F_STDDEV_POP_INT4 2725
+#define F_STDDEV_POP_INT8 2724
+#define F_STDDEV_POP_FLOAT4 2727
+#define F_STDDEV_POP_FLOAT8 2728
+#define F_STDDEV_POP_NUMERIC 2729
+#define F_VAR_POP_INT2 2720
+#define F_VAR_POP_INT4 2719
+#define F_VAR_POP_INT8 2718
+#define F_VAR_POP_FLOAT4 2721
+#define F_VAR_POP_FLOAT8 2722
+#define F_VAR_POP_NUMERIC 2723
+#define F_VAR_SAMP_INT2 2643
+#define F_VAR_SAMP_INT4 2642
+#define F_VAR_SAMP_INT8 2641
+#define F_VAR_SAMP_FLOAT4 2644
+#define F_VAR_SAMP_FLOAT8 2645
+#define F_VAR_SAMP_NUMERIC 2646
+#define F_VARIANCE_INT2 2150
+#define F_VARIANCE_INT4 2149
+#define F_VARIANCE_INT8 2148
+#define F_VARIANCE_FLOAT4 2151
+#define F_VARIANCE_FLOAT8 2152
+#define F_VARIANCE_NUMERIC 2153
 #define F_SIN 1604
 #define F_COS 1605
 #define F_TAN 1606
@@ -619,6 +658,24 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
         def->ch_name = "\1";
         return true;
 
+    case F_STDDEV_INT2:
+    case F_STDDEV_INT4:
+    case F_STDDEV_INT8:
+    case F_STDDEV_FLOAT4:
+    case F_STDDEV_FLOAT8:
+    case F_STDDEV_NUMERIC:
+        def->ch_name = "stddev_samp";
+        return true;
+
+    case F_VARIANCE_INT2:
+    case F_VARIANCE_INT4:
+    case F_VARIANCE_INT8:
+    case F_VARIANCE_FLOAT4:
+    case F_VARIANCE_FLOAT8:
+    case F_VARIANCE_NUMERIC:
+        def->ch_name = "var_samp";
+        return true;
+
         /* 1:1 pass-through: PG and CH agree on name and semantics */
     case F_ARRAY_AGG_ANYARRAY:
     case F_AVG_INT8:
@@ -665,7 +722,35 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
     case F_BOOL_OR:
     case F_EVERY:
     case F_STRING_AGG_TEXT_TEXT:
-        /* window functions sharing PG and CH names */
+    case F_CORR:
+    case F_COVAR_POP:
+    case F_COVAR_SAMP:
+    case F_STDDEV_SAMP_INT2:
+    case F_STDDEV_SAMP_INT4:
+    case F_STDDEV_SAMP_INT8:
+    case F_STDDEV_SAMP_FLOAT4:
+    case F_STDDEV_SAMP_FLOAT8:
+    case F_STDDEV_SAMP_NUMERIC:
+    case F_STDDEV_POP_INT2:
+    case F_STDDEV_POP_INT4:
+    case F_STDDEV_POP_INT8:
+    case F_STDDEV_POP_FLOAT4:
+    case F_STDDEV_POP_FLOAT8:
+    case F_STDDEV_POP_NUMERIC:
+    case F_VAR_POP_INT2:
+    case F_VAR_POP_INT4:
+    case F_VAR_POP_INT8:
+    case F_VAR_POP_FLOAT4:
+    case F_VAR_POP_FLOAT8:
+    case F_VAR_POP_NUMERIC:
+    case F_VAR_SAMP_INT2:
+    case F_VAR_SAMP_INT4:
+    case F_VAR_SAMP_INT8:
+    case F_VAR_SAMP_FLOAT4:
+    case F_VAR_SAMP_FLOAT8:
+    case F_VAR_SAMP_NUMERIC:
+
+    /* window functions sharing PG and CH names */
     case F_ROW_NUMBER:
     case F_RANK_:
     case F_DENSE_RANK_:

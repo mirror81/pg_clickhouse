@@ -19,6 +19,24 @@
  
 (1 row)
 
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+               Foreign table "agg_bin.agg_numbers"
+ Column |   Type   | Collation | Nullable | Default | FDW options 
+--------+----------+-----------+----------+---------+-------------
+ a      | smallint |           | not null |         | 
+ b      | real     |           | not null |         | 
+Server: agg_bin_svr
+FDW options: (database 'agg_test', table_name 'agg_numbers', engine 'MergeTree')
+
                             Foreign table "agg_bin.hits"
   Column   |           Type           | Collation | Nullable | Default | FDW options 
 -----------+--------------------------+-----------+----------+---------+-------------
@@ -31,6 +49,14 @@
  cost      | numeric(10,2)            |           | not null |         | 
 Server: agg_bin_svr
 FDW options: (database 'agg_test', table_name 'hits', engine 'MergeTree')
+
+               Foreign table "agg_http.agg_numbers"
+ Column |   Type   | Collation | Nullable | Default | FDW options 
+--------+----------+-----------+----------+---------+-------------
+ a      | smallint |           | not null |         | 
+ b      | real     |           | not null |         | 
+Server: agg_http_svr
+FDW options: (database 'agg_test', table_name 'agg_numbers', engine 'MergeTree')
 
                             Foreign table "agg_http.hits"
   Column   |           Type           | Collation | Nullable | Default | FDW options 
@@ -1377,5 +1403,377 @@ DETAIL:  Remote Query: SELECT groupBitXor(cast(duration, 'Nullable(Int32)')) FRO
          Remote SQL: SELECT duration, cost FROM agg_test.hits
 (5 rows)
 
-NOTICE:  drop cascades to foreign table agg_bin.hits
-NOTICE:  drop cascades to foreign table agg_http.hits
+-- corr(int, float) corr(float, int)
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (corr((a)::double precision, (b)::double precision)), (corr((b)::double precision, (a)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT corr(a, b), corr(b, a) FROM agg_test.agg_numbers
+(4 rows)
+
+        corr        |        corr        
+--------------------+--------------------
+ 0.1396345165178734 | 0.1396345165178734
+(1 row)
+
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (corr((a)::double precision, (b)::double precision)), (corr((b)::double precision, (a)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT corr(a, b), corr(b, a) FROM agg_test.agg_numbers
+(4 rows)
+
+        corr        |        corr        
+--------------------+--------------------
+ 0.1396345165178734 | 0.1396345165178734
+(1 row)
+
+-- corr(int, float) corr(float, int)
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (covar_pop((b)::double precision, (a)::double precision)), (covar_samp((b)::double precision, (a)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_test.agg_numbers
+(4 rows)
+
+     covar_pop     |    covar_samp     
+-------------------+-------------------
+ 653.6289553875104 | 871.5052738500139
+(1 row)
+
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (covar_pop((b)::double precision, (a)::double precision)), (covar_samp((b)::double precision, (a)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT covar_pop(b, a), covar_samp(b, a) FROM agg_test.agg_numbers
+(4 rows)
+
+     covar_pop     |    covar_samp     
+-------------------+-------------------
+ 653.6289553875104 | 871.5052738500139
+(1 row)
+
+-- stddev(int2), stddev_samp(int2), stddev_pop(int2)
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev(a)), (stddev_samp(a)), (stddev_pop(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(a), stddev_samp(a), stddev_pop(a) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev      |   stddev_samp    |    stddev_pop    
+------------------+------------------+------------------
+ 41.2270137975899 | 41.2270137975899 | 35.7036412708844
+(1 row)
+
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev(a)), (stddev_samp(a)), (stddev_pop(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(a), stddev_samp(a), stddev_pop(a) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev       |    stddev_samp    |     stddev_pop     
+-------------------+-------------------+--------------------
+ 41.22701379758988 | 41.22701379758988 | 35.703641270884404
+(1 row)
+
+-- stddev(int4), stddev_samp(int4), stddev_pop(int4)
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((a)::integer)), (stddev_samp((a)::integer)), (stddev_pop((a)::integer))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(a, 'Nullable(Int32)')), stddev_samp(cast(a, 'Nullable(Int32)')), stddev_pop(cast(a, 'Nullable(Int32)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev      |   stddev_samp    |    stddev_pop    
+------------------+------------------+------------------
+ 41.2270137975899 | 41.2270137975899 | 35.7036412708844
+(1 row)
+
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((a)::integer)), (stddev_samp((a)::integer)), (stddev_pop((a)::integer))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(a, 'Nullable(Int32)')), stddev_samp(cast(a, 'Nullable(Int32)')), stddev_pop(cast(a, 'Nullable(Int32)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev       |    stddev_samp    |     stddev_pop     
+-------------------+-------------------+--------------------
+ 41.22701379758988 | 41.22701379758988 | 35.703641270884404
+(1 row)
+
+-- stddev(int8), stddev_samp(int8), stddev_pop(int8)
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((a)::bigint)), (stddev_samp((a)::bigint)), (stddev_pop((a)::bigint))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(a, 'Nullable(Int64)')), stddev_samp(cast(a, 'Nullable(Int64)')), stddev_pop(cast(a, 'Nullable(Int64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev      |   stddev_samp    |    stddev_pop    
+------------------+------------------+------------------
+ 41.2270137975899 | 41.2270137975899 | 35.7036412708844
+(1 row)
+
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((a)::bigint)), (stddev_samp((a)::bigint)), (stddev_pop((a)::bigint))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(a, 'Nullable(Int64)')), stddev_samp(cast(a, 'Nullable(Int64)')), stddev_pop(cast(a, 'Nullable(Int64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      stddev       |    stddev_samp    |     stddev_pop     
+-------------------+-------------------+--------------------
+ 41.22701379758988 | 41.22701379758988 | 35.703641270884404
+(1 row)
+
+-- stddev(float), stddev_samp(float), stddev_pop(float)
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev(b)), (stddev_samp(b)), (stddev_pop(b))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(b), stddev_samp(b), stddev_pop(b) FROM agg_test.agg_numbers
+(4 rows)
+
+       stddev       |    stddev_samp     |     stddev_pop     
+--------------------+--------------------+--------------------
+ 151.38937377929688 | 151.38937377929688 | 131.10704040527344
+(1 row)
+
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev(b)), (stddev_samp(b)), (stddev_pop(b))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(b), stddev_samp(b), stddev_pop(b) FROM agg_test.agg_numbers
+(4 rows)
+
+  stddev   | stddev_samp | stddev_pop 
+-----------+-------------+------------
+ 151.38937 |   151.38937 |  131.10704
+(1 row)
+
+-- stddev(float8), stddev_samp(float8), stddev_pop(float8)
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((b)::double precision)), (stddev_samp((b)::double precision)), (stddev_pop((b)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(b, 'Nullable(Float64)')), stddev_samp(cast(b, 'Nullable(Float64)')), stddev_pop(cast(b, 'Nullable(Float64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+       stddev       |    stddev_samp     |     stddev_pop     
+--------------------+--------------------+--------------------
+ 151.38936080399804 | 151.38936080399804 | 131.10703231895047
+(1 row)
+
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((b)::double precision)), (stddev_samp((b)::double precision)), (stddev_pop((b)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(b, 'Nullable(Float64)')), stddev_samp(cast(b, 'Nullable(Float64)')), stddev_pop(cast(b, 'Nullable(Float64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+       stddev       |    stddev_samp     |     stddev_pop     
+--------------------+--------------------+--------------------
+ 151.38936080399804 | 151.38936080399804 | 131.10703231895047
+(1 row)
+
+-- stddev(numeric), stddev_samp(numeric), stddev_pop(numeric)
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((b)::numeric)), (stddev_samp((b)::numeric)), (stddev_pop((b)::numeric))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_pop(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ERROR:  pg_clickhouse: DB::Exception: Decimal data type family must have exactly two arguments: precision and scale: While processing CAST(b, 'Nullable(Decimal)')
+DETAIL:  Remote Query: SELECT stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_pop(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (stddev((b)::numeric)), (stddev_samp((b)::numeric)), (stddev_pop((b)::numeric))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_pop(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ERROR:  pg_clickhouse: Code: 42. DB::Exception: Decimal data type family must have exactly two arguments: precision and scale: While processing CAST(b, 'Nullable(Decimal)'). (NUMBER_OF_ARGUMENTS_DOESNT_MATCH)
+DETAIL:  Remote Query: SELECT stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_samp(cast(b, 'Nullable(Decimal)')), stddev_pop(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+CONTEXT:  HTTP status code: 500
+-- var_pop(int2), var_samp(int2), variance(int2)
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop(a)), (var_samp(a)), (variance(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(a), var_samp(a), var_samp(a) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |     var_samp     |     variance     
+---------+------------------+------------------
+ 1274.75 | 1699.66666666667 | 1699.66666666667
+(1 row)
+
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop(a)), (var_samp(a)), (variance(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(a), var_samp(a), var_samp(a) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |      var_samp      |      variance      
+---------+--------------------+--------------------
+ 1274.75 | 1699.6666666666667 | 1699.6666666666667
+(1 row)
+
+-- var_pop(int4), var_samp(int4), variance(int4)
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((a)::integer)), (var_samp((a)::integer)), (variance((a)::integer))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(a, 'Nullable(Int32)')), var_samp(cast(a, 'Nullable(Int32)')), var_samp(cast(a, 'Nullable(Int32)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |     var_samp     |     variance     
+---------+------------------+------------------
+ 1274.75 | 1699.66666666667 | 1699.66666666667
+(1 row)
+
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((a)::integer)), (var_samp((a)::integer)), (variance((a)::integer))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(a, 'Nullable(Int32)')), var_samp(cast(a, 'Nullable(Int32)')), var_samp(cast(a, 'Nullable(Int32)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |      var_samp      |      variance      
+---------+--------------------+--------------------
+ 1274.75 | 1699.6666666666667 | 1699.6666666666667
+(1 row)
+
+-- var_pop(int8), var_samp(int8), variance(int8)
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((a)::bigint)), (var_samp((a)::bigint)), (variance((a)::bigint))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(a, 'Nullable(Int64)')), var_samp(cast(a, 'Nullable(Int64)')), var_samp(cast(a, 'Nullable(Int64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |     var_samp     |     variance     
+---------+------------------+------------------
+ 1274.75 | 1699.66666666667 | 1699.66666666667
+(1 row)
+
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((a)::bigint)), (var_samp((a)::bigint)), (variance((a)::bigint))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(a, 'Nullable(Int64)')), var_samp(cast(a, 'Nullable(Int64)')), var_samp(cast(a, 'Nullable(Int64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ var_pop |      var_samp      |      variance      
+---------+--------------------+--------------------
+ 1274.75 | 1699.6666666666667 | 1699.6666666666667
+(1 row)
+
+-- var_pop(float), var_samp(float), variance(float)
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop(b)), (var_samp(b)), (variance(b))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(b), var_samp(b), var_samp(b) FROM agg_test.agg_numbers
+(4 rows)
+
+     var_pop     |   var_samp    |   variance    
+-----------------+---------------+---------------
+ 17189.056640625 | 22918.7421875 | 22918.7421875
+(1 row)
+
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop(b)), (var_samp(b)), (variance(b))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(b), var_samp(b), var_samp(b) FROM agg_test.agg_numbers
+(4 rows)
+
+  var_pop  | var_samp  | variance  
+-----------+-----------+-----------
+ 17189.057 | 22918.742 | 22918.742
+(1 row)
+
+-- var_pop(float8), var_samp(float8), variance(float8)
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((b)::double precision)), (var_samp((b)::double precision)), (variance((b)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(b, 'Nullable(Float64)')), var_samp(cast(b, 'Nullable(Float64)')), var_samp(cast(b, 'Nullable(Float64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      var_pop       |      var_samp      |      variance      
+--------------------+--------------------+--------------------
+ 17189.053923482326 | 22918.738564643103 | 22918.738564643103
+(1 row)
+
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((b)::double precision)), (var_samp((b)::double precision)), (variance((b)::double precision))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(b, 'Nullable(Float64)')), var_samp(cast(b, 'Nullable(Float64)')), var_samp(cast(b, 'Nullable(Float64)')) FROM agg_test.agg_numbers
+(4 rows)
+
+      var_pop       |      var_samp      |      variance      
+--------------------+--------------------+--------------------
+ 17189.053923482326 | 22918.738564643103 | 22918.738564643103
+(1 row)
+
+-- var_pop(numeric), var_samp(numeric), variance(numeric)
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((b)::numeric)), (var_samp((b)::numeric)), (variance((b)::numeric))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ERROR:  pg_clickhouse: DB::Exception: Decimal data type family must have exactly two arguments: precision and scale: While processing CAST(b, 'Nullable(Decimal)')
+DETAIL:  Remote Query: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (var_pop((b)::numeric)), (var_samp((b)::numeric)), (variance((b)::numeric))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+(4 rows)
+
+ERROR:  pg_clickhouse: Code: 42. DB::Exception: Decimal data type family must have exactly two arguments: precision and scale: While processing CAST(b, 'Nullable(Decimal)'). (NUMBER_OF_ARGUMENTS_DOESNT_MATCH)
+DETAIL:  Remote Query: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
+CONTEXT:  HTTP status code: 500
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to foreign table agg_bin.agg_numbers
+drop cascades to foreign table agg_bin.hits
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to foreign table agg_http.agg_numbers
+drop cascades to foreign table agg_http.hits

@@ -1235,10 +1235,17 @@ These PostgreSQL aggregate functions pushdown to ClickHouse.
 *   [bool_and / every](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitand)
 *   [bool_or](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitor)
 *   [count](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/count)
+*   [corr](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/corr)
+*   [covarpop](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarpop)
+*   [covarsamp](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarsamp)
 *   [min](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/min)
 *   [max](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/max)
+*   [stddev_pop](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/stddevpop)
+*   [stddev_samp / stddev](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/stddevsamp)
 *   [string_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupconcat)
 *   [sum](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/sum)
+*   [var_op](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varPop)
+*   [var_samp /variance](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varSamp)
 
 ### Custom Aggregates
 
@@ -1287,17 +1294,17 @@ These PostgreSQL [window functions] push down to ClickHouse with `OVER
 (PARTITION BY ... ORDER BY ...)` clauses, including frame specifications where
 applicable.
 
-*   [row_number](https://clickhouse.com/docs/sql-reference/window-functions#row_number)
-*   [rank](https://clickhouse.com/docs/sql-reference/window-functions#rank)
-*   [dense_rank](https://clickhouse.com/docs/sql-reference/window-functions#dense_rank)
-*   [ntile](https://clickhouse.com/docs/sql-reference/window-functions#ntile)
-*   [cume_dist](https://clickhouse.com/docs/sql-reference/window-functions#cume_dist)
-*   [percent_rank](https://clickhouse.com/docs/sql-reference/window-functions#percent_rank)
-*   [lead](https://clickhouse.com/docs/sql-reference/window-functions#lead)
-*   [lag](https://clickhouse.com/docs/sql-reference/window-functions#lag)
-*   [first_value](https://clickhouse.com/docs/sql-reference/window-functions#first_value)
-*   [last_value](https://clickhouse.com/docs/sql-reference/window-functions#last_value)
-*   [nth_value](https://clickhouse.com/docs/sql-reference/window-functions#nth_value)
+*   [row_number](https://clickhouse.com/docs/sql-reference/window-functions/row_number)
+*   [rank](https://clickhouse.com/docs/sql-reference/window-functions/rank)
+*   [dense_rank](https://clickhouse.com/docs/sql-reference/window-functions/dense_rank)
+*   [ntile](https://clickhouse.com/docs/sql-reference/window-functions/ntile)
+*   [cume_dist](https://clickhouse.com/docs/sql-reference/window-functions/cume_dist)
+*   [percent_rank](https://clickhouse.com/docs/sql-reference/window-functions/percent_rank)
+*   [lead](https://clickhouse.com/docs/sql-reference/window-functions/lead)
+*   [lag](https://clickhouse.com/docs/sql-reference/window-functions/lag)
+*   [first_value](https://clickhouse.com/docs/sql-reference/window-functions/first_value)
+*   [last_value](https://clickhouse.com/docs/sql-reference/window-functions/last_value)
+*   [nth_value](https://clickhouse.com/docs/sql-reference/window-functions/nth_value)
 *   `min` / `max` (with `OVER` clause)
 
 Ranking functions (`row_number`, `rank`, `dense_rank`, `ntile`, `cume_dist`,
