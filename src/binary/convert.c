@@ -259,7 +259,6 @@ convert_array(ch_convert_state* state, Datum val) {
     } else {
         int dims[MAXDIM] = {};
         int lbs[MAXDIM]  = {};
-        size_t total     = 1;
         size_t idx       = 0;
         Datum* flat;
         bool* flatnulls;
@@ -280,11 +279,12 @@ convert_array(ch_convert_state* state, Datum val) {
         for (int d = 0; d < slot->ndim; d++) {
             dims[d] = (int)probe->len;
             lbs[d]  = 1;
-            total *= probe->len;
             if (probe->ndim > 1 && probe->len > 0) {
                 probe = (ch_binary_array_t*)DatumGetPointer(probe->datums[0]);
             }
         }
+
+        size_t total = ArrayGetNItems(slot->ndim, dims);
 
         if (total == 0) {
             val = PointerGetDatum(construct_empty_array(slot->item_type));

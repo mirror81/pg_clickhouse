@@ -681,8 +681,8 @@ static void
 char_to_datum(ChFdwScanRowContext* ctx, int attidx, char* data, size_t len) {
     Oid pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
 
-    if (data && (pgtype == TIMEOID || pgtype == TIMETZOID) &&
-        data[strlen(data) - 1] == 'Z') {
+    if (data && len > 0 && (pgtype == TIMEOID || pgtype == TIMETZOID) &&
+        data[len - 1] == 'Z') {
         /*
          * date_time_output_format=iso formats times as ISO timestamps. Remove
          * the leading `YYYY-mm-ddT`.

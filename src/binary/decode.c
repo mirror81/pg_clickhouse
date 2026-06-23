@@ -129,10 +129,11 @@ format_decimal_text(
     size_t out_cap
 ) {
     uint32_t mag[8];
+    char buf[80];
     size_t nwords = width / 4;
     bool neg      = false;
 
-    if (width == 0 || width > 32 || width % 4 != 0) {
+    if (width == 0 || width > 32 || width % 4 != 0 || scale >= sizeof(buf)) {
         return -1;
     }
     memcpy(mag, bytes, width);
@@ -152,7 +153,6 @@ format_decimal_text(
         }
     }
 
-    char buf[80];
     int n = 0;
     bool nonzero;
 
@@ -660,7 +660,15 @@ read_value(
     case CHC_DATETIME64: {
         int64 raw      = rd_i64((const uint8_t*)chc_column_fixed_data(col, NULL), row);
         uint32_t scale = chc_type_datetime64_scale(type);
-        int64 power    = pow10i[scale];
+
+        if (scale >= lengthof(pow10i)) {
+            ereport(
+                ERROR,
+                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                 errmsg("pg_clickhouse: DateTime64 scale %u out of range", scale))
+            );
+        }
+        int64 power = pow10i[scale];
 
         *valtype = TIMESTAMPTZOID;
         /* multiply before divide so scale > 6 keeps sub-second us */
