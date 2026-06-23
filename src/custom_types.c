@@ -39,6 +39,11 @@
 #define F_DATE_PART_TEXT_DATE 1384
 #define F_PERCENTILE_CONT_FLOAT8_FLOAT8 3974
 #define F_PERCENTILE_CONT_FLOAT8_INTERVAL 3976
+#define F_PERCENTILE_DISC_FLOAT8_ANYELEMENT 3972
+#define F_PERCENTILE_DISC__FLOAT8_ANYELEMENT 3978
+#define F_PERCENTILE_CONT__FLOAT8_FLOAT8 3980
+#define F_PERCENTILE_CONT__FLOAT8_INTERVAL 3982
+
 #define F_ARRAY_AGG_ANYNONARRAY 2335
 #define F_TO_TIMESTAMP_FLOAT8 1158
 #define F_TRANSACTION_TIMESTAMP 2647
@@ -320,7 +325,7 @@ init_custom_entry(CustomObjectDef* entry) {
 }
 
 /*
- * Return true if ordered aggregate funcid maps to a parameterized ClickHouse
+ * Return true if ordered aggregate funcid maps to a parametric ClickHouse
  * aggregate function.
  */
 inline bool
@@ -328,6 +333,10 @@ chfdw_check_for_ordered_aggregate(Aggref* agg) {
     switch (agg->aggfnoid) {
     case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
     case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
+    case F_PERCENTILE_DISC_FLOAT8_ANYELEMENT:
+    case F_PERCENTILE_DISC__FLOAT8_ANYELEMENT:
+    case F_PERCENTILE_CONT__FLOAT8_FLOAT8:
+    case F_PERCENTILE_CONT__FLOAT8_INTERVAL:
         /* Ordered aggregates that map to ClickHouse functions. */
         return true;
     }
@@ -508,6 +517,18 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
     case F_PERCENTILE_CONT_FLOAT8_FLOAT8:
     case F_PERCENTILE_CONT_FLOAT8_INTERVAL:
         def->ch_name = "quantile";
+        return true;
+    case F_PERCENTILE_CONT__FLOAT8_FLOAT8:
+    case F_PERCENTILE_CONT__FLOAT8_INTERVAL:
+        def->cf_type = CF_PARAM_LIST_AGG;
+        def->ch_name = "quantiles";
+        return true;
+    case F_PERCENTILE_DISC_FLOAT8_ANYELEMENT:
+        def->ch_name = "quantileExactLow";
+        return true;
+    case F_PERCENTILE_DISC__FLOAT8_ANYELEMENT:
+        def->cf_type = CF_PARAM_LIST_AGG;
+        def->ch_name = "quantilesExactLow";
         return true;
     case F_ARRAY_AGG_ANYNONARRAY:
         def->ch_name = "groupArray";

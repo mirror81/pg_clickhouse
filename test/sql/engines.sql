@@ -73,6 +73,9 @@ SELECT a, percentile_cont(0.75) WITHIN GROUP (ORDER BY f) FROM t4 GROUP BY a;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT a, percentile_cont(0.75) WITHIN GROUP (ORDER BY f) / sum(d) FROM t4 GROUP BY a;
 SELECT a, percentile_cont(0.75) WITHIN GROUP (ORDER BY f) / sum(d) FROM t4 GROUP BY a;
 
+EXPLAIN (VERBOSE, COSTS OFF) SELECT a, percentile_disc(0.75) WITHIN GROUP (ORDER BY f) FROM t4 GROUP BY a;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT a, percentile_disc(0.75) WITHIN GROUP (ORDER BY f) / sum(d) FROM t4 GROUP BY a;
+
 DROP USER MAPPING FOR CURRENT_USER SERVER engines_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE engines_test');
 DROP SERVER engines_loopback CASCADE;

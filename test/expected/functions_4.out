@@ -620,6 +620,162 @@ SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY a NULLS FIRST) FROM t1;
 ERROR:  pg_clickhouse: ClickHouse does not support "NULLS FIRST" in aggregate expressions
 SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY a USING >) FROM t1;
 ERROR:  pg_clickhouse: ClickHouse does not support "DESC" in aggregate expressions
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+                                                     QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_cont('{0.25,0.5,0.75}'::double precision[]) WITHIN GROUP (ORDER BY ((a)::double precision)))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantiles(0.25,0.5,0.75)(a) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+ percentile_cont 
+-----------------
+ {1.75,2,2}
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_cont('{0.9,0.95,0.99}'::double precision[]) WITHIN GROUP (ORDER BY (date_part('epoch'::text, timezone('UTC'::text, c)))))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantiles(0.9,0.95,0.99)(toUnixTimestamp(toTimeZone(c, 'UTC'))) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_cont(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+          percentile_cont           
+------------------------------------
+ {1546425720,1546426260,1546426692}
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_cont('{0.25,0.5,0.75}'::double precision[]) WITHIN GROUP (ORDER BY ((a)::double precision)) FILTER (WHERE (b = 1)))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantilesIf(0.25,0.5,0.75)(a,(((b = 1)) > 0)) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+ percentile_cont 
+-----------------
+ {1,1,1}
+(1 row)
+
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+ percentile_cont 
+-----------------
+ {1.75,2,2}
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FROM t1;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('0.25'::double precision) WITHIN GROUP (ORDER BY a))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantileExactLow(0.25)(a) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FROM t1;
+ percentile_disc 
+-----------------
+               2
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('0.95'::double precision) WITHIN GROUP (ORDER BY (date_part('epoch'::text, timezone('UTC'::text, c)))))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantileExactLow(0.95)(toUnixTimestamp(toTimeZone(c, 'UTC'))) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+ percentile_disc 
+-----------------
+      1546426800
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('0.25'::double precision) WITHIN GROUP (ORDER BY a) FILTER (WHERE (b = 1)))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantileExactLowIf(0.25)(a,(((b = 1)) > 0)) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+ percentile_disc 
+-----------------
+               1
+(1 row)
+
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+ percentile_disc 
+-----------------
+               2
+(1 row)
+
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a DESC) FROM t1;
+ERROR:  pg_clickhouse: ClickHouse does not support "DESC" in aggregate expressions
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a NULLS FIRST) FROM t1;
+ERROR:  pg_clickhouse: ClickHouse does not support "NULLS FIRST" in aggregate expressions
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a USING >) FROM t1;
+ERROR:  pg_clickhouse: ClickHouse does not support "DESC" in aggregate expressions
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+                                          QUERY PLAN                                          
+----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('{0.25,0.5,0.75}'::double precision[]) WITHIN GROUP (ORDER BY a))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantilesExactLow(0.25,0.5,0.75)(a) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+ percentile_disc 
+-----------------
+ {2,2,2}
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('{0.9,0.95,0.99}'::double precision[]) WITHIN GROUP (ORDER BY (date_part('epoch'::text, timezone('UTC'::text, c)))))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantilesExactLow(0.9,0.95,0.99)(toUnixTimestamp(toTimeZone(c, 'UTC'))) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+ERROR:  pg_clickhouse: could not cast value from bigint[] to double precision[]
+DETAIL:  Remote Query: SELECT quantilesExactLow(0.9,0.95,0.99)(toUnixTimestamp(toTimeZone(c, 'UTC'))) FROM functions_test.t1
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (percentile_disc('{0.25,0.5,0.75}'::double precision[]) WITHIN GROUP (ORDER BY a) FILTER (WHERE (b = 1)))
+   Relations: Aggregate on (t1)
+   Remote SQL: SELECT quantilesExactLowIf(0.25,0.5,0.75)(a,(((b = 1)) > 0)) FROM functions_test.t1
+(4 rows)
+
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+ percentile_disc 
+-----------------
+ {1,1,1}
+(1 row)
+
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+ percentile_disc 
+-----------------
+ {2,2,2}
+(1 row)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('dAy', c at time zone 'UTC') as d1 FROM t1 GROUP BY d1 ORDER BY d1;
                                                                                        QUERY PLAN                                                                                        
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

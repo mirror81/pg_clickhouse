@@ -179,6 +179,34 @@ SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY a DESC) FROM t1;
 SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY a NULLS FIRST) FROM t1;
 SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY a USING >) FROM t1;
 
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+SELECT percentile_cont(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+SELECT percentile_cont(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FROM t1;
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a DESC) FROM t1;
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a NULLS FIRST) FROM t1;
+SELECT percentile_disc(0.25) WITHIN GROUP (ORDER BY a USING >) FROM t1;
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+SELECT percentile_disc(ARRAY[0.9, 0.95, 0.99]) WITHIN GROUP (ORDER BY date_part('epoch', timezone('UTC', c))) FROM t1;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a) FILTER (WHERE b = 1) FROM t1;
+SELECT percentile_disc(ARRAY[0.25, 0.5, 0.75]) WITHIN GROUP (ORDER BY a NULLS LAST) FROM t1;
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('dAy', c at time zone 'UTC') as d1 FROM t1 GROUP BY d1 ORDER BY d1;
 SELECT date_trunc('day', c at time zone 'UTC') as d1 FROM t1 GROUP BY d1 ORDER BY d1;
 

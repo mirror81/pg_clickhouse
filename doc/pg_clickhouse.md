@@ -1267,7 +1267,7 @@ an exception.
 
 ### Pushdown Ordered Set Aggregates
 
-These [ordered-set aggregate functions] map to ClickHouse [Parametric
+These [ordered-set aggregate functions] map to ClickHouse [parametric
 aggregate functions] by passing their *direct argument* as a parameter and
 their `ORDER BY` expressions as arguments. For example, this PostgreSQL query:
 
@@ -1285,8 +1285,19 @@ Note that the non-default `ORDER BY` suffixes `DESC` and `NULLS FIRST`
 are not supported and will raise an error.
 
 *   `percentile_cont(double)`: [quantile](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantile)
-*   `quantile(double)`: [quantile](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantile)
-*   `quantileExact(double)`: [quantileExact](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantileexact)
+*   `percentile_cont(double[])`: [quantiles](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantiles)
+*   `percentile_disc(double)`: [quantileExactLow](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantileExactLow)
+*   `percentile_disc(double[])`: [quantilesExactLow](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantilesExactLow)
+
+### Custom Ordered Set Aggregates
+
+These custom [ordered-set aggregate functions] created by `pg_clickhouse`
+provide foreign query pushdown for select ClickHouse [parametric aggregate
+functions]. If any of these functions cannot be pushed down they will raise an
+exception.
+
+*   [quantile](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantile)
+*   [quantileExact](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/quantileexact)
 
 ### Pushdown Window Functions
 
@@ -1526,7 +1537,7 @@ Copyright (c) 2025-2026, ClickHouse.
   [shared library preloading]: https://www.postgresql.org/docs/current/runtime-config-client.html#RUNTIME-CONFIG-CLIENT-PRELOAD
     "PostgreSQL Docs: Shared Library Preloading"
   [ordered-set aggregate functions]: https://www.postgresql.org/docs/current/functions-aggregate.html#FUNCTIONS-ORDEREDSET-TABLE
-  [Parametric aggregate functions]: https://clickhouse.com/docs/sql-reference/aggregate-functions/parametric-functions
+  [parametric aggregate functions]: https://clickhouse.com/docs/sql-reference/aggregate-functions/parametric-functions
   [ClickHouse settings]: https://clickhouse.com/docs/operations/settings/settings
     "ClickHouse Docs: Session Settings"
   [dollar quoting]: https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING

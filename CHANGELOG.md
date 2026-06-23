@@ -19,10 +19,22 @@ All notable changes to this project will be documented in this file. It uses the
     *   [stddev_samp/stddev]
     *   [var_op]
     *   [var_samp/variance]
+*   Mapped the following PostgreSQL ordered set aggregate functions to push
+    down to corresponding ClickHouse parametric aggregate functions ([#291]):
+    *   `percentile_cont(double[])` → `quantiles()`
+    *   `percentile_disc(double)` → `quantileExactLow()`
+    *   `percentile_disc(double[])` → `quantilesExactLow()`
+
+### 📚 Documentation
+
+*   Separated the list of custom ordered set aggregate functions provided by
+    pg_clickhouse (currently `quantile()` and `quantileExact()`) from the
+    Postgres ordered set aggregate functions, putting them under their own
+    header, "Custom Ordered Set Aggregates".
 
   [v0.3.3]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.2...v0.3.3
-  [#290]: https://github.com/ClickHouse/pg_clickhouse/pull/281
-    "ClickHouse/pg_clickhouse#281 Add pushdown for statistical aggregate functions"
+  [#290]: https://github.com/ClickHouse/pg_clickhouse/pull/290
+    "ClickHouse/pg_clickhouse#290 Add pushdown for statistical aggregate functions"
   [corr]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/corr
   [covarpop]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarpop
   [covarsamp]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/covarsamp
@@ -30,6 +42,8 @@ All notable changes to this project will be documented in this file. It uses the
   [stddev_samp/stddev]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/stddevsamp
   [var_op]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varPop
   [var_samp/variance]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varSamp
+  [#291]: https://github.com/ClickHouse/pg_clickhouse/pull/291
+    "ClickHouse/pg_clickhouse#291 Push down ordered set aggregate functions"
 
 ## [v0.3.2] — 2026-06-16
 
@@ -703,7 +717,7 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Mapped PostgreSQL `extract()` to push down to equivalent ClickHouse
     DateTime extraction functions (already mapped to `date_part()`)
 *   Mapped PostgreSQL `percentile_cont()` ordered set aggregate function to
-    push down to ClickHouse `quantile()` parametrized
+    push down to the ClickHouse `quantile()` parametric aggregate function
 *   Mapped the `COUNT()` return value to `bigint`
 *   Added the query text and, for the http engine, the status code to error
     messages

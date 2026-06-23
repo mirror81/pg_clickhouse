@@ -389,6 +389,8 @@ typedef enum {
     CF_TO_CHAR,                /* to_char(timestamp[tz], fmt) →
                                 * formatDateTime, with strict format
                                 * translation */
+    CF_PARAM_LIST_AGG,         /* ordered set agg with array prams → parametric
+                                * list aggregate function */
 } custom_object_type;
 
 typedef enum {

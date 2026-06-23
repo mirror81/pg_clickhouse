@@ -18,6 +18,7 @@
 #include "access/heapam.h"
 #include "access/htup_details.h"
 #include "access/sysattr.h"
+#include "access/table.h"
 #include "catalog/pg_aggregate.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
@@ -43,10 +44,6 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
-
-#if PG_VERSION_NUM >= 120000
-#include "access/table.h"
-#endif
 
 #include "fdw.h"
 
@@ -4238,8 +4235,9 @@ deparseAggref(Aggref* node, deparse_expr_cxt* context) {
     bool aggfilter            = false;
     bool sign_count_filter    = false;
     uint8 brcount             = 1;
+    char* name                = get_func_name(node->aggfnoid);
+    bool omit_star            = false; /* Explained below. */
     bool use_variadic;
-    char* name = get_func_name(node->aggfnoid);
 
     /* Only basic, non-split aggregation accepted. */
     Assert(node->aggsplit == AGGSPLIT_SIMPLE);
@@ -4266,13 +4264,13 @@ deparseAggref(Aggref* node, deparse_expr_cxt* context) {
     }
 
     /*
-     * groupConcat(delimiter)(expr): emit delimiter as parameterized arg, then
+     * groupConcat(delimiter)(expr): emit delimiter as parametric arg, then
      * only the first non-junk arg (the expression).
      */
     if (context->func && context->func->cf_type == CF_STRING_AGG) {
         ListCell* arg;
 
-        /* Emit delimiter (2nd non-junk arg) as parameterized arg. */
+        /* Emit delimiter (2nd non-junk arg) as parametric arg. */
         appendStringInfoChar(buf, '(');
         foreach (arg, node->args) {
             TargetEntry* tle = (TargetEntry*)lfirst(arg);
@@ -4299,36 +4297,48 @@ deparseAggref(Aggref* node, deparse_expr_cxt* context) {
         return;
     }
 
-    appendStringInfoChar(buf, '(');
-
-    /* Explained below. */
-    bool omit_star = false;
-
     if (AGGKIND_IS_ORDERED_SET(node->aggkind)) {
-        /* Emit direct args as ClickHouse parameterized args. */
-        ListCell* arg;
-        bool first = true;
-
+        /* Need to emit the parametric args. */
         Assert(!node->aggvariadic);
         Assert(node->aggorder != NIL);
 
-        foreach (arg, node->aggdirectargs) {
-            if (!first) {
-                appendStringInfoString(buf, ", ");
-            }
-            first = false;
+        if (context->func && context->func->cf_type == CF_PARAM_LIST_AGG) {
+            /* Convert array to list of parametric args. */
+            ListCell* arg = list_head(node->aggdirectargs);
+            Node* array   = lfirst(arg);
+            bool atup     = context->array_as_tuple;
 
-            deparseExpr((Expr*)lfirst(arg), context);
+            Assert(list_length(node->aggdirectargs) == 1);
+            Assert(nodeTag(array) == T_Const);
+            context->array_as_tuple = true; /* Formats with () instead of []. */
+            deparseArray(((Const*)array)->constvalue, context);
+            context->array_as_tuple = atup;
+        } else {
+            /* Emit direct args as ClickHouse parametric args. */
+            ListCell* arg;
+            bool first = true;
+
+            appendStringInfoChar(buf, '(');
+            foreach (arg, node->aggdirectargs) {
+                if (!first) {
+                    appendStringInfoString(buf, ", ");
+                }
+                first = false;
+
+                deparseExpr((Expr*)lfirst(arg), context);
+            }
+            appendStringInfoChar(buf, ')');
         }
 
         /* Close parameter args and start regular args. */
-        appendStringInfoString(buf, ")(");
+        appendStringInfoChar(buf, '(');
         /* Emit `WITHIN GROUP (ORDER BY ..)` args with no closing paren. */
         context->no_sort_parens = true;
         appendAggOrderBy(node->aggorder, node->args, context);
         context->no_sort_parens = false;
     } else {
         /* Add DISTINCT */
+        appendStringInfoChar(buf, '(');
         if (node->aggdistinct != NIL) {
             appendStringInfoString(buf, "DISTINCT ");
         }
