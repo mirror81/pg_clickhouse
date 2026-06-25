@@ -25,6 +25,16 @@ All notable changes to this project will be documented in this file. It uses the
     *   `percentile_disc(double)` → `quantileExactLow()`
     *   `percentile_disc(double[])` → `quantilesExactLow()`
 
+### 🐞 Bug Fixes
+
+*   Fixed crashes when a single query ran more than one foreign scan on the
+    binary (native-protocol) driver at once, such as a correlated subquery or a
+    nested-loop join over foreign tables, colliding in the single connection.
+    Each concurrently active scan now gets its own connection
+    ([#296]).
+*   Fixed a use-after-free of a foreign scan's batch memory context on rescan
+    that could corrupt memory and hang ([#296]).
+
 ### 📚 Documentation
 
 *   Separated the list of custom ordered set aggregate functions provided by
@@ -44,6 +54,8 @@ All notable changes to this project will be documented in this file. It uses the
   [var_samp/variance]: https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/varSamp
   [#291]: https://github.com/ClickHouse/pg_clickhouse/pull/291
     "ClickHouse/pg_clickhouse#291 Push down ordered set aggregate functions"
+  [#296]: https://github.com/ClickHouse/pg_clickhouse/pull/296
+    "ClickHouse/pg_clickhouse#296 Fix benchmark queries that crash/hang with binary driver"
 
 ## [v0.3.2] — 2026-06-16
 
