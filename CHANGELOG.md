@@ -30,6 +30,12 @@ All notable changes to this project will be documented in this file. It uses the
     *   `encode(bytea, 'base64')` → `base64Encode()` wrapped to reproduce
         PostgreSQL's MIME line break every 76 characters.
     *   `encode(bytea, 'base64url')` (PostgreSQL 19+) → `base64URLEncode()`.
+*   Extended interval arithmetic pushdown to `date` and `timestamp` operands
+    and to interval subtraction, beyond the previous `timestamptz + interval`.
+    Deparses to ClickHouse `INTERVAL <n> <unit>` terms, one per nonzero month,
+    day, and second component, replacing nested
+    `addMonths`/`addDays`/`addSeconds` calls that mishandled day arithmetic on
+    dates and drifted across DST boundaries ([#301]).
 
 ### 🐞 Bug Fixes
 
@@ -65,6 +71,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#296 Fix benchmark queries that crash/hang with binary driver"
   [#300]: https://github.com/ClickHouse/pg_clickhouse/pull/300
     "ClickHouse/pg_clickhouse#300 fix(http): handle subsecond precision"
+  [#301]: https://github.com/ClickHouse/pg_clickhouse/pull/301
+    "ClickHouse/pg_clickhouse#301 improve interval support"
 
 ## [v0.3.2] — 2026-06-16
 

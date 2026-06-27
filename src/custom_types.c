@@ -946,6 +946,12 @@ chfdw_check_for_custom_type(Oid typeoid) {
 #define OID_JSONB_FETCHVAL_TEXT_OP 3477
 #define OID_JSON_FETCHVAL_OP 3962
 #define OID_JSON_FETCHVAL_TEXT_OP 3963
+#define OID_DATE_PL_INTERVAL_OP 1076
+#define OID_DATE_MI_INTERVAL_OP 1077
+#define OID_TIMESTAMPTZ_PL_INTERVAL_OP 1327
+#define OID_TIMESTAMPTZ_MI_INTERVAL_OP 1329
+#define OID_TIMESTAMP_PL_INTERVAL_OP 2066
+#define OID_TIMESTAMP_MI_INTERVAL_OP 2068
 
 /*
  * Map a builtin operator OID to its custom_object_type. Returns CF_USUAL
@@ -974,6 +980,14 @@ classify_builtin_operator(Oid opoid) {
         return CF_ARRAY_CONTAINED_BY;
     case OID_ARRAY_OVERLAP_OP:
         return CF_ARRAY_OVERLAP;
+    case OID_DATE_PL_INTERVAL_OP:
+    case OID_TIMESTAMPTZ_PL_INTERVAL_OP:
+    case OID_TIMESTAMP_PL_INTERVAL_OP:
+        return CF_DATETIME_PL_INTERVAL;
+    case OID_DATE_MI_INTERVAL_OP:
+    case OID_TIMESTAMPTZ_MI_INTERVAL_OP:
+    case OID_TIMESTAMP_MI_INTERVAL_OP:
+        return CF_DATETIME_MI_INTERVAL;
     default:
         return CF_USUAL;
     }
@@ -992,7 +1006,7 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form) {
 
     if (chfdw_is_builtin(opoid)) {
         ctype = classify_builtin_operator(opoid);
-        if (ctype == CF_USUAL && opoid != F_TIMESTAMPTZ_PL_INTERVAL) {
+        if (ctype == CF_USUAL) {
             return NULL;
         }
     }
@@ -1011,9 +1025,7 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form) {
         init_custom_entry(entry);
 
         ctype = classify_builtin_operator(opoid);
-        if (opoid == F_TIMESTAMPTZ_PL_INTERVAL) {
-            entry->cf_type = CF_TIMESTAMPTZ_PL_INTERVAL;
-        } else if (ctype != CF_USUAL) {
+        if (ctype != CF_USUAL) {
             entry->cf_type = ctype;
         } else {
             Oid extoid    = getExtensionOfObject(OperatorRelationId, opoid);

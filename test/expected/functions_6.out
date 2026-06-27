@@ -1751,11 +1751,11 @@ SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
 (4 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a LIMIT 2;
-                                                                                QUERY PLAN                                                                                 
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                     QUERY PLAN                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t1
    Output: a, b, c
-   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toStartOfDay(c) < (toStartOfDay(now64(6, 'America/Los_Angeles')) - 86400))) ORDER BY a ASC NULLS LAST LIMIT 2
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toStartOfDay(c) < (toStartOfDay(now64(6, 'America/Los_Angeles')) - INTERVAL 1 DAY))) ORDER BY a ASC NULLS LAST LIMIT 2
 (3 rows)
 
 SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a;
@@ -1766,6 +1766,23 @@ SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAM
  2 | 2 | 2019-01-02 03:00:00
  2 | 3 | 2019-01-02 02:00:00
 (4 rows)
+
+-- Month and compound intervals push down as INTERVAL <n> <unit> chains (issue #61).
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '6 months' ORDER BY a LIMIT 2;
+                                                                                      QUERY PLAN                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toStartOfDay(c) < (toStartOfDay(now64(6, 'America/Los_Angeles')) - INTERVAL 6 MONTH))) ORDER BY a ASC NULLS LAST LIMIT 2
+(3 rows)
+
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) > date_trunc('day', CURRENT_TIMESTAMP) + INTERVAL '1 month 2 days 3 hours' ORDER BY a LIMIT 2;
+                                                                                                          QUERY PLAN                                                                                                           
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t1
+   Output: a, b, c
+   Remote SQL: SELECT a, b, c FROM functions_test.t1 WHERE ((toStartOfDay(c) > (toStartOfDay(now64(6, 'America/Los_Angeles')) + INTERVAL 1 MONTH + INTERVAL 2 DAY + INTERVAL 10800 SECOND))) ORDER BY a ASC NULLS LAST LIMIT 2
+(3 rows)
 
 \unset ECHO
 NOTICE:  CURRENT_TIME PUSHED DOWN: t

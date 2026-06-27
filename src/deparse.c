@@ -3467,89 +3467,58 @@ deparseSQLValueFunction(SQLValueFunction* svf, deparse_expr_cxt* context) {
     }
 }
 
+/*
+ * Emit ` +/- INTERVAL <amount> <unit>`, skipping zero amounts. A negative
+ * amount flips the operator so clickhouse always sees a positive literal.
+ */
+static void
+appendIntervalTerm(StringInfo buf, bool plus, int64 amount, const char* unit) {
+    if (amount == 0) {
+        return;
+    }
+
+    if (amount < 0) {
+        plus   = !plus;
+        amount = -amount;
+    }
+
+    appendStringInfo(
+        buf, " %s INTERVAL " INT64_FORMAT " %s", plus ? "+" : "-", amount, unit
+    );
+}
+
 static void
 deparseIntervalOp(Node* first, Node* second, deparse_expr_cxt* context, bool plus) {
     StringInfo buf = context->buf;
     Const* constval;
     Interval* span;
-    char ibuf[MAXINT8LEN + 1];
+
+    appendStringInfoChar(buf, '(');
+    deparseExpr((Expr*)first, context);
 
     if (!IsA(second, Const)) {
         bool old_op = context->interval_op;
 
-        /* first argument */
-        deparseExpr((Expr*)first, context);
-
-        if (plus) {
-            appendStringInfoString(buf, " + ");
-        } else {
-            appendStringInfoString(buf, " - ");
-        }
-
-        appendStringInfoString(buf, "INTERVAL ");
+        appendStringInfoString(buf, plus ? " + INTERVAL " : " - INTERVAL ");
 
         /* second */
         context->interval_op = true;
         deparseExpr((Expr*)second, context);
         context->interval_op = old_op;
+
+        appendStringInfoChar(buf, ')');
         return;
     }
 
     constval = (Const*)second;
     span     = DatumGetIntervalP(constval->constvalue);
 
-    /* top function is always addSeconds */
-    appendStringInfoString(buf, "addSeconds(");
+    /* clickhouse has no single interval kind, emit one term per unit */
+    appendIntervalTerm(buf, plus, span->month, "MONTH");
+    appendIntervalTerm(buf, plus, span->day, "DAY");
+    /* sub-second precision dropped, matching ch_timestamp_out */
+    appendIntervalTerm(buf, plus, span->time / USECS_PER_SEC, "SECOND");
 
-    if (span->day) {
-        appendStringInfoString(buf, "addDays(");
-    }
-
-    if (span->month) {
-        appendStringInfoString(buf, "addMonths(");
-    }
-
-    /* first argument here */
-    deparseExpr((Expr*)first, context);
-
-    if (span->month) {
-        /* addMonths arg */
-        appendStringInfoChar(buf, ',');
-        snprintf(ibuf, sizeof(ibuf), "%d", span->month);
-        if (!plus) {
-            appendStringInfoString(buf, "-(");
-            appendStringInfoString(buf, ibuf);
-            appendStringInfoChar(buf, ')');
-        } else {
-            appendStringInfoString(buf, ibuf);
-        }
-        appendStringInfoChar(buf, ')');
-    }
-
-    if (span->day) {
-        /* addDays arg */
-        appendStringInfoChar(buf, ',');
-        snprintf(ibuf, sizeof(ibuf), "%d", span->day);
-        if (!plus) {
-            appendStringInfoString(buf, "-(");
-            appendStringInfoString(buf, ibuf);
-            appendStringInfoChar(buf, ')');
-        } else {
-            appendStringInfoString(buf, ibuf);
-        }
-        appendStringInfoChar(buf, ')');
-    }
-
-    /* addSeconds arg */
-    appendStringInfoChar(buf, ',');
-    pg_lltoa((int64)(span->time / 1000000), ibuf);
-    if (!plus) {
-        appendStringInfoString(buf, "-(");
-        appendStringInfoString(buf, ibuf);
-        appendStringInfoChar(buf, ')');
-    } else {
-        appendStringInfoString(buf, ibuf);
-    }
     appendStringInfoChar(buf, ')');
 }
 
@@ -3635,9 +3604,15 @@ deparseOpExpr(OpExpr* node, deparse_expr_cxt* context) {
             }
             goto cleanup;
         } break;
-        case CF_TIMESTAMPTZ_PL_INTERVAL: {
+        case CF_DATETIME_PL_INTERVAL: {
             deparseIntervalOp(
                 linitial(node->args), list_nth(node->args, 1), context, true
+            );
+            goto cleanup;
+        } break;
+        case CF_DATETIME_MI_INTERVAL: {
+            deparseIntervalOp(
+                linitial(node->args), list_nth(node->args, 1), context, false
             );
             goto cleanup;
         } break;

@@ -376,6 +376,10 @@ SELECT * FROM t1 WHERE date_part('year', c) < date_part('year', CURRENT_DATE);
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a LIMIT 2;
 SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '1 day' ORDER BY a;
 
+-- Month and compound intervals push down as INTERVAL <n> <unit> chains (issue #61).
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) < date_trunc('day', CURRENT_TIMESTAMP) - INTERVAL '6 months' ORDER BY a LIMIT 2;
+EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE date_trunc('day', c) > date_trunc('day', CURRENT_TIMESTAMP) + INTERVAL '1 month 2 days 3 hours' ORDER BY a LIMIT 2;
+
 \unset ECHO
 -- Use a DO block to test TIME SQL values; Time64 added in CLickHouse 25.6.
 DO $$

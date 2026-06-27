@@ -366,14 +366,15 @@ typedef struct ConnCacheEntry {
 /* Custom behavior types */
 typedef enum {
     CF_USUAL = 0,
-    CF_SIGN_SUM,                /* SUM aggregation */
-    CF_SIGN_AVG,                /* AVG aggregation */
-    CF_SIGN_COUNT,              /* COUNT aggregation */
-    CF_DATE_TRUNC,              /* date_trunc function */
-    CF_DATE_PART,               /* date_part function */
-    CF_TIMESTAMPTZ_PL_INTERVAL, /* timestamptz + interval */
-    CF_TIMEZONE,                /* timezone */
-    CF_HSTORE_FETCHVAL,         /* -> operation on hstore */
+    CF_SIGN_SUM,             /* SUM aggregation */
+    CF_SIGN_AVG,             /* AVG aggregation */
+    CF_SIGN_COUNT,           /* COUNT aggregation */
+    CF_DATE_TRUNC,           /* date_trunc function */
+    CF_DATE_PART,            /* date_part function */
+    CF_DATETIME_PL_INTERVAL, /* date/timestamp/timestamptz + interval */
+    CF_DATETIME_MI_INTERVAL, /* date/timestamp/timestamptz - interval */
+    CF_TIMEZONE,             /* timezone */
+    CF_HSTORE_FETCHVAL,      /* -> operation on hstore */
     CF_INTARRAY_IDX,
     CF_CH_FUNCTION,            /* adapted clickhouse function */
     CF_MATCH,                  /* regexp_match function */
