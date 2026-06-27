@@ -577,6 +577,83 @@ try=# EXPLAIN (ANALYZE, VERBOSE)
  the number of rows that must be pulled back into Postgres from 1000 (all of
  them) to just 8, one for each node.
 
+### Partitioned Tables
+
+A PostgreSQL [partitioned table] can mix local partitions with foreign
+partitions backed by ClickHouse. A common layout offloads older data to
+ClickHouse while recent data stays in PostgreSQL:
+
+```pgsql
+CREATE TABLE events (id int, ts date, val int, amt float8)
+    PARTITION BY RANGE (ts);
+
+-- 2023 data lives on ClickHouse
+CREATE FOREIGN TABLE events_2023 PARTITION OF events
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01')
+    SERVER ch_svr OPTIONS (table_name 'events');
+
+-- 2024 data stays local
+CREATE TABLE events_2024 PARTITION OF events
+    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+```
+
+For example on how to move data from local to foreign partitions, see
+[offload-partition.sql](offload-partition.sql).
+
+Aggregates spanning both local and foreign partitions need [partitionwise
+aggregation], which PostgreSQL disables by default:
+
+```pgsql
+SET enable_partitionwise_aggregate = on;
+```
+
+With `enable_partitionwise_aggregate` enabled, PostgreSQL computes a *partial
+aggregate* below `Append`, then a *finalize aggregate* above combines those
+partials into result. pg_clickhouse pushes the foreign partition's partial
+down to ClickHouse:
+
+```pgsql
+try=# EXPLAIN (VERBOSE, COSTS OFF)
+       SELECT count(*), sum(val), min(ts), max(ts) FROM events;
+                                                       QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate
+   Output: count(*), sum(events.val), min(events.ts), max(events.ts)
+   ->  Append
+         ->  Foreign Scan
+               Output: (PARTIAL count(*)), (PARTIAL sum(events.val)), (PARTIAL min(events.ts)), (PARTIAL max(events.ts))
+               Relations: Aggregate on (events_2023 events)
+               Remote SQL: SELECT count(*), sum(val), min(ts), max(ts) FROM "default".events
+         ->  Partial Aggregate
+               Output: PARTIAL count(*), PARTIAL sum(events_1.val), PARTIAL min(events_1.ts), PARTIAL max(events_1.ts)
+               ->  Seq Scan on public.events_2024 events_1
+                     Output: events_1.val, events_1.ts
+```
+
+#### When partial aggregates push down
+
+PostgreSQL represents a partial aggregate as a *transition state* that the
+finalize step combines across partitions. pg_clickhouse can push a partition's
+partial down only when it can express it as a ClickHouse value:
+
+*   **Decomposable aggregates** whose transition state is already the final
+    value, push down directly: `count`, `sum`, `min`, `max`, `bool_and`/`every`,
+    `bool_or`, `bit_and`, `bit_or`, and `bit_xor`.
+*   **`avg` over integers** pushes its `{count, sum}` state as an array.
+*   **`avg`, `var_pop`, `var_samp`, `stddev_pop`, and `stddev_samp` over
+    floating point** push their `{N, sum, sum of squared deviations}` state as
+    an array.
+
+`FILTER (WHERE …)` pushes down with these aggregate functions.
+
+#### When they fall back
+
+Aggregates whose transition state is PostgreSQL's opaque `internal` type have
+no portable representation, so the foreign partition instead fetches its rows
+and aggregates them locally. This covers anything over `numeric`, plus
+`avg(bigint)` and `avg(interval)`. `DISTINCT`, ordered-set, and variadic
+aggregates also fall back.
+
 ### PREPARE, EXECUTE, DEALLOCATE
 
  As of v0.1.2, pg_clickhouse supports parameterized queries, mainly created
@@ -1586,6 +1663,10 @@ Copyright (c) 2025-2026, ClickHouse.
     "PostgreSQL Docs: EXPLAIN"
   [SELECT]: https://www.postgresql.org/docs/current/sql-select.html
     "PostgreSQL Docs: SELECT"
+  [partitioned table]: https://www.postgresql.org/docs/current/ddl-partitioning.html
+    "PostgreSQL Docs: Table Partitioning"
+  [partitionwise aggregation]: https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-ENABLE-PARTITIONWISE-AGGREGATE
+    "PostgreSQL Docs: enable_partitionwise_aggregate"
   [PREPARE]: https://www.postgresql.org/docs/current/sql-prepare.html
     "PostgreSQL Docs: PREPARE"
   [EXECUTE]: https://www.postgresql.org/docs/current/sql-execute.html

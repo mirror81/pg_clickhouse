@@ -2866,8 +2866,9 @@ clickhouseGetForeignUpperPaths(
     }
 
     /* Ignore stages we don't support; and skip any duplicate calls. */
-    if ((stage != UPPERREL_GROUP_AGG && stage != UPPERREL_WINDOW &&
-         stage != UPPERREL_ORDERED && stage != UPPERREL_FINAL) ||
+    if ((stage != UPPERREL_GROUP_AGG && stage != UPPERREL_PARTIAL_GROUP_AGG &&
+         stage != UPPERREL_WINDOW && stage != UPPERREL_ORDERED &&
+         stage != UPPERREL_FINAL) ||
         output_rel->fdw_private) {
         return;
     }
@@ -2882,6 +2883,13 @@ clickhouseGetForeignUpperPaths(
         add_foreign_grouping_paths(
             root, input_rel, output_rel, (GroupPathExtraData*)extra
         );
+        break;
+    case UPPERREL_PARTIAL_GROUP_AGG:
+        if (((GroupPathExtraData*)extra)->patype == PARTITIONWISE_AGGREGATE_PARTIAL) {
+            add_foreign_grouping_paths(
+                root, input_rel, output_rel, (GroupPathExtraData*)extra
+            );
+        }
         break;
     case UPPERREL_WINDOW:
         add_foreign_window_paths(root, input_rel, output_rel);
@@ -2932,7 +2940,8 @@ add_foreign_grouping_paths(
 
     Assert(
         extra->patype == PARTITIONWISE_AGGREGATE_NONE ||
-        extra->patype == PARTITIONWISE_AGGREGATE_FULL
+        extra->patype == PARTITIONWISE_AGGREGATE_FULL ||
+        extra->patype == PARTITIONWISE_AGGREGATE_PARTIAL
     );
 
     /* save the input_rel as outerrel in fpinfo */

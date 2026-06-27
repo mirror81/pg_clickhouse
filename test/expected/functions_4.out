@@ -1644,8 +1644,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
                                                 QUERY PLAN                                                
 ----------------------------------------------------------------------------------------------------------
@@ -1655,8 +1659,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
                                                 QUERY PLAN                                                
 ----------------------------------------------------------------------------------------------------------
@@ -1666,8 +1674,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 -- Check SQL Value functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;
                                               QUERY PLAN                                              
@@ -2884,7 +2896,7 @@ SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 (1 row)
 
 DROP SERVER functions_loopback CASCADE;
-NOTICE:  drop cascades to 8 other objects
+NOTICE:  drop cascades to 9 other objects
 DETAIL:  drop cascades to foreign table t1
 drop cascades to foreign table t2
 drop cascades to foreign table t3
@@ -2893,3 +2905,4 @@ drop cascades to foreign table t4
 drop cascades to foreign table t5
 drop cascades to foreign table t6
 drop cascades to foreign table t7
+drop cascades to foreign table times

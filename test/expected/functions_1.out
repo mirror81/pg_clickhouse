@@ -2700,7 +2700,19 @@ SELECT current_setting('server_version_num')::int >= 180000 AS pg18 \gset
 \if :pg18
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT val FROM t4 WHERE reverse(val::bytea) = 'olleh'::bytea;
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t4 WHERE ((reverse(CAST(val AS bytea(0))) = 'olleh'))
+(3 rows)
+
 SELECT val FROM t4 WHERE reverse(val::bytea) = 'olleh'::bytea;
+  val  
+-------
+ hello
+(1 row)
+
 \endif
 -- date(timestamp) and date(timestamptz) push down as CH date (alias for toDate).
 EXPLAIN (VERBOSE, COSTS OFF)

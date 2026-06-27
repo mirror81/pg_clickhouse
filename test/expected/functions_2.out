@@ -780,7 +780,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('dAy', c at time zone 'UTC') as d
                                                                                        QUERY PLAN                                                                                        
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('dAy'::text, timezone('UTC'::text, c)))
+   Output: (date_trunc('dAy'::text, (c AT TIME ZONE 'UTC'::text)))
    Relations: Aggregate on (t1)
    Remote SQL: SELECT toStartOfDay(toTimeZone(c, 'UTC')) FROM functions_test.t1 GROUP BY (toStartOfDay(toTimeZone(c, 'UTC'))) ORDER BY toStartOfDay(toTimeZone(c, 'UTC')) ASC NULLS LAST
 (4 rows)
@@ -796,7 +796,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('day', c at time zone 'UTC') as d
                                                                                        QUERY PLAN                                                                                        
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('day'::text, timezone('UTC'::text, c)))
+   Output: (date_trunc('day'::text, (c AT TIME ZONE 'UTC'::text)))
    Relations: Aggregate on (t2)
    Remote SQL: SELECT toStartOfDay(toTimeZone(c, 'UTC')) FROM functions_test.t1 GROUP BY (toStartOfDay(toTimeZone(c, 'UTC'))) ORDER BY toStartOfDay(toTimeZone(c, 'UTC')) ASC NULLS LAST
 (4 rows)
@@ -891,7 +891,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('SeCond', c at time zone 'UTC') a
                                                                                                                      QUERY PLAN                                                                                                                      
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('SeCond'::text, timezone('UTC'::text, c)))
+   Output: (date_trunc('SeCond'::text, (c AT TIME ZONE 'UTC'::text)))
    Relations: Aggregate on (t1)
    Remote SQL: SELECT toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1)) FROM functions_test.t1 GROUP BY (toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1))) ORDER BY toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1)) ASC NULLS LAST
 (4 rows)
@@ -1396,11 +1396,11 @@ SELECT ts FROM t5 WHERE EXTRACT(epoch FROM ts) > 1866158180;
 
 -- Check extract from date.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
-                                                           QUERY PLAN                                                           
---------------------------------------------------------------------------------------------------------------------------------
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toYear(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 2027))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toYear(cast(ts, 'Nullable(Date)')) = 2027))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
@@ -1410,11 +1410,11 @@ SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
-                                                          QUERY PLAN                                                           
--------------------------------------------------------------------------------------------------------------------------------
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toMonth(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 11))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toMonth(cast(ts, 'Nullable(Date)')) = 11))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
@@ -1424,11 +1424,11 @@ SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
-                                                             QUERY PLAN                                                             
-------------------------------------------------------------------------------------------------------------------------------------
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toDayOfMonth(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 18))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toDayOfMonth(cast(ts, 'Nullable(Date)')) = 18))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
@@ -2118,7 +2118,19 @@ SELECT current_setting('server_version_num')::int >= 140000 AS pg14 \gset
 \if :pg14
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t4 WHERE ((bitCount(CAST(val AS bytea(0))) = 21)) ORDER BY val ASC NULLS LAST
+(3 rows)
+
 SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
+  val  
+-------
+ hello
+(1 row)
+
 \endif
 -- mod(int, int) pushes down as modulo.
 EXPLAIN (VERBOSE, COSTS OFF)

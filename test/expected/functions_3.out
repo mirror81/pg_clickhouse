@@ -780,7 +780,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('dAy', c at time zone 'UTC') as d
                                                                                        QUERY PLAN                                                                                        
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('dAy'::text, (c AT TIME ZONE 'UTC'::text)))
+   Output: (date_trunc('dAy'::text, timezone('UTC'::text, c)))
    Relations: Aggregate on (t1)
    Remote SQL: SELECT toStartOfDay(toTimeZone(c, 'UTC')) FROM functions_test.t1 GROUP BY (toStartOfDay(toTimeZone(c, 'UTC'))) ORDER BY toStartOfDay(toTimeZone(c, 'UTC')) ASC NULLS LAST
 (4 rows)
@@ -796,7 +796,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('day', c at time zone 'UTC') as d
                                                                                        QUERY PLAN                                                                                        
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('day'::text, (c AT TIME ZONE 'UTC'::text)))
+   Output: (date_trunc('day'::text, timezone('UTC'::text, c)))
    Relations: Aggregate on (t2)
    Remote SQL: SELECT toStartOfDay(toTimeZone(c, 'UTC')) FROM functions_test.t1 GROUP BY (toStartOfDay(toTimeZone(c, 'UTC'))) ORDER BY toStartOfDay(toTimeZone(c, 'UTC')) ASC NULLS LAST
 (4 rows)
@@ -891,7 +891,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT date_trunc('SeCond', c at time zone 'UTC') a
                                                                                                                      QUERY PLAN                                                                                                                      
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan
-   Output: (date_trunc('SeCond'::text, (c AT TIME ZONE 'UTC'::text)))
+   Output: (date_trunc('SeCond'::text, timezone('UTC'::text, c)))
    Relations: Aggregate on (t1)
    Remote SQL: SELECT toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1)) FROM functions_test.t1 GROUP BY (toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1))) ORDER BY toStartOfSecond(toDateTime64(toTimeZone(c, 'UTC'), 1)) ASC NULLS LAST
 (4 rows)
@@ -947,8 +947,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS 
 (4 rows)
 
 SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS b, rtrim(val, 'l1') AS c FROM t4 GROUP BY a,b,c ORDER BY a;
-ERROR:  pg_clickhouse: DB::Exception: Syntax error: failed at position 17 (,): , 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(va... Expected one of: token sequence, Dot, token, ClosingRoundBracket, OR, AND, IS NOT DISTINCT FROM, IS NULL, IS NOT NULL, BETWEEN, NOT BETWEEN, LIKE, ILIKE, NOT LIKE, NOT ILIKE, REGEXP, IN, NOT IN, GLOBAL IN, GLOBAL NOT IN, MOD, DIV, alias, AS, identifier
-DETAIL:  Remote Query: SELECT ltrim(val, 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(val, 'av') ASC NULLS LAST
+ a  | b  |  c   
+----+----+------
+ l1 | va | va
+ l2 | va | val2
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT strpos(val, 'val') AS a FROM t4 GROUP BY a ORDER BY a;
                                                                         QUERY PLAN                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1392,11 +1396,11 @@ SELECT ts FROM t5 WHERE EXTRACT(epoch FROM ts) > 1866158180;
 
 -- Check extract from date.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
-                                             QUERY PLAN                                             
-----------------------------------------------------------------------------------------------------
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toYear(cast(ts, 'Nullable(Date)')) = 2027))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toYear(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 2027))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
@@ -1406,11 +1410,11 @@ SELECT ts FROM t5 WHERE EXTRACT(year FROM ts::date) = 2027;
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
-                                            QUERY PLAN                                             
----------------------------------------------------------------------------------------------------
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toMonth(cast(ts, 'Nullable(Date)')) = 11))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toMonth(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 11))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
@@ -1420,11 +1424,11 @@ SELECT ts FROM t5 WHERE EXTRACT(month FROM ts::date) = 11;
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF) SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
-                                               QUERY PLAN                                               
---------------------------------------------------------------------------------------------------------
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
  Foreign Scan on public.t5
    Output: ts
-   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toDayOfMonth(cast(ts, 'Nullable(Date)')) = 18))
+   Remote SQL: SELECT ts FROM functions_test.t5 WHERE ((toDayOfMonth(cast(cast(ts, 'Nullable(Date)'), 'Nullable(DateTime)')) = 18))
 (3 rows)
 
 SELECT ts FROM t5 WHERE EXTRACT(day FROM ts::date) = 18;
@@ -2114,19 +2118,7 @@ SELECT current_setting('server_version_num')::int >= 140000 AS pg14 \gset
 \if :pg14
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
-                                                         QUERY PLAN                                                         
-----------------------------------------------------------------------------------------------------------------------------
- Foreign Scan on public.t4
-   Output: val
-   Remote SQL: SELECT val FROM functions_test.t4 WHERE ((bitCount(CAST(val AS bytea(0))) = 21)) ORDER BY val ASC NULLS LAST
-(3 rows)
-
 SELECT val FROM t4 WHERE bit_count(val::bytea) = 21 ORDER BY val;
-  val  
--------
- hello
-(1 row)
-
 \endif
 -- mod(int, int) pushes down as modulo.
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -2696,19 +2688,7 @@ SELECT current_setting('server_version_num')::int >= 180000 AS pg18 \gset
 \if :pg18
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT val FROM t4 WHERE reverse(val::bytea) = 'olleh'::bytea;
-                                             QUERY PLAN                                             
-----------------------------------------------------------------------------------------------------
- Foreign Scan on public.t4
-   Output: val
-   Remote SQL: SELECT val FROM functions_test.t4 WHERE ((reverse(CAST(val AS bytea(0))) = 'olleh'))
-(3 rows)
-
 SELECT val FROM t4 WHERE reverse(val::bytea) = 'olleh'::bytea;
-  val  
--------
- hello
-(1 row)
-
 \endif
 -- date(timestamp) and date(timestamptz) push down as CH date (alias for toDate).
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -2852,27 +2832,7 @@ SELECT current_setting('server_version_num')::int >= 190000 AS pg19 \gset
 \if :pg19
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
-                                                                                             QUERY PLAN                                                                                              
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Foreign Scan
-   Output: (encode((val)::bytea, 'base64url'::text))
-   Relations: Aggregate on (t4)
-   Remote SQL: SELECT base64URLEncode(CAST(val AS bytea(0))) FROM functions_test.t4 GROUP BY (base64URLEncode(CAST(val AS bytea(0)))) ORDER BY base64URLEncode(CAST(val AS bytea(0))) ASC NULLS LAST
-(4 rows)
-
 SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
-                                        b                                         
-----------------------------------------------------------------------------------
- TWl4ZWQ
- VkFMMw
- YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh
- YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh
- aGVsbG8
- dmFsMQ
- dmFsMg
- zqnOsc6y
-(8 rows)
-
 -- The 60-byte input crosses base64's 76-char line break boundary, exercising
 -- that base64url emits no newline; matching against PG's own output of the same
 -- bytes confirms they agree byte-for-byte.
@@ -2881,12 +2841,6 @@ WHERE encode(val::bytea, 'base64url') IN (
     encode(repeat('a', 57)::bytea, 'base64url'),
     encode(repeat('a', 60)::bytea, 'base64url')
 ) ORDER BY n;
- n  
-----
- 57
- 60
-(2 rows)
-
 \endif
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');

@@ -383,6 +383,73 @@ chfdw_is_equal_op(Oid opno) {
 }
 
 /*
+ * Classifies how a partial aggregate maps onto ClickHouse.
+ *
+ * Under partitionwise partial aggregation each partition computes a partial
+ * state that PG finalizes above Append. ClickHouse can't emit a PG transition
+ * state, so we reconstruct it from scalar components ClickHouse does compute.
+ */
+typedef enum {
+    AGG_PARTIAL_NONE,       /* can't push as partial */
+    AGG_PARTIAL_DIRECT,     /* transvalue is final value: no finalfn/serialfn */
+    AGG_PARTIAL_AVG_INT,    /* int8[2] {count, sum}: avg(int2/int4) */
+    AGG_PARTIAL_STAT_FLOAT, /* float8[3] {N, Sx, Sxx}: avg/var/stddev(float4/8) */
+} AggPartialKind;
+
+/*
+ * Reconstructs plain (non-INTERNAL) transition array from ClickHouse, keyed on
+ * accumulator so layout is known. INTERNAL-state aggregates would need their
+ * serialfn and a version-specific struct, so are left to local aggregation.
+ */
+static AggPartialKind
+agg_partial_kind(Aggref* agg) {
+    HeapTuple tuple;
+    Form_pg_aggregate aggform;
+    AggPartialKind kind = AGG_PARTIAL_NONE;
+
+    /* DISTINCT dedups per partition, so partials can't be combined */
+    if (agg->aggdistinct) {
+        return AGG_PARTIAL_NONE;
+    }
+
+    /* Planner already resolved aggfnoid, so the lookup always hits */
+    tuple = SearchSysCache1(AGGFNOID, ObjectIdGetDatum(agg->aggfnoid));
+    if (!HeapTupleIsValid(tuple)) {
+        return AGG_PARTIAL_NONE;
+    }
+    aggform = (Form_pg_aggregate)GETSTRUCT(tuple);
+
+    if (!OidIsValid(aggform->aggcombinefn)) {
+        /* No combinefn means Finalize can't merge per-partition partials */
+        kind = AGG_PARTIAL_NONE;
+    } else if (!OidIsValid(aggform->aggfinalfn) && !OidIsValid(aggform->aggserialfn)) {
+        /* No finalfn: transvalue is the final value (count/sum/min/max) */
+        kind = AGG_PARTIAL_DIRECT;
+    } else if (
+        /* Has a finalfn, but plain SQL transtype (no serialfn): an array we
+         * can rebuild, provided no variadic/ORDER BY/ordered-set wrinkle */
+        !OidIsValid(aggform->aggserialfn) && !agg->aggvariadic &&
+        agg->aggorder == NIL && agg->aggkind == AGGKIND_NORMAL
+    ) {
+        switch (aggform->aggtransfn) {
+        case F_INT2_AVG_ACCUM:
+        case F_INT4_AVG_ACCUM:
+            kind = AGG_PARTIAL_AVG_INT;
+            break;
+        case F_FLOAT4_ACCUM:
+        case F_FLOAT8_ACCUM:
+            kind = AGG_PARTIAL_STAT_FLOAT;
+            break;
+        default:
+            break;
+        }
+    }
+
+    ReleaseSysCache(tuple);
+    return kind;
+}
+
+/*
  * Check if expression is safe to execute remotely, and return true if so.
  *
  * We must check that the expression contains only node types we can deparse,
@@ -628,8 +695,9 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
             return false;
         }
 
-        /* Only non-split aggregates are pushable. */
-        if (agg->aggsplit != AGGSPLIT_SIMPLE) {
+        /* Simple aggregates push down directly */
+        if (agg->aggsplit != AGGSPLIT_SIMPLE &&
+            agg_partial_kind(agg) == AGG_PARTIAL_NONE) {
             return false;
         }
 
@@ -4232,6 +4300,93 @@ aggref_on_aggregate_function(Aggref* node, deparse_expr_cxt* context) {
 }
 
 /*
+ * Emit partial aggregate as a ClickHouse array holding Postgres
+ * transition state, so local Finalize combines across partitions.
+ *   AVG_INT    -> int8[2]   {count, sum}
+ *   STAT_FLOAT -> float8[3] {N, sum(x), sum((x - Sx/N)^2)}
+ * See float8_accum, int8_avg in PostgreSQL.
+ *
+ * float8_accum's third slot is the sum of squared deviations, which
+ * ClickHouse rebuilds via the identity Sxx = sum(x^2) - sum(x)^2 / N.
+ */
+static void
+deparsePartialStatArray(Aggref* node, AggPartialKind kind, deparse_expr_cxt* context) {
+    StringInfo buf = context->buf;
+    StringInfoData argbuf, condbuf;
+    TargetEntry* tle     = (TargetEntry*)linitial(node->args);
+    const char* ifSuffix = node->aggfilter ? "If" : "";
+    char* arg;
+    char* cf = ""; /* trailing -If condition arg, empty without FILTER */
+
+    Assert(!tle->resjunk);
+
+    /* Capture argument SQL so it can be referenced several times. */
+    initStringInfo(&argbuf);
+    context->buf = &argbuf;
+    deparseExpr((Expr*)tle->expr, context);
+
+    /* Capture FILTER condition as each component's -If argument. */
+    if (node->aggfilter) {
+        initStringInfo(&condbuf);
+        context->buf = &condbuf;
+        deparseExpr((Expr*)node->aggfilter, context);
+        cf = psprintf(", (%s) > 0", condbuf.data);
+    }
+
+    context->buf = buf;
+    arg          = argbuf.data;
+
+    if (kind == AGG_PARTIAL_AVG_INT) {
+        // https://github.com/postgres/postgres/blob/f5cc81719e6da4cbdb1f797c48b693e91018153a/src/backend/utils/adt/numeric.c#L6760
+        appendStringInfo(
+            buf,
+            "[toInt64(count%s(%s%s)), toInt64(sum%s(%s%s))]",
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf
+        );
+    } else if (kind == AGG_PARTIAL_STAT_FLOAT) {
+        // https://github.com/postgres/postgres/blob/f5cc81719e6da4cbdb1f797c48b693e91018153a/src/backend/utils/adt/float.c#L2891
+        appendStringInfo(
+            buf,
+            "[toFloat64(count%s(%s%s)), sum%s(toFloat64(%s)%s), "
+            "if(count%s(%s%s) > 0, sum%s(pow(toFloat64(%s), 2)%s) - "
+            "pow(sum%s(toFloat64(%s)%s), 2) / count%s(%s%s), 0)]",
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf,
+            ifSuffix,
+            arg,
+            cf
+        );
+    } else {
+        Assert(false);
+        elog(ERROR, "unknown aggregate type %d", kind);
+    }
+
+    if (node->aggfilter) {
+        pfree(cf);
+        pfree(condbuf.data);
+    }
+    pfree(argbuf.data);
+}
+
+/*
  * Deparse an Aggref node.
  */
 static void
@@ -4246,8 +4401,19 @@ deparseAggref(Aggref* node, deparse_expr_cxt* context) {
     bool omit_star            = false; /* Explained below. */
     bool use_variadic;
 
-    /* Only basic, non-split aggregation accepted. */
-    Assert(node->aggsplit == AGGSPLIT_SIMPLE);
+    /* Simple aggregates push down directly */
+    Assert(
+        node->aggsplit == AGGSPLIT_SIMPLE || node->aggsplit == AGGSPLIT_INITIAL_SERIAL
+    );
+
+    if (node->aggsplit == AGGSPLIT_INITIAL_SERIAL) {
+        AggPartialKind kind = agg_partial_kind(node);
+
+        if (kind == AGG_PARTIAL_AVG_INT || kind == AGG_PARTIAL_STAT_FLOAT) {
+            deparsePartialStatArray(node, kind, context);
+            return;
+        }
+    }
 
     /* Check if need to print expand VARIADIC (cf. ruleutils.c) */
     use_variadic = node->aggvariadic;

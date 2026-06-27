@@ -77,6 +77,19 @@ deparse_checks.sql
 ------------|--------------------
  23+        | deparse_checks.out
 
+docs_offload_partition.sql
+--------------------------
+
+ Postgres | File
+----------|------------------------------
+ 18-19    | docs_offload_partition.out
+ 17       | docs_offload_partition_1.out
+ 13-16    | docs_offload_partition_2.out
+
+ ClickHouse | File
+------------|------------------------------
+ 23+        | docs_offload_partition.out
+
 engines.sql
 -----------
 
@@ -95,18 +108,18 @@ functions.sql
  Postgres | File
 ----------|---------------
  19       | functions.out
- 18       | functions_8.out
- 14-17    | functions_1.out
- 13       | functions_2.out
+ 18       | functions_1.out
+ 14-17    | functions_2.out
+ 13       | functions_3.out
 
  ClickHouse | File
 ------------|-----------------
  26.3+      | functions.out
- 25.8       | functions_3.out
- 25.3       | functions_4.out
- 24.8       | functions_5.out
- 24.3       | functions_6.out
- 23.8       | functions_7.out
+ 25.8       | functions_4.out
+ 25.3       | functions_5.out
+ 24.8       | functions_6.out
+ 24.3       | functions_7.out
+ 23.8       | functions_8.out
  23.3       | functions_9.out
 
 http.sql
@@ -262,11 +275,11 @@ window_functions.sql
  ClickHouse | File
 ------------|----------------------------
  26+        | window_functions.out
- 25.4-25.8  | window_functions_4.out
- 24.8-25.3  | window_functions_1.out
- 24.3       | window_functions_2.out
- 23.8       | window_functions_5.out
- 23.3       | window_functions_3.out
+ 25.4-25.8  | window_functions_1.out
+ 24.8-25.3  | window_functions_2.out
+ 24.3       | window_functions_3.out
+ 23.8       | window_functions_4.out
+ 23.3       | window_functions_5.out
 
 re2_functions.sql
 -----------------

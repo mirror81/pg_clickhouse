@@ -90,7 +90,7 @@
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function lead
+ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'lead' does not exists. In scope SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 -- LEAD pushdown (http)
            QUERY PLAN            
@@ -99,7 +99,7 @@ DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITIO
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: Code: 63. DB::Exception: Unknown aggregate function lead. (UNKNOWN_AGGREGATE_FUNCTION)
+ERROR:  pg_clickhouse: Code: 63. DB::Exception: Aggregate function with name 'lead' does not exists. In scope SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'. (UNKNOWN_AGGREGATE_FUNCTION)
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lead(ts_event) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 CONTEXT:  HTTP status code: 404
 -- LAG pushdown (binary)
@@ -109,7 +109,7 @@ CONTEXT:  HTTP status code: 404
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function lag
+ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'lag' does not exists. In scope SELECT entity_id, ts_event, lag(amount) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE event_name = 'lead_created'
 DETAIL:  Remote Query: SELECT entity_id, ts_event, lag(amount) OVER (PARTITION BY entity_id ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created'))
 -- rank pushdown (binary)
            QUERY PLAN            
@@ -156,8 +156,15 @@ DETAIL:  Remote Query: SELECT entity_id, ts_event, lag(amount) OVER (PARTITION B
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: ntile's frame type must be ROWS
-DETAIL:  Remote Query: SELECT entity_id, ts_event, ntile(2) OVER (ORDER BY ts_event ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY ts_event ASC NULLS LAST
+ entity_id |        ts_event        | bucket 
+-----------+------------------------+--------
+ lead_100  | 2026-03-01 10:00:00+00 |      1
+ lead_300  | 2026-03-05 08:00:00+00 |      1
+ lead_200  | 2026-03-10 09:00:00+00 |      1
+ lead_100  | 2026-03-15 14:00:00+00 |      2
+ lead_200  | 2026-03-20 11:00:00+00 |      2
+(5 rows)
+
 -- cume_dist pushdown (binary)
            QUERY PLAN            
 ---------------------------------
@@ -165,7 +172,7 @@ DETAIL:  Remote Query: SELECT entity_id, ts_event, ntile(2) OVER (ORDER BY ts_ev
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function cume_dist
+ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'cume_dist' does not exists. In scope SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE event_name = 'lead_created' ORDER BY amount ASC NULLS LAST
 DETAIL:  Remote Query: SELECT entity_id, amount, cume_dist() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY amount ASC NULLS LAST
 -- percent_rank pushdown (binary)
            QUERY PLAN            
@@ -174,7 +181,7 @@ DETAIL:  Remote Query: SELECT entity_id, amount, cume_dist() OVER (ORDER BY amou
    Relations: Window on (events)
 (2 rows)
 
-ERROR:  pg_clickhouse: DB::Exception: Unknown aggregate function percent_rank
+ERROR:  pg_clickhouse: DB::Exception: Aggregate function with name 'percent_rank' does not exists. In scope SELECT entity_id, amount, percent_rank() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE event_name = 'lead_created' ORDER BY amount ASC NULLS LAST
 DETAIL:  Remote Query: SELECT entity_id, amount, percent_rank() OVER (ORDER BY amount ASC) FROM wf_test.events WHERE ((event_name = 'lead_created')) ORDER BY amount ASC NULLS LAST
 -- ROW_NUMBER + ORDER BY pushdown (binary)
            QUERY PLAN            

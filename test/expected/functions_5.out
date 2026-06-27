@@ -947,7 +947,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS 
 (4 rows)
 
 SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS b, rtrim(val, 'l1') AS c FROM t4 GROUP BY a,b,c ORDER BY a;
-ERROR:  pg_clickhouse: DB::Exception: Syntax error: failed at position 17 (','): , 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(va. Expected one of: token sequence, Dot, token, ClosingRoundBracket, OR, AND, IS NOT DISTINCT FROM, IS NULL, IS NOT NULL, BETWEEN, NOT BETWEEN, LIKE, ILIKE, NOT LIKE, NOT ILIKE, REGEXP, IN, NOT IN, GLOBAL IN, GLOBAL NOT IN, MOD, DIV, alias, AS, identifier
+ERROR:  pg_clickhouse: DB::Exception: Syntax error: failed at position 17 (,): , 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(va... Expected one of: token sequence, Dot, token, ClosingRoundBracket, OR, AND, IS NOT DISTINCT FROM, IS NULL, IS NOT NULL, BETWEEN, NOT BETWEEN, LIKE, ILIKE, NOT LIKE, NOT ILIKE, REGEXP, IN, NOT IN, GLOBAL IN, GLOBAL NOT IN, MOD, DIV, alias, AS, identifier
 DETAIL:  Remote Query: SELECT ltrim(val, 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(val, 'av') ASC NULLS LAST
 EXPLAIN (VERBOSE, COSTS OFF) SELECT strpos(val, 'val') AS a FROM t4 GROUP BY a ORDER BY a;
                                                                         QUERY PLAN                                                                         
@@ -1644,7 +1644,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
+ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
 DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
                                                 QUERY PLAN                                                
@@ -1655,7 +1655,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
+ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
 DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
                                                 QUERY PLAN                                                
@@ -1666,7 +1666,7 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
+ERROR:  pg_clickhouse: DB::Exception: Function with name `nowInBlock64` does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
 DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
 -- Check SQL Value functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;

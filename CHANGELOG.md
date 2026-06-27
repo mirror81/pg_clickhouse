@@ -43,10 +43,19 @@ All notable changes to this project will be documented in this file. It uses the
     bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
 *   Added pushdown for the three-argument forms of `ltrim`, `rtrim`, and
     `btrim` ([#307]).
-*   Added support for binary driver to `clickhouse_raw_query()`.
+*   Added support for binary driver to `clickhouse_raw_query()` ([#309]).
 *   Added `clickhouse_query(server, sql)`, a set-returning function that runs a
     query against a configured foreign server and returns its rows typed by the
-    caller's column definition list.
+    caller's column definition list ([#309]).
+*   Added pushdown support for partial aggregates under partitionwise
+    aggregation, so a query over a partitioned table mixing local and foreign
+    partitions computes the foreign partition's aggregate on ClickHouse
+    instead of fetching its rows. Covers decomposable aggregates (`count`,
+    `sum`, `min`, `max`, `bool_and`/`bool_or`, `bit_and`/`bit_or`), plus `avg`
+    over integers and `avg`/`var_pop`/`var_samp`/`stddev_pop`/`stddev_samp`
+    over floats. Aggregates with an internal transition state (anything over
+    `numeric`, `avg(bigint)`, `avg(interval)`) still fall back to local
+    aggregation. Requires `enable_partitionwise_aggregate` ([#298]).
 
 ### 🐞 Bug Fixes
 
@@ -84,6 +93,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#293 Add ClickHouse server-version detection plumbing"
   [#296]: https://github.com/ClickHouse/pg_clickhouse/pull/296
     "ClickHouse/pg_clickhouse#296 Fix benchmark queries that crash/hang with binary driver"
+  [#298]: https://github.com/ClickHouse/pg_clickhouse/pull/298
+    "ClickHouse/pg_clickhouse#296 Simple partitioned aggregation"
   [#300]: https://github.com/ClickHouse/pg_clickhouse/pull/300
     "ClickHouse/pg_clickhouse#300 fix(http): handle subsecond precision"
   [#301]: https://github.com/ClickHouse/pg_clickhouse/pull/301
@@ -92,6 +103,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#303 Flush buffered data during binary insert"
   [#307]: https://github.com/ClickHouse/pg_clickhouse/pull/307
     "ClickHouse/pg_clickhouse#307 Push down three-argument trim functions"
+  [#307]: https://github.com/ClickHouse/pg_clickhouse/pull/309
+    "ClickHouse/pg_clickhouse#309 add binary support to clickhouse_raw_query, add clickhouse_query"
 
 ## [v0.3.2] — 2026-06-16
 
