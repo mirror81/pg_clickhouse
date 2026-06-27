@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file. It uses the
     *   [stddev_samp/stddev]
     *   [var_op]
     *   [var_samp/variance]
+    *   [any_value]
 *   Mapped the following PostgreSQL ordered set aggregate functions to push
     down to corresponding ClickHouse parametric aggregate functions ([#291]):
     *   `percentile_cont(double[])` → `quantiles()`

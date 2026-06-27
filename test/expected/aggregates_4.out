@@ -1780,6 +1780,40 @@ DETAIL:  Remote Query: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(ca
 ERROR:  pg_clickhouse: Code: 42. DB::Exception: Decimal data type family must have exactly two arguments: precision and scale: While processing CAST(b, 'Nullable(Decimal)'). (NUMBER_OF_ARGUMENTS_DOESNT_MATCH)
 DETAIL:  Remote Query: SELECT var_pop(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')), var_samp(cast(b, 'Nullable(Decimal)')) FROM agg_test.agg_numbers
 CONTEXT:  HTTP status code: 500
+-- any_value pushdown (binary)
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: a, (any_value(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT a, any(a) FROM agg_test.agg_numbers GROUP BY a ORDER BY a ASC NULLS LAST
+(4 rows)
+
+  a  | any_value 
+-----+-----------
+   0 |         0
+  42 |        42
+  56 |        56
+ 100 |       100
+(4 rows)
+
+-- any_value pushdown (http)
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: a, (any_value(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT a, any(a) FROM agg_test.agg_numbers GROUP BY a ORDER BY a ASC NULLS LAST
+(4 rows)
+
+  a  | any_value 
+-----+-----------
+   0 |         0
+  42 |        42
+  56 |        56
+ 100 |       100
+(4 rows)
+
 NOTICE:  drop cascades to 2 other objects
 DETAIL:  drop cascades to foreign table agg_bin.agg_numbers
 drop cascades to foreign table agg_bin.hits

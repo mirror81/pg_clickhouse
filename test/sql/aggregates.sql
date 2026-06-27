@@ -555,6 +555,23 @@ SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_
 EXPLAIN (VERBOSE, COSTS OFF) SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_http.agg_numbers;
 SELECT var_pop(b::numeric), var_samp(b::numeric), variance(b::numeric) FROM agg_http.agg_numbers;
 
+-- any_value added in PG16, pushes down as ClickHouse any(). Grouped by the
+-- column so the arbitrary pick is deterministic.
+SELECT current_setting('server_version_num')::int >= 160000 AS pg16 \gset
+\if :pg16
+\echo -- any_value pushdown (binary)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT a, any_value(a) FROM agg_bin.agg_numbers GROUP BY a ORDER BY a;
+
+SELECT a, any_value(a) FROM agg_bin.agg_numbers GROUP BY a ORDER BY a;
+
+\echo -- any_value pushdown (http)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT a, any_value(a) FROM agg_http.agg_numbers GROUP BY a ORDER BY a;
+
+SELECT a, any_value(a) FROM agg_http.agg_numbers GROUP BY a ORDER BY a;
+\endif
+
 -- Clean up.
 DROP USER MAPPING FOR CURRENT_USER SERVER agg_bin_svr;
 DROP SERVER agg_bin_svr CASCADE;

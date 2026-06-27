@@ -1790,6 +1790,40 @@ DETAIL:  Remote Query: SELECT datestamp, groupConcat(', ')(path) FROM agg_test.h
  17150.25 |    22867 |    22867
 (1 row)
 
+-- any_value pushdown (binary)
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: a, (any_value(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT a, any(a) FROM agg_test.agg_numbers GROUP BY a ORDER BY a ASC NULLS LAST
+(4 rows)
+
+  a  | any_value 
+-----+-----------
+   0 |         0
+  42 |        42
+  56 |        56
+ 100 |       100
+(4 rows)
+
+-- any_value pushdown (http)
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: a, (any_value(a))
+   Relations: Aggregate on (agg_numbers)
+   Remote SQL: SELECT a, any(a) FROM agg_test.agg_numbers GROUP BY a ORDER BY a ASC NULLS LAST
+(4 rows)
+
+  a  | any_value 
+-----+-----------
+   0 |         0
+  42 |        42
+  56 |        56
+ 100 |       100
+(4 rows)
+
 NOTICE:  drop cascades to 2 other objects
 DETAIL:  drop cascades to foreign table agg_bin.agg_numbers
 drop cascades to foreign table agg_bin.hits

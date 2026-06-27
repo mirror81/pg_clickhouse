@@ -1236,6 +1236,7 @@ pushed down.
 
 These PostgreSQL aggregate functions pushdown to ClickHouse.
 
+*   [any_value](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/any)
 *   [array_agg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/grouparray)
 *   [avg](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/avg)
 *   [bit_and](https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/groupbitand)

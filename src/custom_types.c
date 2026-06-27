@@ -702,6 +702,12 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
         def->ch_name = "var_samp";
         return true;
 
+#if PG_VERSION_NUM >= 160000
+    case F_ANY_VALUE:
+        def->ch_name = "any";
+        return true;
+#endif
+
         /* 1:1 pass-through: PG and CH agree on name and semantics */
     case F_ARRAY_AGG_ANYARRAY:
     case F_AVG_INT8:
