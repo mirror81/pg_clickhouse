@@ -36,6 +36,7 @@
 #define F_BTRIM_TEXT_TEXT F_BTRIM
 #define F_BTRIM_TEXT F_BTRIM1
 #define F_STRPOS 868
+#define F_ENCODE 1946
 #define F_DATE_PART_TEXT_DATE 1384
 #define F_PERCENTILE_CONT_FLOAT8_FLOAT8 3974
 #define F_PERCENTILE_CONT_FLOAT8_INTERVAL 3976
@@ -539,6 +540,10 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
         def->paren_count = 3;
         return true;
         /* Special hashing function returns lowercase hex. */
+    case F_ENCODE:
+        def->cf_type = CF_ENCODE;
+        def->ch_name = "\1";
+        return true;
     case F_REVERSE_TEXT:
         def->ch_name = "reverseUTF8";
         return true;

@@ -24,6 +24,11 @@ All notable changes to this project will be documented in this file. It uses the
     *   `percentile_cont(double[])` → `quantiles()`
     *   `percentile_disc(double)` → `quantileExactLow()`
     *   `percentile_disc(double[])` → `quantilesExactLow()`
+*   Added pushdown for `encode(bytea, fmt)` with a constant format:
+    *   `encode(bytea, 'hex')` → `lower(hex())`
+    *   `encode(bytea, 'base64')` → `base64Encode()` wrapped to reproduce
+        PostgreSQL's MIME line break every 76 characters.
+    *   `encode(bytea, 'base64url')` (PostgreSQL 19+) → `base64URLEncode()`.
 
 ### 🐞 Bug Fixes
 

@@ -3325,6 +3325,43 @@ deparseFuncExpr(FuncExpr* node, deparse_expr_cxt* context) {
             pfree(pgfmt);
             return;
         }
+        case CF_ENCODE: {
+            Const* fmt   = (Const*)list_nth(node->args, 1);
+            char* format = TextDatumGetCString(fmt->constvalue);
+
+            if (pg_strcasecmp(format, "hex") == 0) {
+                appendStringInfoString(buf, "lower(hex(");
+                deparseExpr((Expr*)linitial(node->args), context);
+                appendStringInfoString(buf, "))");
+            } else if (pg_strcasecmp(format, "base64") == 0) {
+                /*
+                 * Postgres base64 is MIME (RFC 2045): a newline every 76
+                 * output chars, but none trailing the final padded group.
+                 */
+                appendStringInfoString(
+                    buf, "replaceRegexpAll(replaceRegexpAll(base64Encode("
+                );
+                deparseExpr((Expr*)linitial(node->args), context);
+                appendStringInfoString(
+                    buf, "), '(.{76})', '\\\\1\\n'), '(=+)\\n$', '\\\\1')"
+                );
+            } else if (pg_strcasecmp(format, "base64url") == 0) {
+                /* PG19 base64url: RFC 4648 URL alphabet, unpadded, no line
+                 * breaks, matching ClickHouse base64URLEncode exactly. */
+                appendStringInfoString(buf, "base64URLEncode(");
+                deparseExpr((Expr*)linitial(node->args), context);
+                appendStringInfoChar(buf, ')');
+            } else {
+                ereport(
+                    ERROR,
+                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                     errmsg("encode cannot be exported for: %s", format))
+                );
+            }
+
+            pfree(format);
+            return;
+        }
         default:
             break;
         }

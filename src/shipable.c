@@ -262,6 +262,27 @@ chfdw_is_shippable(
                     return false;
                 }
             } break;
+            case CF_ENCODE: {
+                Expr* fmt = (Expr*)list_nth(((FuncExpr*)node)->args, 1);
+
+                if (!IsA(fmt, Const)) {
+                    return false;
+                }
+
+                Const* fmt_const = (Const*)fmt;
+                if (fmt_const->constisnull) {
+                    return false;
+                }
+
+                char* format = TextDatumGetCString(fmt_const->constvalue);
+                bool ok      = pg_strcasecmp(format, "hex") == 0 ||
+                               pg_strcasecmp(format, "base64") == 0 ||
+                               pg_strcasecmp(format, "base64url") == 0;
+                pfree(format);
+                if (!ok) {
+                    return false;
+                }
+            } break;
             case CF_MATCH:
             case CF_SPLIT_BY_REGEX:
             case CF_REPLACE_REGEX:

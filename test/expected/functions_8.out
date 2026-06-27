@@ -1632,8 +1632,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < statement_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < statement_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
                                                 QUERY PLAN                                                
 ----------------------------------------------------------------------------------------------------------
@@ -1643,8 +1647,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < transaction_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < transaction_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
                                                 QUERY PLAN                                                
 ----------------------------------------------------------------------------------------------------------
@@ -1654,8 +1662,12 @@ EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < clock_timestamp();
 (3 rows)
 
 SELECT * FROM t1 WHERE c < clock_timestamp() ORDER BY a LIMIT 2;
-ERROR:  pg_clickhouse: DB::Exception: Function with name 'nowInBlock64' does not exist. In scope SELECT a, b, c FROM functions_test.t1 WHERE c < nowInBlock64(6, 'America/Los_Angeles') ORDER BY a ASC NULLS LAST LIMIT 2. Maybe you meant: ['nowInBlock']
-DETAIL:  Remote Query: SELECT a, b, c FROM functions_test.t1 WHERE ((c < nowInBlock64(6, 'America/Los_Angeles'))) ORDER BY a ASC NULLS LAST LIMIT 2
+ a | b |          c          
+---+---+---------------------
+ 1 | 1 | 2019-01-01 02:00:00
+ 2 | 2 | 2019-01-02 02:00:00
+(2 rows)
+
 -- Check SQL Value functions.
 EXPLAIN (VERBOSE, COSTS OFF) SELECT * FROM t1 WHERE c < CURRENT_DATE;
                                               QUERY PLAN                                              
@@ -2811,27 +2823,7 @@ SELECT current_setting('server_version_num')::int >= 190000 AS pg19 \gset
 \if :pg19
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
-                                                                                             QUERY PLAN                                                                                              
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Foreign Scan
-   Output: (encode((val)::bytea, 'base64url'::text))
-   Relations: Aggregate on (t4)
-   Remote SQL: SELECT base64URLEncode(CAST(val AS bytea(0))) FROM functions_test.t4 GROUP BY (base64URLEncode(CAST(val AS bytea(0)))) ORDER BY base64URLEncode(CAST(val AS bytea(0))) ASC NULLS LAST
-(4 rows)
-
 SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
-                                        b                                         
-----------------------------------------------------------------------------------
- TWl4ZWQ
- VkFMMw
- YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh
- YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh
- aGVsbG8
- dmFsMQ
- dmFsMg
- zqnOsc6y
-(8 rows)
-
 -- The 60-byte input crosses base64's 76-char line break boundary, exercising
 -- that base64url emits no newline; matching against PG's own output of the same
 -- bytes confirms they agree byte-for-byte.
@@ -2840,12 +2832,6 @@ WHERE encode(val::bytea, 'base64url') IN (
     encode(repeat('a', 57)::bytea, 'base64url'),
     encode(repeat('a', 60)::bytea, 'base64url')
 ) ORDER BY n;
- n  
-----
- 57
- 60
-(2 rows)
-
 \endif
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
@@ -2855,7 +2841,7 @@ SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 (1 row)
 
 DROP SERVER functions_loopback CASCADE;
-NOTICE:  drop cascades to 8 other objects
+NOTICE:  drop cascades to 9 other objects
 DETAIL:  drop cascades to foreign table t1
 drop cascades to foreign table t2
 drop cascades to foreign table t3
@@ -2864,3 +2850,4 @@ drop cascades to foreign table t4
 drop cascades to foreign table t5
 drop cascades to foreign table t6
 drop cascades to foreign table t7
+drop cascades to foreign table times

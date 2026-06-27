@@ -94,7 +94,8 @@ functions.sql
 
  Postgres | File
 ----------|---------------
- 18-19    | functions.out
+ 19       | functions.out
+ 18       | functions_8.out
  14-17    | functions_1.out
  13       | functions_2.out
 

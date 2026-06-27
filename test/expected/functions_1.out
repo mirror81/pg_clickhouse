@@ -2703,6 +2703,124 @@ SELECT a, b FROM t2 WHERE date(c) = '2019-01-01'::date;
 (1 row)
 
 RESET timezone;
+-- encode(bytea, 'hex') pushes down as lower(hex()): PG emits lowercase hex,
+-- ClickHouse hex() emits uppercase. GROUP BY forces it into the remote target.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'hex') AS h FROM t4 GROUP BY h ORDER BY h;
+                                                                                      QUERY PLAN                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (encode((val)::bytea, 'hex'::text))
+   Relations: Aggregate on (t4)
+   Remote SQL: SELECT lower(hex(CAST(val AS bytea(0)))) FROM functions_test.t4 GROUP BY (lower(hex(CAST(val AS bytea(0))))) ORDER BY lower(hex(CAST(val AS bytea(0)))) ASC NULLS LAST
+(4 rows)
+
+SELECT encode(val::bytea, 'hex') AS h FROM t4 GROUP BY h ORDER BY h;
+      h       
+--------------
+ 4d69786564
+ 56414c33
+ 68656c6c6f
+ 76616c31
+ 76616c32
+ cea9ceb1ceb2
+(6 rows)
+
+-- encode(bytea, 'base64') pushes down as base64Encode wrapped to reproduce
+-- PG's MIME (RFC 2045) line break every 76 characters.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'base64') AS b FROM t4 GROUP BY b ORDER BY b;
+                                                                                                                                                                                                        QUERY PLAN                                                                                                                                                                                                        
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (encode((val)::bytea, 'base64'::text))
+   Relations: Aggregate on (t4)
+   Remote SQL: SELECT replaceRegexpAll(replaceRegexpAll(base64Encode(CAST(val AS bytea(0))), '(.{76})', '\\1\n'), '(=+)\n$', '\\1') FROM functions_test.t4 GROUP BY (replaceRegexpAll(replaceRegexpAll(base64Encode(CAST(val AS bytea(0))), '(.{76})', '\\1\n'), '(=+)\n$', '\\1')) ORDER BY replaceRegexpAll(replaceRegexpAll(base64Encode(CAST(val AS bytea(0))), '(.{76})', '\\1\n'), '(=+)\n$', '\\1') ASC NULLS LAST
+(4 rows)
+
+SELECT encode(val::bytea, 'base64') AS b FROM t4 GROUP BY b ORDER BY b;
+    b     
+----------
+ TWl4ZWQ=
+ VkFMMw==
+ aGVsbG8=
+ dmFsMQ==
+ dmFsMg==
+ zqnOsc6y
+(6 rows)
+
+-- Format name matches case-insensitively, like PG encode().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, 'HEX') = '68656c6c6f';
+                                                 QUERY PLAN                                                 
+------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Remote SQL: SELECT val FROM functions_test.t4 WHERE ((lower(hex(CAST(val AS bytea(0)))) = '68656c6c6f'))
+(3 rows)
+
+-- 'escape' has no ClickHouse equivalent, so the filter evaluates locally
+-- (encode stays out of the remote SQL).
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, 'escape') = 'hello';
+                             QUERY PLAN                              
+---------------------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Filter: (encode((t4.val)::bytea, 'escape'::text) = 'hello'::text)
+   Remote SQL: SELECT val FROM functions_test.t4
+(4 rows)
+
+-- A non-constant format cannot be validated, so the filter evaluates locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, val) = val;
+                      QUERY PLAN                      
+------------------------------------------------------
+ Foreign Scan on public.t4
+   Output: val
+   Filter: (encode((t4.val)::bytea, t4.val) = t4.val)
+   Remote SQL: SELECT val FROM functions_test.t4
+(4 rows)
+
+-- Inputs over 57 bytes exercise the 76-char MIME line breaks: 57 bytes ends in
+-- a trailing newline, 60 wraps once mid-string. Matching the pushed-down base64
+-- against PG's own MIME output of the same bytes confirms they agree
+-- byte-for-byte.
+SELECT clickhouse_raw_query($$
+    INSERT INTO functions_test.t4 VALUES (repeat('a', 57)), (repeat('a', 60))
+$$);
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
+SELECT octet_length(val) AS n FROM t4
+WHERE encode(val::bytea, 'base64') IN (
+    encode(repeat('a', 57)::bytea, 'base64'),
+    encode(repeat('a', 60)::bytea, 'base64')
+) ORDER BY n;
+ n  
+----
+ 57
+ 60
+(2 rows)
+
+-- encode(bytea, 'base64url') added in PG19, pushes down as base64URLEncode:
+-- RFC 4648 URL alphabet, unpadded, no line breaks (unlike MIME base64).
+SELECT current_setting('server_version_num')::int >= 190000 AS pg19 \gset
+\if :pg19
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
+SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
+-- The 60-byte input crosses base64's 76-char line break boundary, exercising
+-- that base64url emits no newline; matching against PG's own output of the same
+-- bytes confirms they agree byte-for-byte.
+SELECT octet_length(val) AS n FROM t4
+WHERE encode(val::bytea, 'base64url') IN (
+    encode(repeat('a', 57)::bytea, 'base64url'),
+    encode(repeat('a', 60)::bytea, 'base64url')
+) ORDER BY n;
+\endif
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
  clickhouse_raw_query 

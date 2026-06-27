@@ -727,6 +727,61 @@ SELECT a, b FROM t2 WHERE date(c) = '2019-01-01'::date;
 SELECT a, b FROM t2 WHERE date(c) = '2019-01-01'::date;
 RESET timezone;
 
+-- encode(bytea, 'hex') pushes down as lower(hex()): PG emits lowercase hex,
+-- ClickHouse hex() emits uppercase. GROUP BY forces it into the remote target.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'hex') AS h FROM t4 GROUP BY h ORDER BY h;
+SELECT encode(val::bytea, 'hex') AS h FROM t4 GROUP BY h ORDER BY h;
+
+-- encode(bytea, 'base64') pushes down as base64Encode wrapped to reproduce
+-- PG's MIME (RFC 2045) line break every 76 characters.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'base64') AS b FROM t4 GROUP BY b ORDER BY b;
+SELECT encode(val::bytea, 'base64') AS b FROM t4 GROUP BY b ORDER BY b;
+
+-- Format name matches case-insensitively, like PG encode().
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, 'HEX') = '68656c6c6f';
+
+-- 'escape' has no ClickHouse equivalent, so the filter evaluates locally
+-- (encode stays out of the remote SQL).
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, 'escape') = 'hello';
+
+-- A non-constant format cannot be validated, so the filter evaluates locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT val FROM t4 WHERE encode(val::bytea, val) = val;
+
+-- Inputs over 57 bytes exercise the 76-char MIME line breaks: 57 bytes ends in
+-- a trailing newline, 60 wraps once mid-string. Matching the pushed-down base64
+-- against PG's own MIME output of the same bytes confirms they agree
+-- byte-for-byte.
+SELECT clickhouse_raw_query($$
+    INSERT INTO functions_test.t4 VALUES (repeat('a', 57)), (repeat('a', 60))
+$$);
+SELECT octet_length(val) AS n FROM t4
+WHERE encode(val::bytea, 'base64') IN (
+    encode(repeat('a', 57)::bytea, 'base64'),
+    encode(repeat('a', 60)::bytea, 'base64')
+) ORDER BY n;
+
+-- encode(bytea, 'base64url') added in PG19, pushes down as base64URLEncode:
+-- RFC 4648 URL alphabet, unpadded, no line breaks (unlike MIME base64).
+SELECT current_setting('server_version_num')::int >= 190000 AS pg19 \gset
+\if :pg19
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
+SELECT encode(val::bytea, 'base64url') AS b FROM t4 GROUP BY b ORDER BY b;
+-- The 60-byte input crosses base64's 76-char line break boundary, exercising
+-- that base64url emits no newline; matching against PG's own output of the same
+-- bytes confirms they agree byte-for-byte.
+SELECT octet_length(val) AS n FROM t4
+WHERE encode(val::bytea, 'base64url') IN (
+    encode(repeat('a', 57)::bytea, 'base64url'),
+    encode(repeat('a', 60)::bytea, 'base64url')
+) ORDER BY n;
+\endif
+
 DROP USER MAPPING FOR CURRENT_USER SERVER functions_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE functions_test');
 DROP SERVER functions_loopback CASCADE;

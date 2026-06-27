@@ -1119,6 +1119,15 @@ equivalents as follows:
 *   `regexp_replace`: [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpOne) or [replaceRegexpOne](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll) when the `g` flag is present
 *   `regexp_split_to_array`: [splitByRegexp](https://clickhouse.com/docs/sql-reference/functions/splitting-merging-functions#splitByRegexp)
 *   `md5`: [MD5](https://clickhouse.com/docs/sql-reference/functions/hash-functions#MD5)
+*   `encode(bytea, fmt)` when `fmt` is a string constant (case-insensitive):
+    *   `encode(bytea, 'hex')`: [hex](https://clickhouse.com/docs/sql-reference/functions/encoding-functions#hex)
+        wrapped in [lower](https://clickhouse.com/docs/sql-reference/functions/string-functions#lower),
+        since PostgreSQL emits lowercase hex.
+    *   `encode(bytea, 'base64')`: [base64Encode](https://clickhouse.com/docs/sql-reference/functions/encoding-functions#base64encode)
+        wrapped in [replaceRegexpAll](https://clickhouse.com/docs/sql-reference/functions/string-replace-functions#replaceRegexpAll)
+        to reproduce PostgreSQL's MIME (RFC 2045) line break every 76 characters.
+    *   `encode(bytea, 'base64url')` (PostgreSQL 19+): [base64URLEncode](https://clickhouse.com/docs/sql-reference/functions/encoding-functions#base64urlencode),
+        which matches PostgreSQL's RFC 4648 URL alphabet without padding.
 *   `json_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `json_extract_path`: [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `jsonb_extract_path_text`: [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
