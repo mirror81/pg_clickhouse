@@ -39,6 +39,7 @@ All notable changes to this project will be documented in this file. It uses the
     ([#296]).
 *   Fixed a use-after-free of a foreign scan's batch memory context on rescan
     that could corrupt memory and hang ([#296]).
+*   Fixed subsecond precision lost inserting timestamps over HTTP ([#300]).
 
 ### 📚 Documentation
 
@@ -61,6 +62,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#291 Push down ordered set aggregate functions"
   [#296]: https://github.com/ClickHouse/pg_clickhouse/pull/296
     "ClickHouse/pg_clickhouse#296 Fix benchmark queries that crash/hang with binary driver"
+  [#300]: https://github.com/ClickHouse/pg_clickhouse/pull/300
+    "ClickHouse/pg_clickhouse#300 fix(http): handle subsecond precision"
 
 ## [v0.3.2] — 2026-06-16
 
