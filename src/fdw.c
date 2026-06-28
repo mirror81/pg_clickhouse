@@ -26,6 +26,7 @@
 #include "utils/lsyscache.h"
 #include "utils/palloc.h"
 #include "utils/rel.h"
+#include "utils/tuplestore.h"
 #if PG_VERSION_NUM >= 140000
 #include "optimizer/appendinfo.h"
 #endif
@@ -182,6 +183,7 @@ typedef struct {
  */
 PG_FUNCTION_INFO_V1(clickhouse_fdw_handler);
 PG_FUNCTION_INFO_V1(clickhouse_raw_query);
+PG_FUNCTION_INFO_V1(clickhouse_query);
 PG_FUNCTION_INFO_V1(clickhouse_op_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_push_fail);
 PG_FUNCTION_INFO_V1(clickhouse_noop);
@@ -368,14 +370,30 @@ clickhouse_raw_query(PG_FUNCTION_ARGS) {
         new_query(text_to_cstring(PG_GETARG_TEXT_P(0)), 0, NULL, NULL, NULL);
 
     ch_connection_details* details = connstring_parse(connstring);
-    ch_connection conn             = chfdw_http_connect(details);
+    ch_connection conn;
     text* res;
+
+    if (strcmp(details->driver, "http") == 0) {
+        conn = chfdw_http_connect(details);
+    } else if (strcmp(details->driver, "binary") == 0) {
+        conn = chfdw_binary_connect(details);
+    } else {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+             errmsg(
+                 "pg_clickhouse: invalid ClickHouse connection driver \"%s\"",
+                 details->driver
+             ))
+        );
+    }
 
     PG_TRY();
     {
         ch_cursor* cursor = conn.methods->simple_query(conn.conn, &query);
 
-        res = chfdw_http_fetch_raw_data(cursor);
+        res = conn.is_binary ? chfdw_binary_fetch_raw_data(cursor)
+                             : chfdw_http_fetch_raw_data(cursor);
         MemoryContextDelete(cursor->memcxt);
     }
     PG_CATCH();
@@ -406,6 +424,120 @@ clickhouse_server_version(PG_FUNCTION_ARGS) {
     ch_server_version v   = chfdw_get_server_version(user);
 
     PG_RETURN_TEXT_P(cstring_to_text(psprintf("%d.%d.%d", v.major, v.minor, v.patch)));
+}
+
+/*
+ * Execute a query against a configured foreign server and return its rows,
+ * mapping ClickHouse values to the Postgres types named in the caller's column
+ * definition list. Reuses the server's driver, credentials and connection
+ * cache, unlike clickhouse_raw_query which takes an ad-hoc connection string.
+ */
+Datum
+clickhouse_query(PG_FUNCTION_ARGS) {
+    char* server_name     = text_to_cstring(PG_GETARG_TEXT_P(0));
+    char* sql             = text_to_cstring(PG_GETARG_TEXT_P(1));
+    ReturnSetInfo* rsinfo = (ReturnSetInfo*)fcinfo->resultinfo;
+    ForeignServer* server;
+    UserMapping* user;
+    ch_scan_connection sconn;
+    ch_cursor* cursor;
+    TupleDesc tupdesc;
+    Tuplestorestate* tupstore;
+    AttInMetadata* attinmeta;
+    List* retrieved_attrs = NIL;
+    MemoryContext per_query_ctx, oldcontext, row_cxt;
+    Datum* values;
+    bool* nulls;
+
+    /* set-returning-function protocol: caller must accept a materialized set */
+    if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo)) {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("set-valued function called in context that cannot accept a set"))
+        );
+    }
+    if (!(rsinfo->allowedModes & SFRM_Materialize)) {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("materialize mode required, but it is not allowed in this context"))
+        );
+    }
+
+    /* result shape comes from the caller's column definition list */
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("a column definition list is required for clickhouse_query"))
+        );
+    }
+
+    /*
+     * Build result info in per-query context so it outlives this call. tupdesc
+     * supplies column names; attinmeta caches fetch_row to coerce ClickHouse
+     * values to declared type. retrieved_attrs lists 1-based attributes to
+     * populate, skipping any column definition list left dropped.
+     */
+    per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+    oldcontext    = MemoryContextSwitchTo(per_query_ctx);
+    tupdesc       = CreateTupleDescCopy(tupdesc);
+    tupstore      = tuplestore_begin_heap(
+        rsinfo->allowedModes & SFRM_Materialize_Random, false, work_mem
+    );
+    rsinfo->returnMode = SFRM_Materialize;
+    rsinfo->setResult  = tupstore;
+    rsinfo->setDesc    = tupdesc;
+    attinmeta          = TupleDescGetAttInMetadata(tupdesc);
+    for (int i = 1; i <= tupdesc->natts; i++) {
+        if (!TupleDescAttr(tupdesc, i - 1)->attisdropped) {
+            retrieved_attrs = lappend_int(retrieved_attrs, i);
+        }
+    }
+    MemoryContextSwitchTo(oldcontext);
+
+    /* resolve mappings, borrow a cached scan connection to run query */
+    server = GetForeignServerByName(server_name, false);
+    user   = GetUserMapping(GetUserId(), server->serverid);
+    sconn  = chfdw_get_scan_connection(user);
+
+    ch_query query = new_query(sql, 0, NULL, tupdesc, retrieved_attrs);
+
+    cursor = sconn.gate.methods->simple_query(sconn.gate.conn, &query);
+
+    values = palloc(tupdesc->natts * sizeof(Datum));
+    nulls  = palloc(tupdesc->natts * sizeof(bool));
+
+    /* per-row values are copied into tuplestore; reset between rows */
+    row_cxt = AllocSetContextCreate(
+        CurrentMemoryContext, "clickhouse_query row", ALLOCSET_DEFAULT_SIZES
+    );
+
+    for (;;) {
+        ChFdwScanRowContext ctx = { tupdesc, retrieved_attrs, attinmeta,
+                                    cursor,  values,          nulls };
+
+        memset(values, 0, tupdesc->natts * sizeof(Datum));
+        memset(nulls, true, tupdesc->natts * sizeof(bool));
+
+        oldcontext = MemoryContextSwitchTo(row_cxt);
+        if (sconn.gate.methods->fetch_row(&ctx) == NULL) {
+            MemoryContextSwitchTo(oldcontext);
+            break;
+        }
+        MemoryContextSwitchTo(oldcontext);
+
+        tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+        MemoryContextReset(row_cxt);
+        CHECK_FOR_INTERRUPTS();
+    }
+
+    MemoryContextDelete(row_cxt);
+    MemoryContextDelete(cursor->memcxt);
+    chfdw_release_scan_connection(user, sconn);
+
+    return (Datum)0;
 }
 
 /* calculate difference */

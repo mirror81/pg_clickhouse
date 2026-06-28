@@ -123,6 +123,8 @@ extern bool
 ch_binary_read_row(ch_binary_read_state_t* state);
 
 /* SELECT/INSERT type conversion (convert.c). */
+extern char*
+ch_binary_value_to_cstring(Oid coltype, Datum value);
 extern Datum
 ch_binary_convert_datum(void* state, Datum val);
 extern void*

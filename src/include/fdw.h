@@ -124,6 +124,8 @@ ch_server_version
 chfdw_get_server_version(UserMapping* user);
 text*
 chfdw_http_fetch_raw_data(ch_cursor* cursor);
+text*
+chfdw_binary_fetch_raw_data(ch_cursor* cursor);
 List*
 chfdw_construct_create_tables(ImportForeignSchemaStmt* stmt, ForeignServer* server);
 char*

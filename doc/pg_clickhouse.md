@@ -1006,17 +1006,24 @@ SELECT clickhouse_raw_query(
 );
 ```
 
-Connect to a ClickHouse service via its HTTP interface, execute a single
-query, and disconnect. The optional second argument specifies a connection
-string that defaults to `host=localhost port=8123`. The supported connection
-parameters are:
+Connect to a ClickHouse service, execute a single query, and disconnect. The
+optional second argument specifies a connection string that defaults to
+`host=localhost port=8123`. The supported connection parameters are:
 
+*   `driver`: The connection driver to use, either "http" or "binary"; defaults
+    to "http"
 *   `host`: The host to connect to; required.
-*   `port`: The HTTP port to connect to; defaults to `8123` unless `host` is a
-    ClickHouse Cloud host, in which case it defaults to `8443`
+*   `port`: The port to connect to. Defaults to `8123` for the "http" driver or
+    `9000` for the "binary" driver, switching to `8443` or `9440` respectively
+    when `host` is a ClickHouse Cloud host
 *   `dbname`: The name of the database to connect to.
 *   `username`: The username to connect as; defaults to `default`
 *   `password`: The password to use to authenticate; defaults to no password
+
+Both drivers return tab-separated rows (nulls as `\N`), but their per-value
+representations differ: the "http" driver returns ClickHouse's own TSV
+formatting verbatim, whereas the "binary" driver passes each value through its
+PostgreSQL output function.
 
 By default, no role has `EXECUTE` access to this function; consider [GRANT]ing
 access only to roles that legitimately need to execute ad-hoc ClickHouse
@@ -1067,6 +1074,34 @@ current user's user mapping:
 Reads the version from the native-protocol connection handshake, or over HTTP
 from a single `SELECT version()` query, and caches it for the life of the
 connection.
+
+#### `clickhouse_query`
+
+```sql
+SELECT * FROM clickhouse_query(
+    'server',
+    'SELECT id, name, salary FROM remote_table WHERE salary > 50000'
+) AS ch(id int, name text, salary numeric);
+```
+
+Execute a query against an already-configured foreign server and return its
+rows as a relation, mapping each ClickHouse result column to the PostgreSQL type
+named in the column definition list. Unlike [`clickhouse_raw_query`](#clickhouse_raw_query)
+it reuses the server's `driver`, credentials, database, and the connection cache
+rather than an ad-hoc connection string.
+
+The first argument is the name of a server created with [CREATE SERVER]. A
+column definition list (`AS name(col type, ...)`) is required: PostgreSQL needs
+the result shape before fetching rows, and it must match the columns the query
+returns. Values are converted from ClickHouse to the declared types the same way
+a foreign table column would be.
+
+As with `clickhouse_raw_query`, no role has `EXECUTE` access by default;
+`GRANT` to a role to allow it to use the function.
+
+```sql
+GRANT EXECUTE ON FUNCTION clickhouse_query(text, text) TO ch_admin;
+```
 
 ### Pushdown Functions
 

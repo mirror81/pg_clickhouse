@@ -51,14 +51,14 @@ chfdw_xact_callback(XactEvent event, void* arg);
 
 static ch_connection
 clickhouse_connect(ForeignServer* server, UserMapping* user) {
-    char* driver = "http";
-
     /* default settings */
-    ch_connection_details details = { "127.0.0.1", 0, NULL, NULL, "default" };
+    ch_connection_details details = { .driver = "http",
+                                      .host   = "127.0.0.1",
+                                      .dbname = "default" };
 
     chfdw_extract_options(
         server->options,
-        &driver,
+        &details.driver,
         &details.host,
         &details.port,
         &details.dbname,
@@ -70,7 +70,7 @@ clickhouse_connect(ForeignServer* server, UserMapping* user) {
     );
     chfdw_extract_options(
         user->options,
-        &driver,
+        &details.driver,
         &details.host,
         &details.port,
         &details.dbname,
@@ -81,9 +81,9 @@ clickhouse_connect(ForeignServer* server, UserMapping* user) {
         &details.min_tls_version
     );
 
-    if (strcmp(driver, "http") == 0) {
+    if (strcmp(details.driver, "http") == 0) {
         return chfdw_http_connect(&details);
-    } else if (strcmp(driver, "binary") == 0) {
+    } else if (strcmp(details.driver, "binary") == 0) {
         return chfdw_binary_connect(&details);
     } else {
         ereport(
@@ -353,6 +353,8 @@ connstring_parse(const char* connstring) {
     List* options                  = chfdw_parse_options(connstring, false, true);
     ch_connection_details* details = palloc0(sizeof(ch_connection_details));
 
+    details->driver = "http";
+
     if (options == NIL) {
         return details;
     }
@@ -362,7 +364,9 @@ connstring_parse(const char* connstring) {
         char* pname   = elem->defname;
         char* pval    = strVal(elem->arg);
 
-        if (strcmp(pname, "host") == 0) {
+        if (strcmp(pname, "driver") == 0) {
+            details->driver = pval;
+        } else if (strcmp(pname, "host") == 0) {
             details->host = pval;
         } else if (strcmp(pname, "port") == 0) {
             details->port = pg_strtoint32(pval);

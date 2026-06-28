@@ -1006,6 +1006,94 @@ binary_simple_query(void* conn, const ch_query* query) {
 }
 
 /*
+ * Escape characters that would otherwise corrupt the tab/newline framing or
+ * collide with the \N null marker. Matches CH's TabSeparated escaping; \0 is
+ * unreachable since values arrive as cstrings, so it needs no case.
+ */
+static void
+append_tsv_escaped(StringInfo buf, const char* s) {
+    for (; *s != '\0'; s++) {
+        switch (*s) {
+        case '\\':
+            appendStringInfoString(buf, "\\\\");
+            break;
+        case '\b':
+            appendStringInfoString(buf, "\\b");
+            break;
+        case '\f':
+            appendStringInfoString(buf, "\\f");
+            break;
+        case '\n':
+            appendStringInfoString(buf, "\\n");
+            break;
+        case '\r':
+            appendStringInfoString(buf, "\\r");
+            break;
+        case '\t':
+            appendStringInfoString(buf, "\\t");
+            break;
+        default:
+            appendStringInfoChar(buf, *s);
+        }
+    }
+}
+
+/*
+ * Drain a binary cursor into tab-separated rows, mirroring the single-text
+ * result of the http path. Nulls render as \N, other values escape the
+ * control characters CH's TabSeparated format does so they stay unambiguous.
+ * Output formatting otherwise differs from the http driver since values pass
+ * through PG output functions rather than ClickHouse's wire formatting.
+ */
+text*
+chfdw_binary_fetch_raw_data(ch_cursor* cursor) {
+    ch_binary_read_state_t* state = cursor->read_state;
+    size_t ncols                  = ch_binary_response_columns(state->resp);
+    StringInfoData buf;
+
+    if (ncols == 0) {
+        return NULL;
+    }
+
+    initStringInfo(&buf);
+
+    while (ch_binary_read_row(state)) {
+        for (size_t i = 0; i < ncols; i++) {
+            if (i > 0) {
+                appendStringInfoChar(&buf, '\t');
+            }
+
+            if (state->nulls[i]) {
+                appendStringInfoString(&buf, "\\N");
+            } else {
+                char* val =
+                    ch_binary_value_to_cstring(state->coltypes[i], state->values[i]);
+
+                append_tsv_escaped(&buf, val);
+                pfree(val);
+            }
+        }
+        appendStringInfoChar(&buf, '\n');
+        CHECK_FOR_INTERRUPTS();
+    }
+
+    if (state->error) {
+        ereport(
+            ERROR,
+            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+             errmsg("pg_clickhouse: %s", state->error))
+        );
+    }
+
+    if (buf.len == 0) {
+        pfree(buf.data);
+        return NULL;
+    }
+
+    return cstring_to_text_with_len(buf.data, buf.len);
+}
+
+/*
  * Fetch a row from the binary cursor and return its values.
  *
  * If ctx->tupdesc is set, ctx->attinmeta must also be set, and ctx->values

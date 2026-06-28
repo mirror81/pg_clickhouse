@@ -1069,6 +1069,49 @@ SELECT * FROM ft_nested_arrays ORDER BY c1;
 SELECT * FROM ft_ragged_arrays ORDER BY c1;
 ERROR:  malformed array literal: "{{1,2,3},{4}}"
 DETAIL:  Multidimensional arrays must have sub-arrays with matching dimensions.
+-- clickhouse_query: server-based typed rowset over the http driver
+SELECT * FROM clickhouse_query(
+    'http_loopback', 'SELECT c1, c3 FROM t1 ORDER BY c1 LIMIT 3'
+) AS t(c1 int, c3 text);
+ c1 |  c3   
+----+-------
+  1 | 00001
+  2 | 00002
+  3 | 00003
+(3 rows)
+
+SELECT * FROM clickhouse_query(
+    'http_loopback', 'SELECT toInt32(number) AS n, toString(number) AS s FROM numbers(3) ORDER BY n'
+) AS t(n int, s text);
+ n | s 
+---+---
+ 0 | 0
+ 1 | 1
+ 2 | 2
+(3 rows)
+
+-- empty result yields no rows
+SELECT count(*) FROM clickhouse_query('http_loopback', 'SELECT 1 WHERE 0') AS t(x int);
+ count 
+-------
+     0
+(1 row)
+
+-- missing column definition list is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT 1');
+ERROR:  a column definition list is required for functions returning "record"
+LINE 1: SELECT * FROM clickhouse_query('http_loopback', 'SELECT 1');
+                      ^
+-- fewer columns declared than returned is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT 1, 2') AS t(x int);
+ERROR:  pg_clickhouse: columns mismatch
+DETAIL:  Number of returned columns does not match expected column count (1).
+-- value not coercible to the declared type is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT ''abc''') AS t(x int);
+ERROR:  invalid input syntax for type integer: "abc"
+-- unknown server is rejected
+SELECT * FROM clickhouse_query('no_such_server', 'SELECT 1') AS t(x int);
+ERROR:  server "no_such_server" does not exist
 DROP USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
 DROP SERVER http_no_stream CASCADE;
 NOTICE:  drop cascades to 2 other objects

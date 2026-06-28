@@ -359,6 +359,45 @@ ch_binary_convert_datum(void* state, Datum val) {
     return state ? ((ch_convert_state*)state)->func(state, val) : val;
 }
 
+/*
+ * Render a value decoded by ch_binary_read_row (typed by state->coltypes) to a
+ * palloc'd cstring. Arrays and tuples arrive as the binary engine's wrapper
+ * structs rather than native datums, so route them through the conversion path
+ * to a native datum before applying the output function. Used by
+ * clickhouse_raw_query, which has no foreign table to pin output types.
+ */
+char*
+ch_binary_value_to_cstring(Oid coltype, Datum value) {
+    Oid out_func;
+    bool varlena;
+
+    if (coltype == ANYARRAYOID) {
+        ch_binary_array_t* slot = (ch_binary_array_t*)DatumGetPointer(value);
+        void* state =
+            ch_binary_init_convert_state(value, ANYARRAYOID, slot->array_type);
+        Datum arr = ch_binary_convert_datum(state, value);
+
+        getTypeOutputInfo(slot->array_type, &out_func, &varlena);
+        if (state) {
+            ch_binary_free_convert_state(state);
+        }
+        return OidOutputFunctionCall(out_func, arr);
+    }
+
+    if (coltype == RECORDOID) {
+        void* state = ch_binary_init_convert_state(value, RECORDOID, TEXTOID);
+        Datum txt   = ch_binary_convert_datum(state, value);
+
+        if (state) {
+            ch_binary_free_convert_state(state);
+        }
+        return TextDatumGetCString(txt);
+    }
+
+    getTypeOutputInfo(coltype, &out_func, &varlena);
+    return OidOutputFunctionCall(out_func, value);
+}
+
 /* input */
 
 /*

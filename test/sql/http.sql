@@ -395,6 +395,24 @@ CREATE FOREIGN TABLE ft_ragged_arrays (
 SELECT * FROM ft_nested_arrays ORDER BY c1;
 SELECT * FROM ft_ragged_arrays ORDER BY c1;
 
+-- clickhouse_query: server-based typed rowset over the http driver
+SELECT * FROM clickhouse_query(
+    'http_loopback', 'SELECT c1, c3 FROM t1 ORDER BY c1 LIMIT 3'
+) AS t(c1 int, c3 text);
+SELECT * FROM clickhouse_query(
+    'http_loopback', 'SELECT toInt32(number) AS n, toString(number) AS s FROM numbers(3) ORDER BY n'
+) AS t(n int, s text);
+-- empty result yields no rows
+SELECT count(*) FROM clickhouse_query('http_loopback', 'SELECT 1 WHERE 0') AS t(x int);
+-- missing column definition list is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT 1');
+-- fewer columns declared than returned is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT 1, 2') AS t(x int);
+-- value not coercible to the declared type is rejected
+SELECT * FROM clickhouse_query('http_loopback', 'SELECT ''abc''') AS t(x int);
+-- unknown server is rejected
+SELECT * FROM clickhouse_query('no_such_server', 'SELECT 1') AS t(x int);
+
 DROP USER MAPPING FOR CURRENT_USER SERVER http_no_stream;
 DROP SERVER http_no_stream CASCADE;
 

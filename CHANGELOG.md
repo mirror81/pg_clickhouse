@@ -43,6 +43,10 @@ All notable changes to this project will be documented in this file. It uses the
     bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
 *   Added pushdown for the three-argument forms of `ltrim`, `rtrim`, and
     `btrim` ([#307]).
+*   Added support for binary driver to `clickhouse_raw_query()`.
+*   Added `clickhouse_query(server, sql)`, a set-returning function that runs a
+    query against a configured foreign server and returns its rows typed by the
+    caller's column definition list.
 
 ### 🐞 Bug Fixes
 

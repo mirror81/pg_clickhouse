@@ -172,6 +172,35 @@ SELECT * FROM ftuples ORDER BY c1;
 -- Bytes.
 SELECT * FROM fbytes ORDER BY c1;
 
+-- clickhouse_raw_query over the binary protocol
+SELECT clickhouse_raw_query('SELECT 1 AS a, ''x'' AS b', 'driver=binary port=9000');
+SELECT clickhouse_raw_query('SELECT number FROM numbers(3) ORDER BY number', 'driver=binary port=9000');
+SELECT clickhouse_raw_query('SELECT [1,2,3] AS arr, (1, ''a'') AS tup', 'driver=binary port=9000');
+SELECT clickhouse_raw_query('SELECT NULL', 'driver=binary port=9000');
+SELECT clickhouse_raw_query('CREATE TABLE binary_test.raw (c1 Int32) ENGINE = Memory', 'driver=binary port=9000');
+-- explicit http driver still works
+SELECT clickhouse_raw_query('SELECT 1', 'driver=http port=8123');
+-- unknown driver is rejected
+SELECT clickhouse_raw_query('SELECT 1', 'driver=bogus');
+
+-- clickhouse_query: server-based typed rowset over the binary driver
+SELECT * FROM clickhouse_query(
+    'binary_loopback', 'SELECT c1, c3 FROM ints ORDER BY c1 LIMIT 3'
+) AS t(c1 int2, c3 int);
+SELECT * FROM clickhouse_query(
+    'binary_loopback', 'SELECT toInt32(number) AS n, toString(number) AS s FROM numbers(3) ORDER BY n'
+) AS t(n int, s text);
+-- empty result yields no rows
+SELECT count(*) FROM clickhouse_query('binary_loopback', 'SELECT 1 WHERE 0') AS t(x int);
+-- missing column definition list is rejected
+SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1');
+-- fewer columns declared than returned is rejected
+SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1, 2') AS t(x int);
+-- value not coercible to the declared type is rejected
+SELECT * FROM clickhouse_query('binary_loopback', 'SELECT ''abc''') AS t(x int);
+-- unknown server is rejected
+SELECT * FROM clickhouse_query('no_such_server', 'SELECT 1') AS t(x int);
+
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_test');
 

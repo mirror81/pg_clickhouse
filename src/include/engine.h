@@ -24,6 +24,7 @@ typedef enum {
 } tls_version;
 
 typedef struct {
+    char* driver; /* "http" or "binary" */
     char* host;
     int port;
     char* username;
