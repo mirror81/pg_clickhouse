@@ -1221,6 +1221,8 @@ binary_insert_tuple(void* istate, TupleTableSlot* slot) {
         for (size_t i = 0; i < state->outdesc->natts; i++) {
             ch_binary_column_append_data(state, i);
         }
+
+        ch_binary_insert_autoflush(state);
     } else {
         ch_binary_insert_columns(state);
     }

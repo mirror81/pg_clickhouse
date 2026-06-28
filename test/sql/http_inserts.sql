@@ -249,6 +249,21 @@ INSERT INTO default_vals VALUES(
 
 SELECT * FROM default_vals;
 
+/* COPY FROM bulk-loads rows into the remote table. */
+COPY ints (c1, c2, c3, c4) FROM stdin;
+20	21	22	23
+21	22	23	24
+\.
+SELECT c1, c2, c3, c4 FROM ints WHERE c1 >= 20 ORDER BY c1;
+
+/* NULLs, plus a ClickHouse-partitioned target. */
+COPY null_ints (c1, c2) FROM stdin;
+20	200
+21	\N
+22	220
+\.
+SELECT * FROM null_ints WHERE c1 >= 20 ORDER BY c1;
+
 DROP USER MAPPING FOR CURRENT_USER SERVER http_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE http_inserts_test');
 DROP SERVER http_inserts_loopback CASCADE;

@@ -1239,6 +1239,28 @@ build_lc_dict(
     *out_n_rows    = n_rows;
 }
 
+/*
+ * Flush once insert buffered reaches 64MiB, so large COPY or INSERT SELECT
+ * streams blocks instead of accumulating all rows in memory. Server coalesces
+ * small blocks within one INSERT via min_insert_block_size_rows/bytes.
+ */
+void
+ch_binary_insert_autoflush(ch_binary_insert_state* state) {
+    ch_binary_insert_handle* h = state->insert_block;
+
+    if (h) {
+        size_t total = 0;
+        for (size_t i = 0; i < h->ncols; i++) {
+            const ic_col* c = &h->cols[i];
+            total += c->body.len + c->nulls.len +
+                     (c->body_offs.len + c->arr_offs.len) * sizeof(uint64_t);
+        }
+        if (total >= 64 * 1024 * 1024) {
+            ch_binary_flush_block(h);
+        }
+    }
+}
+
 void
 ch_binary_flush_block(ch_binary_insert_handle* h) {
     MemoryContext old     = MemoryContextSwitchTo(h->cxt);

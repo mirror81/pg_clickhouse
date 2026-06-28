@@ -129,6 +129,8 @@ extern void
 ch_binary_insert_columns(ch_binary_insert_state* state);
 extern void
 ch_binary_column_append_data(ch_binary_insert_state* state, size_t colidx);
+extern void
+ch_binary_insert_autoflush(ch_binary_insert_state* state);
 extern void*
 ch_binary_make_tuple_map(TupleDesc indesc, TupleDesc outdesc, Oid relid);
 extern void

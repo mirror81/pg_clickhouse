@@ -679,11 +679,15 @@ try=# COPY logs FROM stdin CSV;
 >> COPY 3
 ```
 
-> **⚠️ Batch API Limitations**
->
-> pg_clickhouse has not yet implemented support for the PostgreSQL FDW batch
-> insert API. Thus [COPY] currently uses [INSERT](#insert) statements to
-> insert records. This will be improved in a future release.
+`COPY FROM` streams the rows to ClickHouse in bulk.
+
+`COPY TO` directly from a foreign table is not supported: PostgreSQL itself
+rejects `COPY <foreign_table> TO` with the hint to use the `COPY (SELECT ...) TO`
+variant. Use that variant to copy rows out of a ClickHouse foreign table:
+
+```pgsql
+try=# COPY (SELECT * FROM logs) TO stdout CSV;
+```
 
 ### LOAD
 

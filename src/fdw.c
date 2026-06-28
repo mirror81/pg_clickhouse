@@ -3465,13 +3465,11 @@ clickhouse_fdw_handler(PG_FUNCTION_ARGS) {
     routine->ExecForeignInsert  = clickhouseExecForeignInsert;
 
     /*
-     * TODO:Add support for ClickHouse 25.8 and later.
+     * No ExecForeignBatchInsert / GetForeignModifyBatchSize: both drivers
+     * already buffer rows and stream them as a single INSERT to ClickHouse, so
+     * PG's batch-insert API would add nothing.
      *
-     * routine->ExecForeignBatchInsert = XXX;
-     *
-     * routine->ExecForeignUpdate = XXX;
-     *
-     * routine->ExecForeignDelete = XXX;
+     * TODO ExecForeignUpdate / ExecForeignDelete via ClickHouse mutations.
      */
 
     routine->EndForeignInsert = clickhouseEndForeignInsert;

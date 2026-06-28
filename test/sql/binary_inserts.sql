@@ -262,6 +262,21 @@ SELECT * FROM default_vals;
 INSERT INTO not_nullable VALUES (1, 'x', 'x', NULL), (2, 'x', 'x', 'lc');
 SELECT * FROM not_nullable ORDER BY c1;
 
+/* COPY FROM bulk-loads rows into the remote table. */
+COPY ints (c1, c2, c3, c4) FROM stdin;
+20	21	22	23
+21	22	23	24
+\.
+SELECT c1, c2, c3, c4 FROM ints WHERE c1 >= 20 ORDER BY c1;
+
+/* NULLs, plus a ClickHouse-partitioned target. */
+COPY null_ints (c1, c2) FROM stdin;
+20	200
+21	\N
+22	220
+\.
+SELECT * FROM null_ints WHERE c1 >= 20 ORDER BY c1;
+
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_inserts_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_inserts_test');
 DROP SERVER binary_inserts_loopback CASCADE;

@@ -36,6 +36,8 @@ All notable changes to this project will be documented in this file. It uses the
     day, and second component, replacing nested
     `addMonths`/`addDays`/`addSeconds` calls that mishandled day arithmetic on
     dates and drifted across DST boundaries ([#301]).
+*   Binary driver now flushes insert block once it buffers 64MiB,
+    bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
 
 ### 🐞 Bug Fixes
 
@@ -73,6 +75,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#300 fix(http): handle subsecond precision"
   [#301]: https://github.com/ClickHouse/pg_clickhouse/pull/301
     "ClickHouse/pg_clickhouse#301 improve interval support"
+  [#303]: https://github.com/ClickHouse/pg_clickhouse/pull/303
+    "ClickHouse/pg_clickhouse#303 Flush buffered data during binary insert"
 
 ## [v0.3.2] — 2026-06-16
 
