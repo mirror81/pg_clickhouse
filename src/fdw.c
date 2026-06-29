@@ -368,10 +368,22 @@ clickhouse_raw_query(PG_FUNCTION_ARGS) {
 
     ch_connection_details* details = connstring_parse(connstring);
     ch_connection conn             = chfdw_http_connect(details);
-    ch_cursor* cursor              = conn.methods->simple_query(conn.conn, &query);
-    text* res                      = chfdw_http_fetch_raw_data(cursor);
+    text* res;
 
-    MemoryContextDelete(cursor->memcxt);
+    PG_TRY();
+    {
+        ch_cursor* cursor = conn.methods->simple_query(conn.conn, &query);
+
+        res = chfdw_http_fetch_raw_data(cursor);
+        MemoryContextDelete(cursor->memcxt);
+    }
+    PG_CATCH();
+    {
+        conn.methods->disconnect(conn.conn);
+        PG_RE_THROW();
+    }
+    PG_END_TRY();
+
     conn.methods->disconnect(conn.conn);
 
     if (res) {
