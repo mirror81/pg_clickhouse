@@ -913,6 +913,9 @@ binary_simple_query(void* conn, const ch_query* query) {
         char* error = pstrdup(ch_binary_response_error(resp));
 
         ch_binary_response_free(resp);
+
+        /* Prefer consistent interrupt error message when query interrupted */
+        CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
             (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
@@ -965,6 +968,8 @@ binary_simple_query(void* conn, const ch_query* query) {
     MemoryContextSwitchTo(oldcxt);
 
     if (state->error) {
+        /* Prefer consistent interrupt error message when query interrupted */
+        CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
             (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
@@ -1018,6 +1023,8 @@ binary_fetch_row(ChFdwScanRowContext* ctx) {
     size_t attcount = list_length(attrs);
 
     if (state->error) {
+        /* Prefer consistent interrupt error message when fetch interrupted */
+        CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
             (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
