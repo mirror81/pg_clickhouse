@@ -937,6 +937,22 @@ SELECT ltrim(val) AS a, btrim(val) AS b, rtrim(val) AS c FROM t4 GROUP BY a,b,c 
  val2 | val2 | val2
 (2 rows)
 
+EXPLAIN (VERBOSE, COSTS OFF) SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS b, rtrim(val, 'l1') AS c FROM t4 GROUP BY a,b,c ORDER BY a;
+                                                                                                      QUERY PLAN                                                                                                       
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: (ltrim(val, 'av'::text)), (btrim(val, '1l2'::text)), (rtrim(val, 'l1'::text))
+   Relations: Aggregate on (t4)
+   Remote SQL: SELECT ltrim(val, 'av'), trimBoth(val, '1l2'), rtrim(val, 'l1') FROM functions_test.t4 GROUP BY (ltrim(val, 'av')), (trimBoth(val, '1l2')), (rtrim(val, 'l1')) ORDER BY ltrim(val, 'av') ASC NULLS LAST
+(4 rows)
+
+SELECT ltrim(val, 'av') AS a, btrim(val, '1l2') AS b, rtrim(val, 'l1') AS c FROM t4 GROUP BY a,b,c ORDER BY a;
+ a  | b  |  c   
+----+----+------
+ l1 | va | va
+ l2 | va | val2
+(2 rows)
+
 EXPLAIN (VERBOSE, COSTS OFF) SELECT strpos(val, 'val') AS a FROM t4 GROUP BY a ORDER BY a;
                                                                         QUERY PLAN                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------

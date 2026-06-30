@@ -41,6 +41,8 @@ All notable changes to this project will be documented in this file. It uses the
     dates and drifted across DST boundaries ([#301]).
 *   Binary driver now flushes insert block once it buffers 64MiB,
     bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
+*   Added pushdown for the three-argument forms of `ltrim`, `rtrim`, and
+    `btrim` ([#306]).
 
 ### 🐞 Bug Fixes
 
@@ -59,6 +61,8 @@ All notable changes to this project will be documented in this file. It uses the
     pg_clickhouse (currently `quantile()` and `quantileExact()`) from the
     Postgres ordered set aggregate functions, putting them under their own
     header, "Custom Ordered Set Aggregates".
+*   Fixed the links to the ClickHouse docs for the functions to which `ltrim`
+    and `rtrim` push down.
 
   [v0.4.0]: https://github.com/ClickHouse/pg_clickhouse/compare/v0.3.2...v0.4.0
   [#290]: https://github.com/ClickHouse/pg_clickhouse/pull/290
@@ -82,6 +86,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#301 improve interval support"
   [#303]: https://github.com/ClickHouse/pg_clickhouse/pull/303
     "ClickHouse/pg_clickhouse#303 Flush buffered data during binary insert"
+  [#306]: https://github.com/ClickHouse/pg_clickhouse/pull/306
+    "ClickHouse/pg_clickhouse#306 Push down three-argument trim functions"
 
 ## [v0.3.2] — 2026-06-16
 

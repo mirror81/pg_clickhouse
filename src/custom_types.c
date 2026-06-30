@@ -211,6 +211,8 @@
 #define F_FACTORIAL 1376
 #define F_LTRIM_TEXT 881
 #define F_RTRIM_TEXT 882
+#define F_LTRIM_TEXT_TEXT 875
+#define F_RTRIM_TEXT_TEXT 876
 #define F_CONCAT_WS 3059
 #define F_LENGTH_TEXT 1317
 #define F_LENGTH_BYTEA 2010
@@ -819,7 +821,9 @@ lookup_builtin_func(Oid funcid, builtin_func_def* def) {
     case F_FACTORIAL:
         /* string functions: CH ltrim/rtrim/concat_ws are aliases */
     case F_LTRIM_TEXT:
+    case F_LTRIM_TEXT_TEXT:
     case F_RTRIM_TEXT:
+    case F_RTRIM_TEXT_TEXT:
     case F_CONCAT_WS:
     case F_LENGTH_BYTEA:
         /* date(ts), date(tstz) deparse as CH date() (alias toDate) */
