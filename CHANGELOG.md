@@ -42,7 +42,7 @@ All notable changes to this project will be documented in this file. It uses the
 *   Binary driver now flushes insert block once it buffers 64MiB,
     bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
 *   Added pushdown for the three-argument forms of `ltrim`, `rtrim`, and
-    `btrim` ([#306]).
+    `btrim` ([#307]).
 
 ### 🐞 Bug Fixes
 
@@ -86,8 +86,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#301 improve interval support"
   [#303]: https://github.com/ClickHouse/pg_clickhouse/pull/303
     "ClickHouse/pg_clickhouse#303 Flush buffered data during binary insert"
-  [#306]: https://github.com/ClickHouse/pg_clickhouse/pull/306
-    "ClickHouse/pg_clickhouse#306 Push down three-argument trim functions"
+  [#307]: https://github.com/ClickHouse/pg_clickhouse/pull/307
+    "ClickHouse/pg_clickhouse#307 Push down three-argument trim functions"
 
 ## [v0.3.2] — 2026-06-16
 
