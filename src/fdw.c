@@ -1799,7 +1799,7 @@ estimate_path_cost_size(
     *p_rows         = 1000;
     *p_width        = 32;
     *p_startup_cost = 1.0;
-    *p_total_cost   = 0.1 + coef;
+    *p_total_cost   = 5.0 + coef;
 }
 
 /*
@@ -2927,6 +2927,7 @@ add_foreign_grouping_paths(
     CHFdwRelationInfo* ifpinfo = input_rel->fdw_private;
     CHFdwRelationInfo* fpinfo  = grouped_rel->fdw_private;
     ForeignPath* grouppath;
+    ListCell* lc;
     double rows;
     int width;
     Cost startup_cost;
@@ -3008,6 +3009,20 @@ add_foreign_grouping_paths(
         NIL
     ); /* no fdw_private */
 #endif
+
+    /*
+     * For simple min/max queries Postgres adds MinMaxAggPath that rewrites as
+     * ORDER BY col LIMIT 1. LIMIT is invisible to FDW, causing full remote
+     * scan, so increase the cost to prevent this optimization.
+     */
+    foreach (lc, grouped_rel->pathlist) {
+        Path* path = (Path*)lfirst(lc);
+
+        if (IsA(path, MinMaxAggPath)) {
+            path->startup_cost += disable_cost;
+            path->total_cost += disable_cost;
+        }
+    }
 
     /* Add generated path into grouped_rel by add_path(). */
     add_path(grouped_rel, (Path*)grouppath);

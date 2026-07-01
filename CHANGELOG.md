@@ -56,6 +56,8 @@ All notable changes to this project will be documented in this file. It uses the
     over floats. Aggregates with an internal transition state (anything over
     `numeric`, `avg(bigint)`, `avg(interval)`) still fall back to local
     aggregation. Requires `enable_partitionwise_aggregate` ([#298]).
+*   Disabled remote MIN/MAX optimization by raising `MinMaxAggPath` cost
+    rather than understating foreign scan cost ([#310]).
 
 ### 🐞 Bug Fixes
 
@@ -103,8 +105,10 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#303 Flush buffered data during binary insert"
   [#307]: https://github.com/ClickHouse/pg_clickhouse/pull/307
     "ClickHouse/pg_clickhouse#307 Push down three-argument trim functions"
-  [#307]: https://github.com/ClickHouse/pg_clickhouse/pull/309
+  [#309]: https://github.com/ClickHouse/pg_clickhouse/pull/309
     "ClickHouse/pg_clickhouse#309 add binary support to clickhouse_raw_query, add clickhouse_query"
+  [#310]: https://github.com/ClickHouse/pg_clickhouse/pull/310
+    "ClickHouse/pg_clickhouse#310 Disable MinMaxAgg without impacting overall query planner costs"
 
 ## [v0.3.2] — 2026-06-16
 
