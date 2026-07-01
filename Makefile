@@ -53,7 +53,7 @@ $(CH_C_DIR)/clickhouse.h: .gitmodules
 # Require clickhouse-c and the version header.
 $(OBJS): $(CH_C_DIR)/clickhouse.h src/include/version.h
 
-# Require the versioned C source and SQL script.
+# Require the versioned SQL script.
 all: sql/$(EXTENSION)--$(EXTVERSION).sql
 
 # Versioned SQL script.

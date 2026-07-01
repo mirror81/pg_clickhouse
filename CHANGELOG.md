@@ -831,5 +831,3 @@ pg_clickhouse v0.1 will get its benefits on reload without needing to
 *   Set to default ports to TLS for ClickHouse Cloud host names
 
   [v0.1.0]: https://github.com/clickhouse/pg_clickhouse/compare/a1487bd...v0.1.0
-  [RFC 9535]: https://www.rfc-editor.org/rfc/rfc9535.html
-    "RFC 9535 JSONPath: Query Expressions for JSON"
