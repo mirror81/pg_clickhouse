@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblz4-dev \
     libzstd-dev \
     libre2-dev \
+    libicu-dev \
     pgxnclient \
     unzip \
     g++

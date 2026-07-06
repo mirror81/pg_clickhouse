@@ -27,7 +27,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -45,7 +45,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -63,7 +63,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -82,7 +82,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -101,7 +101,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -120,7 +120,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -139,7 +139,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '
@@ -158,7 +158,7 @@ services:
     command: >
       /bin/sh -c '
         .github/ubuntu/clickhouse.sh
-        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        pg-start 19 libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
         printf "ClickHouse $$CH_RELEASE and Postgres 19 started"
         tail -f /dev/null
       '

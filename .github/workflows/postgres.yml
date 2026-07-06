@@ -22,7 +22,7 @@ jobs:
     container: pgxn/pgxn-tools
     steps:
       - name: Start Postgres ${{ matrix.pg }}
-        run: pg-start ${{ matrix.pg }} libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev
+        run: pg-start ${{ matrix.pg }} libcurl4-openssl-dev uuid-dev liblz4-dev libzstd-dev libre2-dev libicu-dev
       - name: Install Extensions
         run: pgxn install re2
       - name: Checkout the Repository
