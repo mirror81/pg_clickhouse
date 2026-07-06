@@ -8,34 +8,35 @@ PostgreSQL performance to pg_clickhouse performance.
 The scripts run each query in [queries](queries) three times each for native
 PostgreSQL and pg_clickhouse performance and produces a Markdown table
 reporting the averaged times for each, as well as whether the pg_clickhouse
-query pushed down to ClickHouse. Times exceeding 60s will not be recorded, and
-result in a `-`. An example:
+query fully pushed down to ClickHouse as a single query (`✔`) or multiple
+queries (`✼`). Times exceeding 60s will not be recorded, and result in a `-`.
+An example:
 
 ```md
 |    Query   | PostgreSQL | pg_clickhouse | Pushdown |
 | ----------:| ----------:| -------------:|:--------:|
-|  [Query 1] |    4693 ms |        268 ms |     ✔︎    |
-|  [Query 2] |     458 ms |       3446 ms |          |
-|  [Query 3] |     742 ms |        111 ms |     ✔︎    |
-|  [Query 4] |     270 ms |        130 ms |     ✔︎    |
-|  [Query 5] |     337 ms |       1460 ms |     ✔︎    |
-|  [Query 6] |     764 ms |         53 ms |     ✔︎    |
-|  [Query 7] |     619 ms |         96 ms |     ✔︎    |
-|  [Query 8] |     342 ms |        156 ms |     ✔︎    |
-|  [Query 9] |    3094 ms |        298 ms |     ✔︎    |
-| [Query 10] |     581 ms |        197 ms |     ✔︎    |
-| [Query 11] |     212 ms |         24 ms |          |
-| [Query 12] |    1116 ms |         84 ms |     ✔︎    |
-| [Query 13] |     958 ms |       1368 ms |          |
-| [Query 14] |     181 ms |         73 ms |     ✔︎    |
-| [Query 15] |    1118 ms |        557 ms |          |
-| [Query 16] |     497 ms |       1714 ms |          |
-| [Query 17] |    1846 ms |      32709 ms |          |
-| [Query 18] |    5823 ms |      10649 ms |          |
-| [Query 19] |      53 ms |        206 ms |     ✔︎    |
-| [Query 20] |     421 ms |             - |          |
-| [Query 21] |    1349 ms |       4434 ms |          |
-| [Query 22] |     258 ms |       1415 ms |          |
+|  [Query 1] |    4483 ms |         59 ms |     ✔    |
+|  [Query 2] |     588 ms |         24 ms |     ✔    |
+|  [Query 3] |     786 ms |         62 ms |     ✔    |
+|  [Query 4] |     550 ms |         38 ms |     ✔    |
+|  [Query 5] |     721 ms |       1439 ms |     ✔    |
+|  [Query 6] |     592 ms |         17 ms |     ✔    |
+|  [Query 7] |     639 ms |         29 ms |     ✔    |
+|  [Query 8] |     398 ms |        383 ms |     ✔    |
+|  [Query 9] |    2842 ms |        162 ms |     ✔    |
+| [Query 10] |     860 ms |        125 ms |     ✔    |
+| [Query 11] |     276 ms |         21 ms |     ✼    |
+| [Query 12] |     963 ms |         26 ms |     ✔    |
+| [Query 13] |    1037 ms |       1354 ms |          |
+| [Query 14] |     675 ms |         30 ms |     ✔    |
+| [Query 15] |    2520 ms |        387 ms |          |
+| [Query 16] |     539 ms |        823 ms |          |
+| [Query 17] |    2107 ms |         37 ms |     ✔    |
+| [Query 18] |    5230 ms |       7228 ms |          |
+| [Query 19] |      68 ms |         47 ms |     ✔    |
+| [Query 20] |     473 ms |         28 ms |          |
+| [Query 21] |    1145 ms |       4470 ms |          |
+| [Query 22] |     270 ms |         45 ms |     ✼    |
 ```
 
 ## Setup & Execution

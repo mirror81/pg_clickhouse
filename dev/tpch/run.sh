@@ -43,9 +43,17 @@ function print_query {
     else
         ch=$(psql -c "SELECT round(AVG(x)) || ' ms' FROM unnest(ARRAY[$(join_by ', ' "${ch_times[@]}")]) AS x" --tuples-only --no-psqlrc --quiet --no-align)
     fi
-    # Full pushdown means outer most plan node is a foreign scan, and no inner
-    # (indented) nodes are foreign scans.
-    check=$(grep -q '^Foreign Scan' "result/ch$i.1" && ! grep -q ' Foreign Scan' "result/ch$i.1" && printf '✔︎' || printf ' ')
+    # Full pushdown means outer most plan node is a foreign scan. Record as an
+    # asterisk if there is a second internal (indented) foreign scan; still
+    # fully pushed down, but not to a single query.
+    check='✔'
+    if grep -q '^Foreign Scan' "result/ch$i.1"; then
+        if grep -q ' Foreign Scan' "result/ch$i.1"; then
+            check='✼'
+        fi
+    else
+        check=' '
+    fi
     printf "| %10s | %10s | %13s |     %s    |\n" "[Query $i]" "$pg" "$ch" "$check"
 }
 
