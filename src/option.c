@@ -686,7 +686,7 @@ _PG_init(void) {
         "Sets the default ClickHouse session settings.",
         NULL,
         &ch_session_settings,
-        "join_use_nulls 1, group_by_use_nulls 1, final 1",
+        "join_use_nulls 1, group_by_use_nulls 1, final 1, transform_null_in 0",
         PGC_USERSET,
         0,
         chfdw_check_settings_guc,

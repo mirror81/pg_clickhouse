@@ -60,11 +60,11 @@ CREATE FOREIGN TABLE http_remote_settings (
 -- Reset to defaults.
 RESET pg_clickhouse.session_settings;
 SELECT name, value FROM bin_remote_settings
- WHERE name IN ('join_use_nulls', 'group_by_use_nulls', 'final')
+ WHERE name IN ('join_use_nulls', 'group_by_use_nulls', 'final', 'transform_null_in')
  ORDER BY name;
 
 SELECT name, value FROM http_remote_settings
- WHERE name IN ('join_use_nulls', 'group_by_use_nulls', 'final')
+ WHERE name IN ('join_use_nulls', 'group_by_use_nulls', 'final', 'transform_null_in')
  ORDER BY name;
 
 -- List of settings changed below.

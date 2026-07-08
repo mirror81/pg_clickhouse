@@ -192,6 +192,73 @@ DROP VIEW sales_v;
 DROP OWNED BY regress_subplan_nomap;
 DROP ROLE regress_subplan_nomap;
 
+-- ============================================================
+-- 10. NULL semantics: ClickHouse evaluates IN under two-valued
+--     logic, so a native x NOT IN (SELECT ..) diverges whenever a
+--     NULL can reach the comparison: Postgres computes NULL (row
+--     dropped) where ClickHouse returns TRUE. Shape 5 above ships
+--     plain because both item_id columns import as NOT NULL; with a
+--     nullable column on either side the deparse compensates with
+--     guards — a probe-NULL CASE (empty set is TRUE, else dropped)
+--     and a NOT EXISTS poison check for NULLs in the set — each
+--     emitted only when the corresponding proof fails.
+-- ============================================================
+SELECT clickhouse_raw_query('CREATE TABLE subplan_test.maybe_null
+    (id Int32, val Nullable(Int32)) ENGINE = MergeTree ORDER BY id');
+SELECT clickhouse_raw_query($$
+    INSERT INTO subplan_test.maybe_null VALUES (1, 1), (2, 2), (3, NULL), (4, 7)
+$$);
+CREATE FOREIGN TABLE maybe_null (id int NOT NULL, val int)
+    SERVER subplan_svr OPTIONS (table_name 'maybe_null');
+
+-- Nullable inner column, NOT NULL probe: ships as NOT IN plus the poison
+-- guard (no CASE). Postgres returns no rows — the set holds a NULL — where
+-- an unguarded pushdown would return items 4..6
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT item_id FROM items
+WHERE item_id NOT IN (SELECT val FROM maybe_null)
+ORDER BY item_id;
+
+SELECT item_id FROM items
+WHERE item_id NOT IN (SELECT val FROM maybe_null)
+ORDER BY item_id;
+
+-- Nullable probe, NOT NULL inner column: ships as the probe-NULL CASE with
+-- no poison guard (east sales are items {1,2,3,5}, so only val = 7
+-- qualifies; val IS NULL must not)
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM maybe_null
+WHERE val NOT IN (SELECT item_id FROM sales WHERE region = 'east')
+ORDER BY id;
+
+SELECT id FROM maybe_null
+WHERE val NOT IN (SELECT item_id FROM sales WHERE region = 'east')
+ORDER BY id;
+
+-- Both sides nullable: the full form, CASE and poison guard together.
+-- The set holds a NULL, so no probe — NULL included — can qualify
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT id FROM maybe_null m
+WHERE m.val NOT IN (SELECT val FROM maybe_null)
+ORDER BY id;
+
+SELECT id FROM maybe_null m
+WHERE m.val NOT IN (SELECT val FROM maybe_null)
+ORDER BY id;
+
+-- Positive IN over the same nullable column diverges only toward FALSE,
+-- which a WHERE treats like the NULL Postgres computes: still ships
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT item_id FROM items
+WHERE item_id IN (SELECT val FROM maybe_null)
+ORDER BY item_id;
+
+SELECT item_id FROM items
+WHERE item_id IN (SELECT val FROM maybe_null)
+ORDER BY item_id;
+
+DROP FOREIGN TABLE maybe_null;
+
 -- Cleanup
 SET SESSION search_path = public;
 DROP SCHEMA subplan_test CASCADE;

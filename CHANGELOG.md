@@ -14,6 +14,18 @@ All notable changes to this project will be documented in this file. It uses the
 *   Added the `clickhouse_server_version(server)` function, which reports the
     ClickHouse server version ("major.minor.patch") for a foreign server
     ([#293]).
+*   Added pushdown for subqueries the planner cannot flatten into joins
+    (SubPlans): correlated and uncorrelated scalar aggregate subqueries,
+    `EXISTS`, and single-column equality `IN`/`NOT IN`, in `WHERE` and `HAVING`.
+    Covers TPC-H Q2, Q11, Q15, Q17, Q20, and Q22 shapes. `NOT IN` preserves
+    PostgreSQL's NULL semantics under ClickHouse's two-valued `IN`, deparsing
+    with compensating guards when the columns involved are nullable ([#315]).
+    Requires ClickHouse 25.8 or later; older servers keep evaluating the
+    subquery locally ([#289]).
+*   Added `transform_null_in 0` to the default value of the
+    `pg_clickhouse.session_settings` parameter, so that a ClickHouse server
+    profile cannot silently change the `IN` semantics the pushdown rules rely
+    on ([#315]).
 *   Added pushdown for more aggregate functions ([#290]):
     *   [corr]
     *   [covarpop]
@@ -74,6 +86,16 @@ All notable changes to this project will be documented in this file. It uses the
     rejection of non-`Const`/null units in `date_trunc`/`date_part` pushdown;
     NULL handling in record conversion; unchecked `curl_easy_escape` failures;
     and unbounded `DateTime64` scale lookups ([#313]).
+*   Fixed wrong results from pushed-down `= ANY`/`<> ALL` expressions and `IN`
+    expressions over constant lists and when a `NULL` could reach the
+    comparison, because ClickHouse evaluates `IN` under two-valued logic while
+    PostgreSQL evaluates three-value `NULL` logic. These cases now ship only
+    where PostgreSQL's three-valued answer can be provably preserved ([#315]).
+*   Fixed `<> ANY(array)` deparsing to ClickHouse SQL that computes `<> ALL`,
+    which is wrong even with no `NULL`s involved: In Postgres,
+    `1 <> ANY('{1,5}')` is `TRUE`. For now, do not push down ([#315]).
+*   Fixed the pushdown of a `CASE arg WHEN ..` expression without checking its
+    branches when the tested expression was itself unshippable ([#315]).
 
 ### 📚 Documentation
 
@@ -114,8 +136,12 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#309 add binary support to clickhouse_raw_query, add clickhouse_query"
   [#310]: https://github.com/ClickHouse/pg_clickhouse/pull/310
     "ClickHouse/pg_clickhouse#310 Disable MinMaxAgg without impacting overall query planner costs"
+  [#289]: https://github.com/ClickHouse/pg_clickhouse/pull/289
+    "ClickHouse/pg_clickhouse#289 Push down subquery (SubPlan) residue to ClickHouse"
   [#313]: https://github.com/ClickHouse/pg_clickhouse/pull/313
     "ClickHouse/pg_clickhouse#313 Fix misc undefined behavior"
+  [#315]: https://github.com/ClickHouse/pg_clickhouse/pull/315
+    "ClickHouse/pg_clickhouse#315 Preserve NULL semantics in IN-family pushdown"
 
 ## [v0.3.2] — 2026-06-16
 

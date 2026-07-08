@@ -321,7 +321,12 @@ chfdw_classify_conditions(
     List** local_conds
 );
 extern bool
-chfdw_is_foreign_expr(PlannerInfo* root, RelOptInfo* baserel, Expr* expr);
+chfdw_is_foreign_expr(
+    PlannerInfo* root,
+    RelOptInfo* baserel,
+    Expr* expr,
+    bool exact_ctx
+);
 extern bool
 is_foreign_param(PlannerInfo* root, RelOptInfo* baserel, Expr* expr);
 extern char*

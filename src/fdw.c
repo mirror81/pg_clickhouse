@@ -768,7 +768,7 @@ get_useful_pathkeys_for_relation(PlannerInfo* root, RelOptInfo* rel) {
              */
             if (pathkey_ec->ec_has_volatile ||
                 !(em_expr = chfdw_find_em_expr_for_rel(pathkey_ec, rel)) ||
-                !chfdw_is_foreign_expr(root, rel, em_expr)) {
+                !chfdw_is_foreign_expr(root, rel, em_expr, true)) {
                 query_pathkeys_ok = false;
                 break;
             }
@@ -967,7 +967,7 @@ clickhouseGetForeignPlan(
                 remote_exprs = lappend(remote_exprs, rinfo->clause);
             } else if (list_member_ptr(fpinfo->local_conds, rinfo)) {
                 local_exprs = lappend(local_exprs, rinfo->clause);
-            } else if (chfdw_is_foreign_expr(root, foreignrel, rinfo->clause)) {
+            } else if (chfdw_is_foreign_expr(root, foreignrel, rinfo->clause, false)) {
                 remote_exprs = lappend(remote_exprs, rinfo->clause);
             } else {
                 local_exprs = lappend(local_exprs, rinfo->clause);
@@ -2165,8 +2165,9 @@ foreign_join_ok(
      */
     joinclauses = NIL;
     foreach (lc, extra->restrictlist) {
-        RestrictInfo* rinfo   = lfirst_node(RestrictInfo, lc);
-        bool is_remote_clause = chfdw_is_foreign_expr(root, joinrel, rinfo->clause);
+        RestrictInfo* rinfo = lfirst_node(RestrictInfo, lc);
+        bool is_remote_clause =
+            chfdw_is_foreign_expr(root, joinrel, rinfo->clause, false);
 
         if (IS_OUTER_JOIN(jointype) && !RINFO_IS_PUSHED_DOWN(rinfo, joinrel->relids)) {
             if (!is_remote_clause) {
@@ -2716,7 +2717,7 @@ foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual
              * If any GROUP BY expression is not shippable, then we cannot
              * push down aggregation to the foreign server.
              */
-            if (!chfdw_is_foreign_expr(root, grouped_rel, expr)) {
+            if (!chfdw_is_foreign_expr(root, grouped_rel, expr, true)) {
                 return false;
             }
 
@@ -2743,7 +2744,7 @@ foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual
             /*
              * Non-grouping expression we need to compute. Is it shippable?
              */
-            if (chfdw_is_foreign_expr(root, grouped_rel, expr)) {
+            if (chfdw_is_foreign_expr(root, grouped_rel, expr, true)) {
                 /* Yes, so add to tlist as-is; OK to suppress duplicates */
                 tlist = add_to_flat_tlist(tlist, list_make1(expr));
             } else {
@@ -2754,7 +2755,7 @@ foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual
                  * If any aggregate expression is not shippable, then we
                  * cannot push down aggregation to the foreign server.
                  */
-                if (!chfdw_is_foreign_expr(root, grouped_rel, (Expr*)aggvars)) {
+                if (!chfdw_is_foreign_expr(root, grouped_rel, (Expr*)aggvars, true)) {
                     return false;
                 }
 
@@ -2813,7 +2814,7 @@ foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual
                 NULL,
                 NULL
             );
-            if (chfdw_is_foreign_expr(root, grouped_rel, expr)) {
+            if (chfdw_is_foreign_expr(root, grouped_rel, expr, false)) {
                 fpinfo->remote_conds = lappend(fpinfo->remote_conds, rinfo);
             } else {
                 fpinfo->local_conds = lappend(fpinfo->local_conds, rinfo);
@@ -2848,7 +2849,7 @@ foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual
              * access them again here.
              */
             if (IsA(expr, Aggref)) {
-                if (!chfdw_is_foreign_expr(root, grouped_rel, expr)) {
+                if (!chfdw_is_foreign_expr(root, grouped_rel, expr, true)) {
                     return false;
                 }
 
@@ -3120,7 +3121,7 @@ foreign_window_ok(PlannerInfo* root, RelOptInfo* window_rel) {
          * the expression against the window_rel so that WindowFunc nodes are
          * recognized as being in an upper relation context.
          */
-        if (!chfdw_is_foreign_expr(root, window_rel, expr)) {
+        if (!chfdw_is_foreign_expr(root, window_rel, expr, true)) {
             return false;
         }
 
@@ -3343,7 +3344,8 @@ add_foreign_ordered_paths(
                                                : root->upper_targets[ifpinfo->stage]
         );
 
-        if (sort_expr == NULL || !chfdw_is_foreign_expr(root, input_rel, sort_expr)) {
+        if (sort_expr == NULL ||
+            !chfdw_is_foreign_expr(root, input_rel, sort_expr, true)) {
             return;
         }
     }
@@ -3510,8 +3512,8 @@ add_foreign_final_paths(
      * Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are
      * not safe to remote.
      */
-    if (!chfdw_is_foreign_expr(root, input_rel, (Expr*)parse->limitOffset) ||
-        !chfdw_is_foreign_expr(root, input_rel, (Expr*)parse->limitCount)) {
+    if (!chfdw_is_foreign_expr(root, input_rel, (Expr*)parse->limitOffset, true) ||
+        !chfdw_is_foreign_expr(root, input_rel, (Expr*)parse->limitCount, true)) {
         return;
     }
 

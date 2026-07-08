@@ -795,8 +795,12 @@ settings] to be set on subsequent queries. Example:
 SET pg_clickhouse.session_settings = 'join_use_nulls 1, final 1';
 ```
 
-The default is `join_use_nulls 1, group_by_use_nulls 1, final 1`. Set it to an
-empty string to fall back on the ClickHouse server's settings.
+The default is `join_use_nulls 1, group_by_use_nulls 1, final 1,
+transform_null_in 0`. Set it to an empty string to fall back on the
+ClickHouse server's settings — but note that pushdown correctness depends on
+some of these defaults: `join_use_nulls` for outer joins and
+`transform_null_in` for the `IN` family (see [IN and NULL
+Semantics](#in-and-null-semantics)).
 
 ```sql
 SET pg_clickhouse.session_settings = '';
@@ -1309,6 +1313,30 @@ equivalents as follows:
 *   `!~*` (case insensitive regexp not match): [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `->>` (JSON/JSONB extract element as text): [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
 *   `->` (JSON/JSONB extract): [toJSONString](https://clickhouse.com/docs/sql-reference/functions/json-functions#toJSONString) + [sub-column syntax](https://clickhouse.com/docs/sql-reference/data-types/newjson#reading-json-paths-as-sub-columns)
+
+### IN and NULL Semantics
+
+ClickHouse evaluates `IN` under two-valued logic: when the probe finds no
+match it returns `0` even if a NULL is involved, where PostgreSQL computes
+NULL. To preserve PostgreSQL semantics, pg_clickhouse pushes down the `IN`
+family (`IN`, `NOT IN`, `= ANY`, `<> ALL`, and `IN (SELECT ...)`) only where
+the two systems provably agree: in a plain filter condition, where a NULL
+disqualifies a row exactly like `FALSE`, or when none of the probe, the list,
+nor the subquery output can produce a NULL. A `NOT IN (SELECT ...)` filter
+over nullable columns still pushes down, deparsed with compensating guards
+that keep PostgreSQL's answer: a set containing a NULL disqualifies every
+row, and a NULL probe passes only against an empty set. Each guard is
+omitted when a `NOT NULL` declaration proves it unnecessary. The remaining
+shapes (NULL-capable `IN` expressions in select lists, `GROUP BY`, or
+`ORDER BY`, and `NOT IN` over arrays or grouped subqueries) are evaluated
+locally. Declaring columns `NOT NULL` maximizes pushdown; [IMPORT FOREIGN
+SCHEMA] does so automatically for non-`Nullable` ClickHouse columns.
+
+These rules assume ClickHouse's default `transform_null_in = 0`, which
+pg_clickhouse sets on every query through the default value of the
+[`pg_clickhouse.session_settings`](#pg_clickhousesession_settings) parameter
+so that a ClickHouse server profile cannot silently change it. Setting
+`transform_null_in = 1` breaks the semantics of every pushed `IN`.
 
 ### Custom Functions
 

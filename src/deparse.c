@@ -173,13 +173,33 @@ typedef struct deparse_expr_cxt {
     } while (0)
 
 /*
+ * How an expression's result is consumed, for the IN-family NULL-semantics
+ * rules (see the block comment for saop_null_semantics_ok).
+ *
+ * EXPR_CTX_TRUTH    only qualifies rows: NULL and FALSE are interchangeable.
+ * EXPR_CTX_NEGATED  the direct operand of one NOT whose own result is in a
+ *                   truth context. Only a SubPlan consumes this state (it
+ *                   admits the guarded NOT IN deparse); every other node
+ *                   degrades it to EXPR_CTX_EXACT for its children, so the
+ *                   walker and the deparse peek in deparseBoolExpr agree on
+ *                   exactly which SubPlans get the guarded form.
+ * EXPR_CTX_EXACT    the value itself is observable: exact three-valued
+ *                   equivalence required.
+ */
+typedef enum ExprTruthCtx {
+    EXPR_CTX_TRUTH,
+    EXPR_CTX_NEGATED,
+    EXPR_CTX_EXACT,
+} ExprTruthCtx;
+
+/*
  * Functions to determine whether an expression can be evaluated safely on
  * remote server.
  */
 static bool
-foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt);
+foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, ExprTruthCtx ctx);
 static bool
-is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt);
+is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt, ExprTruthCtx ctx);
 static char*
 deparse_type_name(Oid type_oid, int32 typemod);
 
@@ -322,10 +342,21 @@ static void
 deparseNullIfExpr(NullIfExpr* node, deparse_expr_cxt* context);
 static void
 appendRegex(List* args, deparse_expr_cxt* context);
+/*
+ * Which rendering of a SubPlan's subquery body deparseSubPlanQuery emits.
+ */
+typedef enum SubPlanBodyForm {
+    SUBPLAN_BODY_QUERY,      /* the subquery as written */
+    SUBPLAN_BODY_NULL_PROBE, /* SELECT 1 .. AND (output IS NULL): the poison
+                              * guard of a guarded NOT IN */
+} SubPlanBodyForm;
+
 static void
 deparseSubPlan(SubPlan* node, deparse_expr_cxt* context);
 static void
-deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context);
+deparseGuardedNotIn(SubPlan* subplan, deparse_expr_cxt* context);
+static void
+deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context, SubPlanBodyForm form);
 static void
 deparseSubPlanQuals(Node* quals, deparse_expr_cxt* context);
 static void
@@ -368,7 +399,7 @@ chfdw_classify_conditions(
     foreach (lc, input_conds) {
         RestrictInfo* ri = lfirst_node(RestrictInfo, lc);
 
-        if (chfdw_is_foreign_expr(root, baserel, ri->clause)) {
+        if (chfdw_is_foreign_expr(root, baserel, ri->clause, false)) {
             *remote_conds = lappend(*remote_conds, ri);
         } else {
             *local_conds = lappend(*local_conds, ri);
@@ -378,9 +409,24 @@ chfdw_classify_conditions(
 
 /*
  * Returns true if given expr is safe to evaluate on the foreign server.
+ *
+ * exact_ctx determines how the expression's result is consumed: false for a
+ * WHERE/JOIN/HAVING condition, where a NULL qualifies a row exactly like
+ * FALSE; true anywhere the computed value itself is observable (target
+ * lists, grouping and ordering expressions). The distinction feeds the
+ * IN-family NULL-semantics rules; see foreign_expr_walker. Internally the
+ * walker refines this into ExprTruthCtx's three states; the third
+ * (EXPR_CTX_NEGATED) is derivable only from a NOT encountered during the
+ * walk, never assertable by a caller, so the entry point speaks the
+ * two-valued form.
  */
 bool
-chfdw_is_foreign_expr(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
+chfdw_is_foreign_expr(
+    PlannerInfo* root,
+    RelOptInfo* baserel,
+    Expr* expr,
+    bool exact_ctx
+) {
     foreign_glob_cxt glob_cxt;
     CHFdwRelationInfo* fpinfo = (CHFdwRelationInfo*)(baserel->fdw_private);
 
@@ -403,7 +449,9 @@ chfdw_is_foreign_expr(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
         glob_cxt.relids = baserel->relids;
     }
 
-    if (!foreign_expr_walker((Node*)expr, &glob_cxt)) {
+    if (!foreign_expr_walker(
+            (Node*)expr, &glob_cxt, exact_ctx ? EXPR_CTX_EXACT : EXPR_CTX_TRUTH
+        )) {
         return false;
     }
 
@@ -504,6 +552,345 @@ agg_partial_kind(Aggref* agg) {
     return kind;
 }
 
+static bool
+is_ok_in_expr(Expr* expr);
+
+/*
+ * True if `expr` provably cannot evaluate to NULL: a non-NULL constant, or a
+ * column of a scanned relation that is declared NOT NULL and cannot have been
+ * null-extended by an outer join. Anything else is assumed nullable.
+ *
+ * PG 17+ precomputes the catalog half of this as
+ * RelOptInfo->notnullattnums; the syscache lookup below keeps one code path
+ * across PG 13-19, so switch when PG 16 support drops. Postgres exports no
+ * expression-level equivalent on any version.
+ */
+static bool
+expr_never_null(Expr* expr, foreign_glob_cxt* glob_cxt) {
+    while (IsA(expr, RelabelType)) {
+        expr = ((RelabelType*)expr)->arg;
+    }
+
+    if (IsA(expr, Const)) {
+        return !((Const*)expr)->constisnull;
+    }
+
+    if (IsA(expr, Var)) {
+        Var* var = (Var*)expr;
+        RangeTblEntry* rte;
+        HeapTuple tp;
+        bool notnull;
+
+        /* Only a plain user column that this scan reads is provable */
+        if (var->varlevelsup != 0 || var->varattno <= 0 ||
+            !bms_is_member(var->varno, glob_cxt->relids)) {
+            return false;
+        }
+
+#if PG_VERSION_NUM >= 160000
+        /* A Var nulled by an outer join is nullable whatever the catalog says */
+        if (!bms_is_empty(var->varnullingrels)) {
+            return false;
+        }
+#else
+        /* Pre-16 Vars carry no nulling info; give up if any outer join exists */
+        {
+            ListCell* jlc;
+
+            foreach (jlc, glob_cxt->root->parse->rtable) {
+                RangeTblEntry* jrte = (RangeTblEntry*)lfirst(jlc);
+
+                if (jrte->rtekind == RTE_JOIN && jrte->jointype != JOIN_INNER) {
+                    return false;
+                }
+            }
+        }
+#endif
+
+        rte = planner_rt_fetch(var->varno, glob_cxt->root);
+        if (rte == NULL || rte->rtekind != RTE_RELATION) {
+            return false;
+        }
+
+        tp = SearchSysCache2(
+            ATTNUM, ObjectIdGetDatum(rte->relid), Int16GetDatum(var->varattno)
+        );
+        if (!HeapTupleIsValid(tp)) {
+            return false;
+        }
+        notnull = ((Form_pg_attribute)GETSTRUCT(tp))->attnotnull;
+        ReleaseSysCache(tp);
+
+        return notnull;
+    }
+
+    return false;
+}
+
+/*
+ * What is known at plan time about NULL elements in a ScalarArrayOpExpr's
+ * right-hand array.
+ */
+typedef enum SaopArrayNulls {
+    SAOP_ARR_EMPTY,     /* provably zero elements */
+    SAOP_ARR_NULL_FREE, /* provably contains no NULL element */
+    SAOP_ARR_UNKNOWN,   /* may contain a NULL element */
+} SaopArrayNulls;
+
+static SaopArrayNulls
+saop_array_nulls(Expr* arr, foreign_glob_cxt* glob_cxt) {
+    if (IsA(arr, Const)) {
+        Const* c = (Const*)arr;
+        ArrayType* a;
+
+        if (c->constisnull) {
+            return SAOP_ARR_UNKNOWN;
+        }
+        a = DatumGetArrayTypeP(c->constvalue);
+        if (ArrayGetNItems(ARR_NDIM(a), ARR_DIMS(a)) == 0) {
+            return SAOP_ARR_EMPTY;
+        }
+        /* No null bitmap means no NULL element; with one, assume the worst */
+        return ARR_HASNULL(a) ? SAOP_ARR_UNKNOWN : SAOP_ARR_NULL_FREE;
+    }
+
+    if (IsA(arr, ArrayExpr) && !((ArrayExpr*)arr)->multidims) {
+        ArrayExpr* ae = (ArrayExpr*)arr;
+        ListCell* lc;
+
+        if (ae->elements == NIL) {
+            return SAOP_ARR_EMPTY;
+        }
+        foreach (lc, ae->elements) {
+            if (!expr_never_null((Expr*)lfirst(lc), glob_cxt)) {
+                return SAOP_ARR_UNKNOWN;
+            }
+        }
+        return SAOP_ARR_NULL_FREE;
+    }
+
+    return SAOP_ARR_UNKNOWN;
+}
+
+/*
+ * Decide whether a ScalarArrayOpExpr keeps Postgres semantics on ClickHouse.
+ * This comment is the reference for the divergence rules used here and in
+ * the SubPlan gate (is_shippable_subplan) and deparse (deparseGuardedNotIn).
+ *
+ * ClickHouse evaluates IN under two-valued logic (given transform_null_in =
+ * 0, the ClickHouse default, which pg_clickhouse.session_settings sets
+ * per-query so a server profile cannot change it; overriding the GUC is at
+ * the user's own risk, like the join_use_nulls default the pushed outer
+ * joins rely on): a probe that finds no match yields 0 even when the searched set
+ * contains a NULL, and NOT IN is the exact complement, where Postgres
+ * yields NULL in both cases. The two systems agree whenever no NULL can
+ * reach the comparison; when one can, ClickHouse substitutes FALSE where
+ * Postgres computes NULL, and for the complemented forms (NOT IN, <> ALL)
+ * TRUE where Postgres computes NULL. The has()/countEqual() deparse forms
+ * additionally match a NULL probe against NULL elements as if they were
+ * ordinary values.
+ *
+ * A FALSE-for-NULL substitution is invisible exactly where a NULL qualifies
+ * a row the same way FALSE does: WHERE/JOIN/HAVING conditions, CASE WHEN
+ * branches, and aggregate FILTERs, composed through any number of AND/OR
+ * (EXPR_CTX_TRUTH). Under NOT, in a function/operator/aggregate argument,
+ * in a grouping or ordering expression — anywhere the boolean's value is
+ * consumed — the substitution is observable, so exact three-valued
+ * equivalence is demanded. A TRUE-for-NULL substitution is wrong in every
+ * context, so the complemented forms require a provably NULL-free
+ * right-hand side.
+ *
+ * The decision follows the same form deparseScalarArrayOpExpr will choose:
+ * the IN-list form for a non-empty constant array (is_ok_in_expr),
+ * has()/countEqual() otherwise. `optype` is chfdw_is_equal_op's
+ * classification: 1 for = ANY, 2 for <> ALL.
+ */
+static bool
+saop_null_semantics_ok(
+    ScalarArrayOpExpr* saop,
+    int optype,
+    ExprTruthCtx ctx,
+    foreign_glob_cxt* glob_cxt
+) {
+    /* Arrays have no guarded deparse form: negated means exact */
+    bool exact_ctx       = ctx != EXPR_CTX_TRUTH;
+    Expr* probe          = linitial(saop->args);
+    Expr* arr            = lsecond(saop->args);
+    SaopArrayNulls nulls = saop_array_nulls(arr, glob_cxt);
+
+    /*
+     * A NULL array constant survives const-folding when the probe is not
+     * constant, and the operator's strictness makes the result NULL for
+     * every row. Keep it local: no deparse form models that, and
+     * is_ok_in_expr cannot inspect a NULL array datum.
+     */
+    if (IsA(arr, Const) && ((Const*)arr)->constisnull) {
+        return false;
+    }
+
+    /*
+     * <> ANY has no correct deparse form yet: the not has() ClickHouse SQL it
+     * would produce computes <> ALL (Postgres: 1 <> ANY of {1,5} is TRUE, one
+     * element differs; not has({1,5}, 1) is FALSE). Always evaluate locally.
+     * A truth-context spelling exists for a future follow-up — TRUE exactly
+     * when a non-NULL element differs from a non-NULL probe:
+     *   x IS NOT NULL AND
+     *   length(arr) - countEqual(arr, x) - countEqual(arr, NULL) > 0
+     */
+    if (saop->useOr && optype == 2) {
+        return false;
+    }
+
+    /*
+     * = ALL deparses as countEqual() = length(), which counts a NULL element
+     * as equal to a NULL probe where Postgres never compares two NULLs equal.
+     * An empty array is exact by arithmetic (0 = 0 is TRUE on both systems,
+     * NULL probe included); otherwise ship only when no NULL can be involved.
+     */
+    if (!saop->useOr && optype == 1) {
+        if (nulls == SAOP_ARR_EMPTY) {
+            return true;
+        }
+        return nulls == SAOP_ARR_NULL_FREE && expr_never_null(probe, glob_cxt);
+    }
+
+    /*
+     * Both systems compare against nothing: = ANY is FALSE and <> ALL is TRUE
+     * for every probe, NULL included, in both deparse forms.
+     */
+    if (nulls == SAOP_ARR_EMPTY) {
+        return true;
+    }
+
+    if (is_ok_in_expr(arr)) {
+        /*
+         * IN-list form. ClickHouse's native IN yields NULL for a NULL probe,
+         * so a NULL-free list is exact for both = ANY and <> ALL. A list that
+         * may carry a NULL diverges only toward FALSE for = ANY (tolerable in
+         * truth context) and toward TRUE for <> ALL (never tolerable).
+         */
+        if (nulls == SAOP_ARR_NULL_FREE) {
+            return true;
+        }
+        return optype == 1 && !exact_ctx;
+    }
+
+    /*
+     * has()/countEqual() form: a NULL probe is matched like a value, so
+     * exactness additionally requires the probe to be provably non-NULL.
+     */
+    if (optype == 1) {
+        if (nulls == SAOP_ARR_NULL_FREE) {
+            return !exact_ctx || expr_never_null(probe, glob_cxt);
+        }
+        return !exact_ctx && expr_never_null(probe, glob_cxt);
+    }
+    return nulls == SAOP_ARR_NULL_FREE && expr_never_null(probe, glob_cxt);
+}
+
+/*
+ * How to ship a Postgres `NOT (x IN (SELECT ..))`.
+ */
+typedef enum NotInShipForm {
+    NOTIN_SHIP_PLAIN,   /* both sides provably non-NULL: native NOT IN is exact */
+    NOTIN_SHIP_GUARDED, /* deparseGuardedNotIn's CASE/guard form (truth context) */
+    NOTIN_SHIP_NONE,    /* no correct remote form; evaluate locally */
+} NotInShipForm;
+
+/*
+ * Which sides of an ANY SubPlan's comparison may produce a NULL: the probe
+ * (testexpr's LHS, an outer-scope expression) and the subquery's output
+ * column. A bit is set for each side that cannot be proven non-NULL, so the
+ * guarded NOT IN deparse emits a guard exactly for each bit.
+ */
+typedef enum NotInNullability {
+    NOTIN_NEITHER_NULLABLE = 0,
+    NOTIN_PROBE_NULLABLE   = 1 << 0,
+    NOTIN_OUTPUT_NULLABLE  = 1 << 1,
+} NotInNullability;
+
+/*
+ * Prove non-nullness for an ANY SubPlan's two comparison inputs, reporting
+ * the sides that cannot be proven. root/relids describe the OUTER scope
+ * (the probe's); the subquery scope is derived here. A missing output
+ * column reports both sides nullable.
+ */
+static NotInNullability
+notin_prove_nullability(SubPlan* subplan, PlannerInfo* root, Relids relids) {
+    OpExpr* op = castNode(OpExpr, subplan->testexpr);
+    PlannerInfo* subroot;
+    Query* query;
+    TargetEntry* out       = NULL;
+    NotInNullability nulls = NOTIN_NEITHER_NULLABLE;
+    foreign_glob_cxt outer_cxt;
+    foreign_glob_cxt sub_cxt;
+    ListCell* lc;
+
+    subroot = (PlannerInfo*)list_nth(root->glob->subroots, subplan->plan_id - 1);
+    query   = subroot->parse;
+
+    foreach (lc, query->targetList) {
+        TargetEntry* tle = lfirst_node(TargetEntry, lc);
+
+        if (!tle->resjunk) {
+            out = tle;
+            break;
+        }
+    }
+    if (out == NULL) {
+        return NOTIN_PROBE_NULLABLE | NOTIN_OUTPUT_NULLABLE;
+    }
+
+    memset(&outer_cxt, 0, sizeof(outer_cxt));
+    outer_cxt.root   = root;
+    outer_cxt.relids = relids;
+
+    memset(&sub_cxt, 0, sizeof(sub_cxt));
+    sub_cxt.root = subroot;
+    foreach (lc, query->jointree->fromlist) {
+        RangeTblRef* rtr = (RangeTblRef*)lfirst(lc);
+
+        sub_cxt.relids = bms_add_member(sub_cxt.relids, rtr->rtindex);
+    }
+
+    if (!expr_never_null((Expr*)linitial(op->args), &outer_cxt)) {
+        nulls |= NOTIN_PROBE_NULLABLE;
+    }
+    if (!expr_never_null(out->expr, &sub_cxt)) {
+        nulls |= NOTIN_OUTPUT_NULLABLE;
+    }
+    return nulls;
+}
+
+/*
+ * Classify a NOT-negated ANY SubPlan. Called with identical inputs by the
+ * shippability gate in is_shippable_subplan and by deparseBoolExpr's SubPlan
+ * peek, so the walker's decision and the emitted form always agree.
+ */
+static NotInShipForm
+classify_notin_subplan(SubPlan* subplan, PlannerInfo* root, Relids relids) {
+    PlannerInfo* subroot;
+    Query* query;
+
+    if (notin_prove_nullability(subplan, root, relids) == NOTIN_NEITHER_NULLABLE) {
+        return NOTIN_SHIP_PLAIN;
+    }
+
+    /*
+     * The guarded form's null probe re-runs the subquery body with an extra
+     * "output IS NULL" qual, which asks the same question only when the
+     * output is a per-row expression. A grouped or aggregated body would
+     * need the guard applied above the grouping; not implemented, so those
+     * shapes fall back to local evaluation.
+     */
+    subroot = (PlannerInfo*)list_nth(root->glob->subroots, subplan->plan_id - 1);
+    query   = subroot->parse;
+    if (query->groupClause == NIL && query->havingQual == NULL && !query->hasAggs) {
+        return NOTIN_SHIP_GUARDED;
+    }
+    return NOTIN_SHIP_NONE;
+}
+
 /*
  * Check if expression is safe to execute remotely, and return true if so.
  *
@@ -514,9 +901,14 @@ agg_partial_kind(Aggref* agg) {
  * assign_collations_walker() in parse_collate.c, though we can assume here
  * that the given expression is valid. Note function mutability is not
  * currently considered here.
+ *
+ * ctx tracks whether the expression's value is observable beyond qualifying
+ * rows (see ExprTruthCtx and saop_null_semantics_ok's block comment):
+ * EXPR_CTX_TRUTH only while every enclosing node treats NULL and FALSE
+ * identically.
  */
 static bool
-foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
+foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, ExprTruthCtx ctx) {
     bool check_type = true;
     CHFdwRelationInfo* fpinfo;
 
@@ -594,15 +986,19 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         }
 
         /* Recurse to remaining subexpressions. */
-        if (!foreign_expr_walker((Node*)ar->refupperindexpr, glob_cxt)) {
+        if (!foreign_expr_walker(
+                (Node*)ar->refupperindexpr, glob_cxt, EXPR_CTX_EXACT
+            )) {
             return false;
         }
 
-        if (!foreign_expr_walker((Node*)ar->reflowerindexpr, glob_cxt)) {
+        if (!foreign_expr_walker(
+                (Node*)ar->reflowerindexpr, glob_cxt, EXPR_CTX_EXACT
+            )) {
             return false;
         }
 
-        if (!foreign_expr_walker((Node*)ar->refexpr, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)ar->refexpr, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -633,7 +1029,9 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
             }
 
             /* Only recurse on the column expression. */
-            if (!foreign_expr_walker((Node*)linitial(fe->args), glob_cxt)) {
+            if (!foreign_expr_walker(
+                    (Node*)linitial(fe->args), glob_cxt, EXPR_CTX_EXACT
+                )) {
                 return false;
             }
             break;
@@ -642,7 +1040,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         /*
          * Recurse to input subexpressions.
          */
-        if (!foreign_expr_walker((Node*)fe->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)fe->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -667,21 +1065,27 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         /*
          * Recurse to input subexpressions.
          */
-        if (!foreign_expr_walker((Node*)oe->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)oe->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
     case T_ScalarArrayOpExpr: {
         ScalarArrayOpExpr* oe = (ScalarArrayOpExpr*)node;
+        int optype            = chfdw_is_equal_op(oe->opno);
 
-        if (!chfdw_is_equal_op(oe->opno)) {
+        if (!optype) {
+            return false;
+        }
+
+        /* IN under two-valued ClickHouse logic; see saop_null_semantics_ok */
+        if (!saop_null_semantics_ok(oe, optype, ctx, glob_cxt)) {
             return false;
         }
 
         /*
          * Recurse to input subexpressions.
          */
-        if (!foreign_expr_walker((Node*)oe->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)oe->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -689,19 +1093,36 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         RelabelType* r = (RelabelType*)node;
 
         /*
-         * Recurse to input subexpression.
+         * Recurse to input subexpression. A relabel between a NOT and its
+         * operand would defeat deparseBoolExpr's SubPlan peek, so degrade
+         * NEGATED rather than pass it through.
          */
-        if (!foreign_expr_walker((Node*)r->arg, glob_cxt)) {
+        if (!foreign_expr_walker(
+                (Node*)r->arg, glob_cxt, ctx == EXPR_CTX_NEGATED ? EXPR_CTX_EXACT : ctx
+            )) {
             return false;
         }
     } break;
     case T_BoolExpr: {
         BoolExpr* b = (BoolExpr*)node;
+        ExprTruthCtx child_ctx;
 
         /*
-         * Recurse to input subexpressions.
+         * AND/OR preserve the NULL/FALSE equivalence of a truth context but
+         * consume a NEGATED state (their children are not the NOT's direct
+         * operand). Under NOT the roles swap — a FALSE-for-NULL substitution
+         * below would surface as TRUE-for-NULL above — so the operand must be
+         * exact, except that one NOT directly over a truth context grants the
+         * operand EXPR_CTX_NEGATED, which a SubPlan consumes via the guarded
+         * NOT IN deparse. A second NOT above that degrades to exact (the
+         * planner collapses double negation anyway).
          */
-        if (!foreign_expr_walker((Node*)b->args, glob_cxt)) {
+        if (b->boolop == NOT_EXPR) {
+            child_ctx = ctx == EXPR_CTX_TRUTH ? EXPR_CTX_NEGATED : EXPR_CTX_EXACT;
+        } else {
+            child_ctx = ctx == EXPR_CTX_NEGATED ? EXPR_CTX_EXACT : ctx;
+        }
+        if (!foreign_expr_walker((Node*)b->args, glob_cxt, child_ctx)) {
             return false;
         }
     } break;
@@ -711,7 +1132,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         /*
          * Recurse to input subexpressions.
          */
-        if (!foreign_expr_walker((Node*)nt->arg, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)nt->arg, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -721,7 +1142,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         /*
          * Recurse to input subexpressions.
          */
-        if (!foreign_expr_walker((Node*)a->elements, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)a->elements, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -733,7 +1154,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
          * Recurse to component subexpressions.
          */
         foreach (lc, l) {
-            if (!foreign_expr_walker((Node*)lfirst(lc), glob_cxt)) {
+            if (!foreign_expr_walker((Node*)lfirst(lc), glob_cxt, ctx)) {
                 return false;
             }
         }
@@ -816,13 +1237,13 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
                 n = (Node*)tle->expr;
             }
 
-            if (!foreign_expr_walker(n, glob_cxt)) {
+            if (!foreign_expr_walker(n, glob_cxt, EXPR_CTX_EXACT)) {
                 return false;
             }
         }
 
-        /* Check aggregate filter */
-        if (!foreign_expr_walker((Node*)agg->aggfilter, glob_cxt)) {
+        /* FILTER only qualifies rows, so it keeps NULL/FALSE equivalence */
+        if (!foreign_expr_walker((Node*)agg->aggfilter, glob_cxt, EXPR_CTX_TRUTH)) {
             return false;
         }
     } break;
@@ -847,7 +1268,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         }
 
         /* Recurse to input arguments */
-        if (!foreign_expr_walker((Node*)wfunc->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)wfunc->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -855,49 +1276,58 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
         CaseExpr* caseexpr = (CaseExpr*)node;
         ListCell* lc;
 
-        if (!foreign_expr_walker((Node*)caseexpr->arg, glob_cxt)) {
-            return true;
+        if (!foreign_expr_walker((Node*)caseexpr->arg, glob_cxt, EXPR_CTX_EXACT)) {
+            return false;
         }
 
         foreach (lc, caseexpr->args) {
             CaseWhen* when = lfirst_node(CaseWhen, lc);
 
-            if (!foreign_expr_walker((Node*)when->expr, glob_cxt)) {
+            /* A WHEN condition takes the same branch for NULL and FALSE */
+            if (!foreign_expr_walker((Node*)when->expr, glob_cxt, EXPR_CTX_TRUTH)) {
                 return false;
             }
-            if (!foreign_expr_walker((Node*)when->result, glob_cxt)) {
+            if (!foreign_expr_walker(
+                    (Node*)when->result,
+                    glob_cxt,
+                    ctx == EXPR_CTX_TRUTH ? EXPR_CTX_TRUTH : EXPR_CTX_EXACT
+                )) {
                 return false;
             }
         }
-        if (!foreign_expr_walker((Node*)caseexpr->defresult, glob_cxt)) {
+        if (!foreign_expr_walker(
+                (Node*)caseexpr->defresult,
+                glob_cxt,
+                ctx == EXPR_CTX_TRUTH ? EXPR_CTX_TRUTH : EXPR_CTX_EXACT
+            )) {
             return false;
         }
     } break;
     case T_CoalesceExpr: {
         CoalesceExpr* ce = (CoalesceExpr*)node;
 
-        if (!foreign_expr_walker((Node*)ce->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)ce->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
     case T_MinMaxExpr: {
         MinMaxExpr* me = (MinMaxExpr*)node;
 
-        if (!foreign_expr_walker((Node*)me->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)me->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
     case T_CoerceViaIO: {
         CoerceViaIO* me = (CoerceViaIO*)node;
 
-        if (!foreign_expr_walker((Node*)me->arg, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)me->arg, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
     case T_RowExpr: {
         RowExpr* me = (RowExpr*)node;
 
-        if (!foreign_expr_walker((Node*)me->args, glob_cxt)) {
+        if (!foreign_expr_walker((Node*)me->args, glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     } break;
@@ -917,7 +1347,7 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt) {
             return false;
         }
 
-        if (!is_shippable_subplan((SubPlan*)node, glob_cxt)) {
+        if (!is_shippable_subplan((SubPlan*)node, glob_cxt, ctx)) {
             return false;
         }
     } break;
@@ -1058,7 +1488,7 @@ subplan_gate_user_mapping(PlannerInfo* root, RelOptInfo* foreignrel, Oid serveri
 }
 
 static bool
-is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt) {
+is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt, ExprTruthCtx ctx) {
     PlannerInfo* subroot;
     Query* query;
     foreign_glob_cxt sub_cxt;
@@ -1168,7 +1598,7 @@ is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt) {
         }
 
         /* The LHS lives in the outer scope: walk it there. */
-        if (!foreign_expr_walker((Node*)linitial(op->args), glob_cxt)) {
+        if (!foreign_expr_walker((Node*)linitial(op->args), glob_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     }
@@ -1193,7 +1623,7 @@ is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt) {
      * Correlation args are OUTER-scope expressions; deparseParam will inline
      * them with outer aliases, so they must be shippable out here.
      */
-    if (!foreign_expr_walker((Node*)subplan->args, glob_cxt)) {
+    if (!foreign_expr_walker((Node*)subplan->args, glob_cxt, EXPR_CTX_EXACT)) {
         return false;
     }
 
@@ -1215,15 +1645,40 @@ is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt) {
     foreach (lc, query->targetList) {
         TargetEntry* tle = lfirst_node(TargetEntry, lc);
 
-        if (!foreign_expr_walker((Node*)tle->expr, &sub_cxt)) {
+        if (!foreign_expr_walker((Node*)tle->expr, &sub_cxt, EXPR_CTX_EXACT)) {
             return false;
         }
     }
-    if (!foreign_expr_walker((Node*)query->jointree->quals, &sub_cxt)) {
+    /* Interior quals only qualify the subquery's own rows: truth context */
+    if (!foreign_expr_walker((Node*)query->jointree->quals, &sub_cxt, EXPR_CTX_TRUTH)) {
         return false;
     }
-    if (query->havingQual && !foreign_expr_walker(query->havingQual, &sub_cxt)) {
+    if (query->havingQual &&
+        !foreign_expr_walker(query->havingQual, &sub_cxt, EXPR_CTX_TRUTH)) {
         return false;
+    }
+
+    /*
+     * ClickHouse evaluates IN under two-valued logic, so x IN (SELECT ..)
+     * diverges from Postgres by yielding FALSE where Postgres computes
+     * NULL (a NULL probe stays NULL on both systems). This behavior is invisible in a
+     * truth context but observable under NOT --- which is how x NOT IN
+     * (SELECT ..) arrives here --- and in value positions. Under one NOT in a
+     * truth context (EXPR_CTX_NEGATED) the guarded deparse form keeps the
+     * Postgres answer even when a NULL can reach the comparison, so only
+     * grouped/aggregated bodies fall back; a genuine value position demands
+     * exactness, which requires that no NULL can arrive from either side.
+     * See saop_null_semantics_ok's block comment for the divergence rules
+     * and deparseGuardedNotIn for the guarded form.
+     */
+    if (subplan->subLinkType == ANY_SUBLINK && ctx != EXPR_CTX_TRUTH) {
+        NotInShipForm form =
+            classify_notin_subplan(subplan, glob_cxt->root, glob_cxt->relids);
+
+        if (ctx == EXPR_CTX_NEGATED ? form == NOTIN_SHIP_NONE
+                                    : form != NOTIN_SHIP_PLAIN) {
+            return false;
+        }
     }
 
     /*
@@ -3132,12 +3587,12 @@ deparseSubPlan(SubPlan* node, deparse_expr_cxt* context) {
     switch (node->subLinkType) {
     case EXISTS_SUBLINK:
         appendStringInfoString(buf, "EXISTS (");
-        deparseSubPlanQuery(node, context);
+        deparseSubPlanQuery(node, context, SUBPLAN_BODY_QUERY);
         appendStringInfoChar(buf, ')');
         break;
     case EXPR_SUBLINK:
         appendStringInfoChar(buf, '(');
-        deparseSubPlanQuery(node, context);
+        deparseSubPlanQuery(node, context, SUBPLAN_BODY_QUERY);
         appendStringInfoChar(buf, ')');
         break;
     case ANY_SUBLINK: {
@@ -3151,7 +3606,7 @@ deparseSubPlan(SubPlan* node, deparse_expr_cxt* context) {
         appendStringInfoChar(buf, '(');
         deparseExpr((Expr*)linitial(op->args), context);
         appendStringInfoString(buf, " IN (");
-        deparseSubPlanQuery(node, context);
+        deparseSubPlanQuery(node, context, SUBPLAN_BODY_QUERY);
         appendStringInfoString(buf, "))");
     } break;
     default:
@@ -3270,7 +3725,7 @@ deparseSubPlanFrom(deparse_expr_cxt* context) {
  * s{N} namespaces and with sibling SubPlans.
  */
 static void
-deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context) {
+deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context, SubPlanBodyForm form) {
     PlannerInfo* subroot;
     Query* query;
     StringInfo buf = context->buf;
@@ -3299,7 +3754,11 @@ deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context) {
      * (appendConditions / appendGroupByClause) where it does not.
      */
     appendStringInfoString(buf, "SELECT ");
-    deparseSubPlanTargetList(&subctx);
+    if (form == SUBPLAN_BODY_NULL_PROBE) {
+        appendStringInfoChar(buf, '1');
+    } else {
+        deparseSubPlanTargetList(&subctx);
+    }
 
     appendStringInfoString(buf, " FROM ");
     deparseSubPlanFrom(&subctx);
@@ -3309,12 +3768,93 @@ deparseSubPlanQuery(SubPlan* subplan, deparse_expr_cxt* context) {
         deparseSubPlanQuals(query->jointree->quals, &subctx);
     }
 
+    /*
+     * The null-probe form asks whether any row the subquery would emit has a
+     * NULL output. classify_notin_subplan only admits ungrouped bodies here,
+     * so appending the qual to the row-level WHERE asks exactly that.
+     */
+    if (form == SUBPLAN_BODY_NULL_PROBE) {
+        TargetEntry* out = NULL;
+        ListCell* lc;
+
+        foreach (lc, query->targetList) {
+            TargetEntry* tle = lfirst_node(TargetEntry, lc);
+
+            if (!tle->resjunk) {
+                out = tle;
+                break;
+            }
+        }
+        Assert(out != NULL); /* classify_notin_subplan guarantees it */
+
+        appendStringInfoString(
+            buf, query->jointree->quals != NULL ? " AND (" : " WHERE ("
+        );
+        deparseExpr(out->expr, &subctx);
+        appendStringInfoString(buf, " IS NULL)");
+    }
+
     /* Keys off context->root->parse, which is the subquery here. */
     appendGroupByClause(query->targetList, &subctx);
 
     if (query->havingQual != NULL) {
         appendStringInfoString(buf, " HAVING ");
         deparseSubPlanQuals(query->havingQual, &subctx);
+    }
+}
+
+/*
+ * Deparse Postgres's `x NOT IN (SELECT ..)` — arriving as NOT over an ANY
+ * SubPlan — when a NULL could reach the comparison. ClickHouse's native
+ * `NOT IN` computes the plain set complement, where Postgres's three-valued
+ * answer can only be TRUE if the probe is non-NULL, the subquery output
+ * holds no NULL, and the probe matches nothing — except that an empty
+ * result is TRUE regardless of the probe. In a truth context (the only
+ * place the walker admits this form, via EXPR_CTX_NEGATED) that TRUE-set
+ * is all that matters, so emit it directly:
+ *
+ *   CASE WHEN probe IS NULL
+ *        THEN NOT EXISTS (SELECT ..)                            -- empty?
+ *        ELSE probe NOT IN (SELECT ..)
+ *             AND NOT EXISTS (SELECT 1 .. AND (output IS NULL)) -- poison?
+ *   END
+ *
+ * Each piece a plan-time proof makes unnecessary is left out: a non-NULL
+ * probe drops the `CASE` (`x NOT IN (SELECT .. WHERE false)` is already
+ * TRUE on both systems for a non-NULL probe), and a non-NULL output column
+ * drops the poison guard. All subqueries are uncorrelated with each other
+ * and evaluated once.
+ */
+static void
+deparseGuardedNotIn(SubPlan* subplan, deparse_expr_cxt* context) {
+    StringInfo buf = context->buf;
+    OpExpr* op     = castNode(OpExpr, subplan->testexpr);
+    Expr* probe    = (Expr*)linitial(op->args);
+    NotInNullability nulls =
+        notin_prove_nullability(subplan, context->root, context->scanrel->relids);
+
+    if (nulls & NOTIN_PROBE_NULLABLE) {
+        appendStringInfoString(buf, "(CASE WHEN (");
+        deparseExpr(probe, context);
+        appendStringInfoString(buf, ") IS NULL THEN NOT EXISTS (");
+        deparseSubPlanQuery(subplan, context, SUBPLAN_BODY_QUERY);
+        appendStringInfoString(buf, ") ELSE ");
+    }
+
+    appendStringInfoChar(buf, '(');
+    deparseExpr(probe, context);
+    appendStringInfoString(buf, " NOT IN (");
+    deparseSubPlanQuery(subplan, context, SUBPLAN_BODY_QUERY);
+    appendStringInfoChar(buf, ')');
+    if (nulls & NOTIN_OUTPUT_NULLABLE) {
+        appendStringInfoString(buf, " AND NOT EXISTS (");
+        deparseSubPlanQuery(subplan, context, SUBPLAN_BODY_NULL_PROBE);
+        appendStringInfoChar(buf, ')');
+    }
+    appendStringInfoChar(buf, ')');
+
+    if (nulls & NOTIN_PROBE_NULLABLE) {
+        appendStringInfoString(buf, " END)");
     }
 }
 
@@ -4761,11 +5301,29 @@ deparseBoolExpr(BoolExpr* node, deparse_expr_cxt* context) {
     case OR_EXPR:
         op = "OR";
         break;
-    case NOT_EXPR:
+    case NOT_EXPR: {
+        Node* arg = (Node*)linitial(node->args);
+
+        /*
+         * NOT over an ANY SubPlan is Postgres's x NOT IN (SELECT ..). When a
+         * NULL could reach the comparison the native complement is wrong;
+         * emit the guarded form instead. The classifier answers exactly as
+         * the walker's EXPR_CTX_NEGATED gate did, so every shape arriving
+         * here has a remote form.
+         */
+        if (IsA(arg, SubPlan) && ((SubPlan*)arg)->subLinkType == ANY_SUBLINK &&
+            classify_notin_subplan(
+                (SubPlan*)arg, context->root, context->scanrel->relids
+            ) == NOTIN_SHIP_GUARDED) {
+            deparseGuardedNotIn((SubPlan*)arg, context);
+            return;
+        }
+
         appendStringInfoString(buf, "(NOT ");
-        deparseExpr(linitial(node->args), context);
+        deparseExpr((Expr*)arg, context);
         appendStringInfoChar(buf, ')');
         return;
+    }
     }
 
     appendStringInfoChar(buf, '(');
