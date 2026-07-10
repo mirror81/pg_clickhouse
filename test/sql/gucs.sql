@@ -94,6 +94,12 @@ SELECT name, value
   FROM bin_remote_settings
  WHERE name = ANY(:'set_list');
 
+-- Single setting exercises the iterator stopping at the final pair.
+SET pg_clickhouse.session_settings TO 'join_use_nulls 1';
+
+SELECT name, value FROM bin_remote_settings WHERE name = 'join_use_nulls';
+SELECT name, value FROM http_remote_settings WHERE name = 'join_use_nulls';
+
 -- Customize all of the above settings.
 SET pg_clickhouse.session_settings TO $$
     connect_timeout 2,

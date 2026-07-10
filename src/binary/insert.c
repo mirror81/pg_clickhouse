@@ -187,11 +187,11 @@ classify_column(ic_col* ic, const chc_type* t) {
         if (chc_type_kind(base) != CHC_STRING) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                 errmsg(
-                     "pg_clickhouse: unsupported LowCardinality variant: %s",
-                     chc_type_name(base, NULL)
-                 ))
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg(
+                    "pg_clickhouse: unsupported LowCardinality variant: %s",
+                    chc_type_name(base, NULL)
+                )
             );
         }
 
@@ -223,11 +223,11 @@ classify_column(ic_col* ic, const chc_type* t) {
         if (elem_nullable) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                 errmsg(
-                     "pg_clickhouse: %s not currently supported",
-                     chc_type_name(base, NULL)
-                 ))
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg(
+                    "pg_clickhouse: %s not currently supported",
+                    chc_type_name(base, NULL)
+                )
             );
         }
         chc_kind ek = chc_type_kind(base);
@@ -243,11 +243,11 @@ classify_column(ic_col* ic, const chc_type* t) {
         } else {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                 errmsg(
-                     "pg_clickhouse: unsupported Array element type: %s",
-                     chc_type_name(base, NULL)
-                 ))
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg(
+                    "pg_clickhouse: unsupported Array element type: %s",
+                    chc_type_name(base, NULL)
+                )
             );
         }
         if (ndim > 1) {
@@ -269,7 +269,16 @@ classify_column(ic_col* ic, const chc_type* t) {
         ic->layout    = IC_FIXED;
         ic->elem_size = es;
         if (k == CHC_DATETIME64) {
-            ic->dt64_precision = (uint32_t)chc_type_datetime64_scale(t);
+            int scale = chc_type_datetime64_scale(t);
+
+            if (scale < 0 || (size_t)scale >= lengthof(pow10i)) {
+                ereport(
+                    ERROR,
+                    errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                    errmsg("pg_clickhouse: DateTime64 scale %d out of range", scale)
+                );
+            }
+            ic->dt64_precision = (uint32_t)scale;
         }
         return;
     }
@@ -280,11 +289,11 @@ classify_column(ic_col* ic, const chc_type* t) {
     }
     ereport(
         ERROR,
-        (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-         errmsg(
-             "pg_clickhouse: could not prepare insert - unsupported column type: %s",
-             chc_type_name(t, NULL)
-         ))
+        errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+        errmsg(
+            "pg_clickhouse: could not prepare insert - unsupported column type: %s",
+            chc_type_name(t, NULL)
+        )
     );
 }
 
@@ -313,8 +322,8 @@ recv_initial_block(struct ch_binary_state* s, ch_binary_insert_handle* h) {
             chc_packet_clear(s->client, &pkt);
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_ERROR),
-                 errmsg("pg_clickhouse: could not prepare insert - %s", msg_copy))
+                errcode(ERRCODE_FDW_ERROR),
+                errmsg("pg_clickhouse: could not prepare insert - %s", msg_copy)
             );
         }
         if (pkt.kind == CHC_PKT_DATA && pkt.block &&
@@ -501,12 +510,12 @@ resolve_col(ch_binary_insert_handle* h, size_t col_idx, bool isnull) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_NOT_NULL_VIOLATION),
-             errmsg(
-                 "pg_clickhouse: cannot append NULL to NOT NULL %.*s column",
-                 (int)tnlen,
-                 tname ? tname : "?"
-             ))
+            errcode(ERRCODE_NOT_NULL_VIOLATION),
+            errmsg(
+                "pg_clickhouse: cannot append NULL to NOT NULL %.*s column",
+                (int)tnlen,
+                tname ? tname : "?"
+            )
         );
     }
     if (!h->array_active && c->is_nullable) {
@@ -548,8 +557,8 @@ decimal_text_to_bytes(const char* s, uint32_t scale, size_t width, uint8_t* out)
     if (!s) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-             errmsg("pg_clickhouse: decimal parse failure"))
+            errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+            errmsg("pg_clickhouse: decimal parse failure")
         );
     }
     if (*s == '-') {
@@ -577,10 +586,10 @@ decimal_text_to_bytes(const char* s, uint32_t scale, size_t width, uint8_t* out)
         if (c < '0' || c > '9') {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg(
-                     "pg_clickhouse: cannot encode \"%s\" as ClickHouse Decimal", input
-                 ))
+                errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+                errmsg(
+                    "pg_clickhouse: cannot encode \"%s\" as ClickHouse Decimal", input
+                )
             );
         }
         uint64_t carry = (uint64_t)(c - '0');
@@ -646,8 +655,8 @@ append_int_kind(ic_col* c, int64_t val) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg("pg_clickhouse: int value into non-integer column"))
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: int value into non-integer column")
         );
     }
 }
@@ -783,12 +792,10 @@ ch_binary_append_bytes(
         if (!found) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-                 errmsg(
-                     "pg_clickhouse: enum value '%.*s' not found",
-                     (int)n,
-                     (const char*)p
-                 ))
+                errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                errmsg(
+                    "pg_clickhouse: enum value '%.*s' not found", (int)n, (const char*)p
+                )
             );
         }
         if (k == CHC_ENUM8) {
@@ -814,8 +821,8 @@ ch_binary_append_bytes(
     }
     ereport(
         ERROR,
-        (errcode(ERRCODE_DATATYPE_MISMATCH),
-         errmsg("pg_clickhouse: bytes into non-text column"))
+        errcode(ERRCODE_DATATYPE_MISMATCH),
+        errmsg("pg_clickhouse: bytes into non-text column")
     );
 }
 
@@ -848,8 +855,8 @@ ch_binary_append_decimal(
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg("pg_clickhouse: decimal into non-decimal column"))
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: decimal into non-decimal column")
         );
     }
     uint8_t raw[32] = {};
@@ -931,8 +938,8 @@ ch_binary_append_inet(
     }
     ereport(
         ERROR,
-        (errcode(ERRCODE_DATATYPE_MISMATCH),
-         errmsg("pg_clickhouse: cannot insert inet into non-inet column"))
+        errcode(ERRCODE_DATATYPE_MISMATCH),
+        errmsg("pg_clickhouse: cannot insert inet into non-inet column")
     );
 }
 
@@ -959,8 +966,8 @@ ch_binary_append_date_seconds(
     } else {
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg("pg_clickhouse: date into non-date column"))
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: date into non-date column")
         );
     }
     MemoryContextSwitchTo(old);
@@ -1007,8 +1014,8 @@ ch_binary_array_begin(ch_binary_insert_handle* h, size_t col) {
     if (idx >= h->ncols) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: array_begin: col out of range"))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: array_begin: col out of range")
         );
     }
     ic_col* c = &h->cols[idx];
@@ -1017,15 +1024,15 @@ ch_binary_array_begin(ch_binary_insert_handle* h, size_t col) {
         c->layout != IC_ARRAY_NESTED_FIXED && c->layout != IC_ARRAY_NESTED_STRING) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: array_begin: column is not Array"))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: array_begin: column is not Array")
         );
     }
     if (c->array_depth >= c->ndim) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: array_begin: nesting exceeds column ndim"))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: array_begin: nesting exceeds column ndim")
         );
     }
     if (c->array_depth == 0) {
@@ -1540,8 +1547,8 @@ ch_binary_finalize_insert(ch_binary_insert_handle* h) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: could not finish INSERT - %s", parent_msg))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: could not finish INSERT - %s", parent_msg)
         );
     }
 }

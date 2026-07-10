@@ -24,12 +24,13 @@ allocate_list(size_t size, int allocate) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR), errmsg("unknown kv_pair_alloc %i", allocate))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("unknown kv_pair_alloc %i", allocate)
         );
     }
 
     if (!pairs) {
-        ereport(ERROR, (errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory")));
+        ereport(ERROR, errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory"));
     }
 
     return pairs;
@@ -80,16 +81,12 @@ new_kv_list_from_pg_list(List* list, int allocate) {
 
 extern kv_iter
 new_kv_iter(const kv_list* ns) {
-    char* name;
-
-    /* The list may be NULL or empty. */
-    if (!ns || ns->length < 1) {
+    /* The list may be NULL. */
+    if (!ns) {
         return (kv_iter){ 0 };
     }
 
-    /* Grab the number of pairs point to the first name and value. */
-    name = (char*)ns->data;
-    return (kv_iter){ ns->length, name, name + strlen(name) + 1 };
+    return (kv_iter){ ns->length, (char*)ns->data, NULL, NULL };
 }
 
 extern bool
@@ -97,15 +94,10 @@ kv_iter_next(kv_iter* iter) {
     if (iter->togo == 0) {
         return false;
     }
-
-    /* Point to the the next name and value. */
     iter->togo--;
-    iter->name  = iter->value + strlen(iter->value) + 1;
-    iter->value = iter->name + strlen(iter->name) + 1;
-    return true;
-}
 
-extern bool
-kv_iter_done(kv_iter* iter) {
-    return iter->togo == 0;
+    iter->name  = iter->next;
+    iter->value = iter->name + strlen(iter->name) + 1;
+    iter->next  = iter->value + strlen(iter->value) + 1;
+    return true;
 }

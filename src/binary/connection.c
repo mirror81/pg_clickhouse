@@ -58,9 +58,9 @@ parse_compression(const char* s) {
 
     ereport(
         ERROR,
-        (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
-         errmsg("pg_clickhouse: invalid compression \"%s\"", s),
-         errhint("valid values: none, lz4, zstd"))
+        errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+        errmsg("pg_clickhouse: invalid compression \"%s\"", s),
+        errhint("valid values: none, lz4, zstd")
     );
 }
 
@@ -106,10 +106,10 @@ tcp_connect(const char* host, int port) {
     if (rc != 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg(
-                 "pg_clickhouse: getaddrinfo(%s:%d): %s", host, port, gai_strerror(rc)
-             ))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg(
+                "pg_clickhouse: getaddrinfo(%s:%d): %s", host, port, gai_strerror(rc)
+            )
         );
     }
 
@@ -133,10 +133,10 @@ tcp_connect(const char* host, int port) {
     if (fd < 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg(
-                 "pg_clickhouse: connect(%s:%d): %s", host, port, strerror(save_errno)
-             ))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg(
+                "pg_clickhouse: connect(%s:%d): %s", host, port, strerror(save_errno)
+            )
         );
     }
 
@@ -182,9 +182,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
     if (!s->ssl_ctx) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: failed to initialize opensssl"),
-             errdetail("SSL_CTX_new failed"))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: failed to initialize opensssl"),
+            errdetail("SSL_CTX_new failed")
         );
     }
 
@@ -193,9 +193,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
     if (min_proto != 0 && SSL_CTX_set_min_proto_version(s->ssl_ctx, min_proto) != 1) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: failed to initialize openssl"),
-             errdetail("could not set minimum TLS protocol version"))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: failed to initialize openssl"),
+            errdetail("could not set minimum TLS protocol version")
         );
     }
     /* Authenticate server: verify chain against system CAs and hostname. */
@@ -203,9 +203,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
     if (SSL_CTX_set_default_verify_paths(s->ssl_ctx) != 1) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: failed to initialize openssl"),
-             errdetail("could not load default CA certificates"))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: failed to initialize openssl"),
+            errdetail("could not load default CA certificates")
         );
     }
 
@@ -213,9 +213,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
     if (!s->ssl) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: failed to initialize opensssl"),
-             errdetail("SSL_new failed"))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: failed to initialize opensssl"),
+            errdetail("SSL_new failed")
         );
     }
     SSL_set_tlsext_host_name(s->ssl, host);
@@ -223,9 +223,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
     if (SSL_set1_host(s->ssl, host) != 1) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: failed to initialize openssl"),
-             errdetail("could not set certificate verification host"))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: failed to initialize openssl"),
+            errdetail("could not set certificate verification host")
         );
     }
     SSL_set_fd(s->ssl, s->fd);
@@ -250,9 +250,9 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-             errmsg("pg_clickhouse: openssl failed to connect"),
-             errdetail("%s", ebuf))
+            errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+            errmsg("pg_clickhouse: openssl failed to connect"),
+            errdetail("%s", ebuf)
         );
     }
 }
@@ -260,7 +260,8 @@ tls_connect(struct ch_binary_state* s, const char* host, tls_version min_version
 ch_binary_connection_t*
 ch_binary_connect(ch_connection_details* details) {
     const char* host = details->host ? details->host : "127.0.0.1";
-    int port         = details->port;
+    /* volatile: set before PG_TRY setjmp, read inside */
+    volatile int port = details->port;
     bool tls;
 
     switch (details->tls) {

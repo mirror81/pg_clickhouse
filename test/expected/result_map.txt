@@ -36,6 +36,18 @@ array_functions.sql
  24.3+      | array_functions.out
  23         | array_functions_2.out
 
+binary.sql
+----------
+
+ Postgres | File
+----------|-------------
+ 13-19    | binary.out
+
+ ClickHouse | File
+------------|--------------
+ 26+        | binary.out
+ < 26       | binary_1.out
+
 binary_inserts.sql
 ------------------
 
@@ -109,7 +121,8 @@ functions.sql
 ----------|---------------
  19       | functions.out
  18       | functions_1.out
- 14-17    | functions_2.out
+ 15-17    | functions_2.out
+ 14       | functions_0.out
  13       | functions_3.out
 
  ClickHouse | File

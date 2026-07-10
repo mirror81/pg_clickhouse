@@ -380,11 +380,11 @@ clickhouse_raw_query(PG_FUNCTION_ARGS) {
     } else {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
-             errmsg(
-                 "pg_clickhouse: invalid ClickHouse connection driver \"%s\"",
-                 details->driver
-             ))
+            errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+            errmsg(
+                "pg_clickhouse: invalid ClickHouse connection driver \"%s\"",
+                details->driver
+            )
         );
     }
 
@@ -453,15 +453,15 @@ clickhouse_query(PG_FUNCTION_ARGS) {
     if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo)) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("set-valued function called in context that cannot accept a set"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("set-valued function called in context that cannot accept a set")
         );
     }
     if (!(rsinfo->allowedModes & SFRM_Materialize)) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("materialize mode required, but it is not allowed in this context"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("materialize mode required, but it is not allowed in this context")
         );
     }
 
@@ -469,8 +469,8 @@ clickhouse_query(PG_FUNCTION_ARGS) {
     if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("a column definition list is required for clickhouse_query"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("a column definition list is required for clickhouse_query")
         );
     }
 
@@ -556,11 +556,11 @@ get_fetch_size_option(DefElem* def) {
     if (fetch_size < 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
-             errmsg(
-                 "invalid value for option \"%s\": %s", def->defname, defGetString(def)
-             ),
-             errhint("fetch_size must be greater than or equal to 0"))
+            errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+            errmsg(
+                "invalid value for option \"%s\": %s", def->defname, defGetString(def)
+            ),
+            errhint("fetch_size must be greater than or equal to 0")
         );
     }
 
@@ -1506,15 +1506,15 @@ clickhousePlanForeignModify(
     case CMD_UPDATE:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("ClickHouse does not support updates"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("ClickHouse does not support updates")
         );
         break;
     case CMD_DELETE:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("ClickHouse does not support deletes"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("ClickHouse does not support deletes")
         );
         break;
     default:

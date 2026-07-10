@@ -96,8 +96,8 @@ setup_curl(HttpStream* stream, const ch_query* query) {
     snprintf(temp_buf, sizeof(temp_buf), "query_id=%s", stream->query_id);
     curl_url_set(cu, CURLUPART_QUERY, temp_buf, CURLU_APPENDQUERY | CURLU_URLENCODE);
 
-    for (kv_iter iter = new_kv_iter(query->settings); !kv_iter_done(&iter);
-         kv_iter_next(&iter)) {
+    kv_iter iter = new_kv_iter(query->settings);
+    while (kv_iter_next(&iter)) {
         if (strcmp(iter.name, "date_time_output_format") == 0 ||
             strcmp(iter.name, "format_tsv_null_representation") == 0 ||
             strcmp(iter.name, "output_format_tsv_crlf_end_of_line") == 0) {

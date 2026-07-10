@@ -88,8 +88,8 @@ clickhouse_connect(ForeignServer* server, UserMapping* user) {
     } else {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
-             errmsg("invalid ClickHouse connection driver"))
+            errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+            errmsg("invalid ClickHouse connection driver")
         );
     }
 }
@@ -131,10 +131,11 @@ get_connection_entry(UserMapping* user) {
     entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
     if (!found) {
         /*
-         * We need only clear "conn" here; remaining fields will be filled
-         * later when "conn" is set.
+         * Clear "conn" and "busy"; remaining fields are filled later when
+         * "conn" is set.
          */
         entry->gate.conn = NULL;
+        entry->busy      = false;
     }
 
     /*
@@ -379,8 +380,8 @@ connstring_parse(const char* connstring) {
         } else if (strcmp(pname, "") != 0) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                 errmsg("pg_clickhouse: invalid connection option \"%s\"", pname))
+                errcode(ERRCODE_SYNTAX_ERROR),
+                errmsg("pg_clickhouse: invalid connection option \"%s\"", pname)
             );
         }
     }

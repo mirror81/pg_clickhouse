@@ -32,7 +32,8 @@ inline static void
 ch_http_parse_error(const char* msg) {
     ereport(
         ERROR,
-        (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("pg_clickhouse: %s", msg))
+        errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+        errmsg("pg_clickhouse: %s", msg)
     );
 }
 
@@ -152,8 +153,8 @@ ch_http_read_next(ch_http_read_state* state, bool is_array) {
     if (data[state->curpos] != '\n') {
         ereport(
             ERROR,
-            (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-             errmsg("unexpected byte (%d) after array", data[state->curpos]))
+            errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+            errmsg("unexpected byte (%d) after array", data[state->curpos])
         );
     }
 

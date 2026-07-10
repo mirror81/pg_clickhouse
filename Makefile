@@ -23,8 +23,9 @@ OBJS = $(subst .c,.o, $(wildcard src/*.c src/*/*.c))
 # CH_C_DIR to point elsewhere when developing against a local checkout.
 CH_C_DIR ?= vendor/clickhouse-c
 
-# Add include directories.
-PG_CPPFLAGS = -I./src/include -I$(CH_C_DIR)
+# Own headers via -I; vendored and PG server headers via -isystem so their
+# own warnings (eg -Wsign-compare in PG array.h macros) don't trip -Werror.
+PG_CPPFLAGS = -I./src/include -isystem $(CH_C_DIR) -isystem $(shell $(PG_CONFIG) --includedir-server)
 
 # Link OpenSSL (for TLS in the binary driver), curl (for the HTTP driver),
 # libuuid (for http_streaming.c's query-id generator), and lz4 / zstd
@@ -36,8 +37,11 @@ ifneq ($(OS),darwin)
 	PG_LDFLAGS += -luuid
 endif
 
-# Suppress annoying pre-c99 warning, error on other warnings, include curl.
-PG_CFLAGS = -Wno-declaration-after-statement -Wall -Werror $(shell $(CURL_CONFIG) --cflags)
+# -Wclobbered catches vars live across PG_TRY's setjmp that aren't volatile.
+# GCC-only: Probe $(CC) before adding.
+WCLOBBERED = $(shell $(CC) -Werror -Wclobbered -x c -c /dev/null -o /dev/null >/dev/null 2>&1 && echo -Wclobbered)
+
+PG_CFLAGS = -Wno-declaration-after-statement -Wall $(WCLOBBERED) -Wsign-compare -Werror $(shell $(CURL_CONFIG) --cflags)
 
 # Clean up generated files.
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql src/include/version.h compile_commands.json test/schedule $(EXTENSION)-$(DISTVERSION).zip

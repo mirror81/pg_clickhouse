@@ -9,10 +9,10 @@
 #include <internal.h>
 
 static char curl_error_buffer[CURL_ERROR_SIZE];
-static bool curl_error_happened = false;
-static long curl_verbose        = 0;
-static void* curl_progressfunc  = NULL;
-static bool curl_initialized    = false;
+static bool curl_error_happened                 = false;
+static long curl_verbose                        = 0;
+static curl_xferinfo_callback curl_progressfunc = NULL;
+static bool curl_initialized                    = false;
 static char ch_query_id_prefix[5];
 
 void
@@ -27,11 +27,11 @@ ch_http_init(int verbose, uint32_t query_id_prefix) {
 }
 
 void
-ch_http_set_progress_func(void* progressfunc) {
+ch_http_set_progress_func(curl_xferinfo_callback progressfunc) {
     curl_progressfunc = progressfunc;
 }
 
-void*
+curl_xferinfo_callback
 ch_http_get_progress_func(void) {
     return curl_progressfunc;
 }
@@ -127,11 +127,18 @@ ch_http_connection(ch_connection_details* details) {
 
     if (username) {
         username = curl_easy_escape(conn->curl, username, 0);
+        if (username == NULL) {
+            goto cleanup;
+        }
         len += strlen(username);
     }
 
     if (password) {
         password = curl_easy_escape(conn->curl, password, 0);
+        if (password == NULL) {
+            curl_free(username);
+            goto cleanup;
+        }
         len += strlen(password);
     }
 

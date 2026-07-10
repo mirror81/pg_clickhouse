@@ -18,15 +18,19 @@ typedef struct kv_list {
 } kv_list;
 
 /*
- * Iterator for a kv_list. Use new_kv_iter() to create.
+ * Iterator for a kv_list. Use new_kv_iter() to create; name and value are
+ * valid only after kv_iter_next() returns true.
  *
- *     for (kv_iter iter = new_kv_iter(kv); !kv_iter_done(&iter); kv_iter_next(&iter))
+ *     kv_iter iter = new_kv_iter(kv);
+ *     while (kv_iter_next(&iter))
  *     {
- *         printf("%i, %s => %s\n", iter.num, iter.name, iter.value);
+ *         printf("%s => %s\n", iter.name, iter.value);
  *     }
  */
 typedef struct kv_iter {
     int togo;
+    /* Next unread name; one past end after last pair, never dereferenced. */
+    char* next;
     char* name;
     char* value;
 } kv_iter;
@@ -53,12 +57,8 @@ new_kv_list_from_pg_list(List* list, int allocate);
 kv_iter
 new_kv_iter(const kv_list* ns);
 
-/* Iterate to the next item. Returns false if there are no items. */
+/* Advance to the next item. Returns false when no items remain. */
 bool
 kv_iter_next(kv_iter* state);
-
-/* Returns true if iteration by kv_iter is complete. */
-bool
-kv_iter_done(kv_iter* state);
 
 #endif /* PG_CLICKHOUSE_KV_LIST_H */

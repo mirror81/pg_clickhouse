@@ -99,7 +99,6 @@ raise_chc(const chc_err* err, int sqlstate, const char* prefix) {
     const char* m = (err && err->msg[0]) ? err->msg : "unknown error";
 
     ereport(
-        ERROR,
-        (errcode(sqlstate), errmsg("pg_clickhouse: %s%s", prefix ? prefix : "", m))
+        ERROR, errcode(sqlstate), errmsg("pg_clickhouse: %s%s", prefix ? prefix : "", m)
     );
 }

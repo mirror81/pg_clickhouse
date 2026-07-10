@@ -118,10 +118,10 @@ static libclickhouse_methods binary_methods = {
 static int
 http_progress_callback(
     void* clientp,
-    double dltotal,
-    double dlnow,
-    double ultotal,
-    double ulnow
+    curl_off_t dltotal,
+    curl_off_t dlnow,
+    curl_off_t ultotal,
+    curl_off_t ulnow
 ) {
     if (ProcDiePending || QueryCancelPending) {
         return 1;
@@ -182,8 +182,8 @@ chfdw_http_connect(ch_connection_details* details) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-             errmsg("could not connect to server: %s", error))
+            errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+            errmsg("could not connect to server: %s", error)
         );
     }
 
@@ -218,7 +218,7 @@ static char*
 format_error(char* errstring) {
     size_t n = strlen(errstring);
 
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (strncmp(errstring + i, "version", 7) == 0) {
             return pnstrdup(errstring, i - 2);
         }
@@ -270,19 +270,19 @@ report_http_stream_query_failure(
             kill_query(conn, qid);
             ereport(
                 ERROR,
-                (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-                 errmsg("pg_clickhouse: query was aborted"))
+                errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+                errmsg("pg_clickhouse: query was aborted")
             );
         } else if (status == CH_HTTP_STATUS_TRANSPORT_ERROR) {
             const char* err = ch_http_stream_error(stream);
 
             ereport(
                 ERROR,
-                (errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-                 errmsg(
-                     "pg_clickhouse: communication error: %s",
-                     err ? err : "connection error"
-                 ))
+                errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+                errmsg(
+                    "pg_clickhouse: communication error: %s",
+                    err ? err : "connection error"
+                )
             );
         } else {
             char* error = pnstrdup(
@@ -291,12 +291,11 @@ report_http_stream_query_failure(
 
             ereport(
                 ERROR,
-                (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-                 errmsg("pg_clickhouse: %s", format_error(error)),
-                 status < 404
-                     ? 0
-                     : errdetail_internal("Remote Query: %.64000s", query->sql),
-                 errcontext("HTTP status code: %li", status))
+                errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+                errmsg("pg_clickhouse: %s", format_error(error)),
+                status < 404 ? 0
+                             : errdetail_internal("Remote Query: %.64000s", query->sql),
+                errcontext("HTTP status code: %li", status)
             );
         }
     }
@@ -307,8 +306,14 @@ report_http_stream_query_failure(
 
 static ch_cursor*
 http_simple_query(void* conn, const ch_query* query) {
-    int attempts          = 0;
-    MemoryContext tempcxt = NULL, oldcxt;
+    int attempts = 0;
+    /*
+     * volatile: changed after setjmp (PG_TRY) and read after longjmp
+     * (PG_CATCH); longjmp needn't restore register-cached locals, so a
+     * non-volatile such local has an indeterminate value per C setjmp rules.
+     */
+    volatile MemoryContext tempcxt = NULL;
+    MemoryContext oldcxt;
     ch_cursor* cursor;
     ch_http_response_t* resp;
 
@@ -317,7 +322,7 @@ http_simple_query(void* conn, const ch_query* query) {
 again:
     resp = ch_http_simple_query(conn, query);
     if (resp == NULL) {
-        ereport(ERROR, (errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory")));
+        ereport(ERROR, errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory"));
     }
 
     attempts++;
@@ -332,8 +337,8 @@ again:
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-             errmsg("pg_clickhouse: communication error: %s", error))
+            errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+            errmsg("pg_clickhouse: communication error: %s", error)
         );
     } else if (resp->http_status == CH_HTTP_STATUS_CANCELED) {
         kill_query(conn, resp->query_id);
@@ -341,8 +346,8 @@ again:
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: query was aborted"))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: query was aborted")
         );
     } else if (resp->http_status != CH_HTTP_STATUS_OK) {
         char* error = pnstrdup(resp->data, resp->datasize);
@@ -352,11 +357,10 @@ again:
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: %s", format_error(error)),
-             status < 404 ? 0
-                          : errdetail_internal("Remote Query: %.64000s", query->sql),
-             errcontext("HTTP status code: %li", status))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: %s", format_error(error)),
+            status < 404 ? 0 : errdetail_internal("Remote Query: %.64000s", query->sql),
+            errcontext("HTTP status code: %li", status)
         );
     }
 
@@ -413,8 +417,8 @@ http_simple_insert(void* conn, const ch_query* query) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
-             errmsg("pg_clickhouse: communication error: %s", error))
+            errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
+            errmsg("pg_clickhouse: communication error: %s", error)
         );
     }
 
@@ -426,11 +430,10 @@ http_simple_insert(void* conn, const ch_query* query) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: %s", format_error(error)),
-             status < 404 ? 0
-                          : errdetail_internal("Remote Query: %.64000s", query->sql),
-             errcontext("HTTP status code: %li", status))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: %s", format_error(error)),
+            status < 404 ? 0 : errdetail_internal("Remote Query: %.64000s", query->sql),
+            errcontext("HTTP status code: %li", status)
         );
     }
 
@@ -455,8 +458,14 @@ http_streaming_cursor_free(void* c) {
  */
 static ch_cursor*
 http_streaming_query(void* conn, const ch_query* query, int32 fetch_size) {
-    int attempts          = 0;
-    MemoryContext tempcxt = NULL, oldcxt;
+    int attempts = 0;
+    /*
+     * volatile: changed after setjmp (PG_TRY) and read after longjmp
+     * (PG_CATCH); longjmp needn't restore register-cached locals, so a
+     * non-volatile such local has an indeterminate value per C setjmp rules.
+     */
+    volatile MemoryContext tempcxt = NULL;
+    MemoryContext oldcxt;
     ch_cursor* cursor;
     HttpStream* stream;
 
@@ -467,8 +476,8 @@ again:
     if (stream == NULL) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_INTERNAL_ERROR),
-             errmsg("pg_clickhouse: failed to initialize HTTP stream"))
+            errcode(ERRCODE_INTERNAL_ERROR),
+            errmsg("pg_clickhouse: failed to initialize HTTP stream")
         );
     }
 
@@ -559,18 +568,18 @@ http_streaming_fetch_row(ChFdwScanRowContext* ctx) {
                 kill_query(cursor->conn, qid);
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-                     errmsg("pg_clickhouse: query was aborted"))
+                    errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+                    errmsg("pg_clickhouse: query was aborted")
                 );
             }
             ereport(
                 ERROR,
-                (errcode(ERRCODE_CONNECTION_FAILURE),
-                 errmsg(
-                     "pg_clickhouse: streaming error - %s",
-                     ch_http_stream_error(stream) ? ch_http_stream_error(stream)
-                                                  : "unknown"
-                 ))
+                errcode(ERRCODE_CONNECTION_FAILURE),
+                errmsg(
+                    "pg_clickhouse: streaming error - %s",
+                    ch_http_stream_error(stream) ? ch_http_stream_error(stream)
+                                                 : "unknown"
+                )
             );
         }
 
@@ -606,9 +615,9 @@ http_fetch_row_from_state(ChFdwScanRowContext* ctx, ch_http_read_state* state) {
 
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: unexpected response for a zero-column result"),
-             errdetail("Expected a NULL marker (\\N) in the TabSeparated response."))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: unexpected response for a zero-column result"),
+            errdetail("Expected a NULL marker (\\N) in the TabSeparated response.")
         );
     }
 
@@ -637,7 +646,7 @@ http_fetch_row_from_state(ChFdwScanRowContext* ctx, ch_http_read_state* state) {
     /* No TupleDesc, everything is text. */
     else {
         values = palloc(attcount * sizeof(Datum));
-        for (int idx = 0; idx < attcount; idx++) {
+        for (size_t idx = 0; idx < attcount; idx++) {
             rc = ch_http_read_next(state, false);
             if (state->is_null) {
                 values[idx] = (Datum)0;
@@ -650,13 +659,13 @@ http_fetch_row_from_state(ChFdwScanRowContext* ctx, ch_http_read_state* state) {
     if (attcount > 0 && rc != CH_EOL && rc != CH_EOF) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg_internal("pg_clickhouse: columns mismatch"),
-             errdetail(
-                 "Number of returned columns does not match "
-                 "expected column count (%lu).",
-                 attcount
-             ))
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg_internal("pg_clickhouse: columns mismatch"),
+            errdetail(
+                "Number of returned columns does not match "
+                "expected column count (%lu).",
+                attcount
+            )
         );
     }
 
@@ -693,20 +702,22 @@ http_fetch_row(ChFdwScanRowContext* ctx) {
  */
 static void
 char_to_datum(ChFdwScanRowContext* ctx, int attidx, char* data, size_t len) {
-    Oid pgtype = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
+    static const char time_prefix[] = "1970-01-01T";
+    Oid pgtype                      = TupleDescAttr(ctx->tupdesc, attidx)->atttypid;
 
-    if (data && len > 0 && (pgtype == TIMEOID || pgtype == TIMETZOID) &&
-        data[len - 1] == 'Z') {
+    if (data && len > sizeof(time_prefix) - 1 &&
+        (pgtype == TIMEOID || pgtype == TIMETZOID) && data[len - 1] == 'Z') {
         /*
          * date_time_output_format=iso formats times as ISO timestamps. Remove
          * the leading `YYYY-mm-ddT`.
          */
-        data += strlen("1970-01-01T");
+        data += sizeof(time_prefix) - 1;
     } else if (pgtype == BYTEAOID) {
         /* Postgres input function won't work, we have raw data. */
         ctx->nulls[attidx] = data == NULL;
         ctx->values[attidx] =
-            PointerGetDatum((bytea*)cstring_to_text_with_len(data, len));
+            data == NULL ? (Datum)0
+                         : PointerGetDatum((bytea*)cstring_to_text_with_len(data, len));
         return;
     }
 
@@ -795,9 +806,9 @@ chfdw_datum_to_ch_literal(Datum value, Oid type) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg("cannot convert value to clickhouse value"),
-             errhint("Value data type: %u", type))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg("cannot convert value to clickhouse value"),
+            errhint("Value data type: %u", type)
         );
     }
 }
@@ -883,7 +894,7 @@ http_insert_tuple(void* istate, TupleTableSlot* slot) {
     extend_insert_query(state, slot);
 
     if ((slot == NULL && state->sql.len > 0) ||
-        state->sql.len > (MaxAllocSize / 2 /* 512MB */)) {
+        (size_t)state->sql.len > (MaxAllocSize / 2 /* 512MB */)) {
         ch_query query = new_query(state->sql.data, 0, NULL, NULL, NULL);
 
         http_simple_insert(state->conn, &query);
@@ -942,9 +953,9 @@ binary_simple_query(void* conn, const ch_query* query) {
         CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: %s", error),
-             errdetail_internal("Remote Query: %.64000s", query->sql))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: %s", error),
+            errdetail_internal("Remote Query: %.64000s", query->sql)
         );
     }
 
@@ -962,6 +973,30 @@ binary_simple_query(void* conn, const ch_query* query) {
     cursor->columns_count = ch_binary_response_columns(resp);
     ch_binary_read_state_init(cursor->read_state, resp);
     cursor->conversion_states = palloc0(sizeof(uintptr_t) * cursor->columns_count);
+    cursor->memcxt            = tempcxt;
+    cursor->callback.func     = binary_cursor_free;
+    cursor->callback.arg      = cursor;
+    MemoryContextRegisterResetCallback(tempcxt, &cursor->callback);
+
+    /*
+     * Validate declared shape before any per-column access. Empty attr_nums
+     * keeps the zero-attribute NULL sentinel handled at fetch time. Ignore
+     * columns_count == 0 (DDL) to support callers passing a placeholder
+     * column list since clickhouse_query() requires one syntactically.
+     */
+    if (query->tupdesc && query->attr_nums && cursor->columns_count > 0 &&
+        (size_t)list_length(query->attr_nums) != cursor->columns_count) {
+        ereport(
+            ERROR,
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg_internal(
+                "pg_clickhouse: returned %lu columns, expected %lu",
+                (unsigned long)cursor->columns_count,
+                (unsigned long)list_length(query->attr_nums)
+            ),
+            errdetail_internal("Remote Query: %.64000s", query->sql)
+        );
+    }
 
     /*
      * CH JSON columns default to JSONBOID in state->coltypes. When foreign
@@ -985,10 +1020,6 @@ binary_simple_query(void* conn, const ch_query* query) {
         }
     }
 
-    cursor->memcxt        = tempcxt;
-    cursor->callback.func = binary_cursor_free;
-    cursor->callback.arg  = cursor;
-    MemoryContextRegisterResetCallback(tempcxt, &cursor->callback);
     MemoryContextSwitchTo(oldcxt);
 
     if (state->error) {
@@ -996,9 +1027,9 @@ binary_simple_query(void* conn, const ch_query* query) {
         CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: %s", state->error),
-             errdetail_internal("Remote Query: %.64000s", query->sql))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: %s", state->error),
+            errdetail_internal("Remote Query: %.64000s", query->sql)
         );
     }
 
@@ -1080,8 +1111,8 @@ chfdw_binary_fetch_raw_data(ch_cursor* cursor) {
     if (state->error) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: %s", state->error))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: %s", state->error)
         );
     }
 
@@ -1139,8 +1170,8 @@ binary_fetch_row(ChFdwScanRowContext* ctx) {
         CHECK_FOR_INTERRUPTS();
         ereport(
             ERROR,
-            (errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
-             errmsg("pg_clickhouse: error while reading row: %s", state->error))
+            errcode(ERRCODE_SQL_ROUTINE_EXCEPTION),
+            errmsg("pg_clickhouse: error while reading row: %s", state->error)
         );
     }
 
@@ -1156,22 +1187,22 @@ binary_fetch_row(ChFdwScanRowContext* ctx) {
         } else {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_ERROR),
-                 errmsg(
-                     "pg_clickhouse: unexpected state: attributes "
-                     "count == 0 and haven't got NULL in the response"
-                 ))
+                errcode(ERRCODE_FDW_ERROR),
+                errmsg(
+                    "pg_clickhouse: unexpected state: attributes "
+                    "count == 0 and haven't got NULL in the response"
+                )
             );
         }
     } else if (attcount != ch_binary_response_columns(state->resp)) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg_internal(
-                 "pg_clickhouse: returned %lu columns, expected %lu",
-                 ch_binary_response_columns(state->resp),
-                 attcount
-             ))
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg_internal(
+                "pg_clickhouse: returned %lu columns, expected %lu",
+                ch_binary_response_columns(state->resp),
+                attcount
+            )
         );
     }
 
@@ -1273,7 +1304,7 @@ binary_prepare_insert(
     MemoryContext tempcxt, oldcxt;
 
     if (table_name == NULL) {
-        ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("expected table name")));
+        ereport(ERROR, errcode(ERRCODE_FDW_ERROR), errmsg("expected table name"));
     }
 
     tempcxt = AllocSetContextCreate(
@@ -1330,7 +1361,7 @@ binary_insert_tuple(void* istate, TupleTableSlot* slot) {
 
         ch_binary_do_output_conversion(state, slot);
 
-        for (size_t i = 0; i < state->outdesc->natts; i++) {
+        for (size_t i = 0; i < (size_t)state->outdesc->natts; i++) {
             ch_binary_column_append_data(state, i);
         }
 
@@ -1419,17 +1450,27 @@ parse_type(
     char* pos      = strstr(typepart, "(");
 
     if (pos != NULL) {
-        char* insidebr = pnstrdup(pos + 1, strrchr(typepart, ')') - pos - 1);
+        char* end = strrchr(typepart, ')');
+        char* insidebr;
+
+        if (end == NULL || end < pos) {
+            ereport(
+                ERROR,
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg("pg_clickhouse: malformed ClickHouse type \"%s\"", typepart)
+            );
+        }
+        insidebr = pnstrdup(pos + 1, end - pos - 1);
 
         if (strncmp(typepart, "Decimal", strlen("Decimal")) == 0) {
             if (strstr(insidebr, ",") == NULL) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                     errmsg(
-                         "pg_clickhouse: could not import Decimal field, "
-                         "should be two parameters on definition"
-                     ))
+                    errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                    errmsg(
+                        "pg_clickhouse: could not import Decimal field, "
+                        "should be two parameters on definition"
+                    )
                 );
             }
 
@@ -1461,8 +1502,8 @@ parse_type(
             if (is_nullable == NULL) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("pg_clickhouse: nested Nullable is not supported"))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("pg_clickhouse: nested Nullable is not supported")
                 );
             }
 
@@ -1485,8 +1526,8 @@ parse_type(
                 }
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                     errmsg("pg_clickhouse: expected comma in AggregateFunction"))
+                    errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                    errmsg("pg_clickhouse: expected comma in AggregateFunction")
                 );
             }
 
@@ -1516,12 +1557,12 @@ parse_type(
 
     ereport(
         ERROR,
-        (errmsg(
+        errmsg(
             "pg_clickhouse: could not map %s.%s type <%s>",
             quote_identifier(table_name),
             quote_identifier(colname),
             part
-        ))
+        )
     );
 }
 

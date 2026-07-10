@@ -363,6 +363,41 @@ CREATE FOREIGN TABLE ft_nullmark (id text, s text)
 SELECT id, s, length(s), s IS NULL AS is_null
 FROM ft_nullmark ORDER BY id;
 
+/*
+ * bytea columns take raw bytes without the input function. NULL maps to SQL
+ * NULL, empty string stays empty, embedded zero bytes survive.
+ */
+SELECT clickhouse_raw_query('CREATE TABLE http_test.t_bytea
+    (id String, v Nullable(String)) ENGINE = MergeTree ORDER BY id');
+SELECT clickhouse_raw_query('INSERT INTO http_test.t_bytea VALUES
+    (''1'', NULL),
+    (''2'', ''''),
+    (''3'', char(97, 0, 98)),
+    (''4'', ''plain'')');
+
+CREATE FOREIGN TABLE ft_bytea (id text, v bytea)
+    SERVER http_loopback OPTIONS (table_name 't_bytea');
+
+SELECT id, v, v IS NULL AS is_null, octet_length(v) FROM ft_bytea ORDER BY id;
+
+/*
+ * time columns strip the exact ISO epoch date prefix. Shorter values or ones
+ * with another prefix route through the input function unchanged.
+ */
+SELECT clickhouse_raw_query('CREATE TABLE http_test.t_timestr
+    (id String, v String) ENGINE = MergeTree ORDER BY id');
+SELECT clickhouse_raw_query('INSERT INTO http_test.t_timestr VALUES
+    (''1'', ''Z''),
+    (''2'', ''xZ''),
+    (''3'', ''1970-01-01T00:00:00Z'')');
+
+CREATE FOREIGN TABLE ft_timestr (id text, v time)
+    SERVER http_loopback OPTIONS (table_name 't_timestr');
+
+SELECT v FROM ft_timestr WHERE id = '3';
+SELECT v FROM ft_timestr WHERE id = '1';
+SELECT v FROM ft_timestr WHERE id = '2';
+
 /* nested arrays via http (TabSeparated): rectangular maps to multi-dim,
  * jagged shapes route through array_in and surface its malformed-literal
  * error -- matching the binary path. */

@@ -23,6 +23,16 @@ NOTICE:  ERR 42601 - pg_clickhouse: missing comma after "join_use_nulls" value i
  join_use_nulls     | 1
 (3 rows)
 
+      name      | value 
+----------------+-------
+ join_use_nulls | 1
+(1 row)
+
+      name      | value 
+----------------+-------
+ join_use_nulls | 1
+(1 row)
+
        pg_clickhouse.session_settings        
 ---------------------------------------------
                                             +

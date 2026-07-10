@@ -131,9 +131,9 @@ clickhouse_fdw_validator(PG_FUNCTION_ARGS) {
 
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
-                 errmsg("invalid option \"%s\"", def->defname),
-                 errhint("Valid options in this context are: %s", buf.data))
+                errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+                errmsg("invalid option \"%s\"", def->defname),
+                errhint("Valid options in this context are: %s", buf.data)
             );
         }
 
@@ -151,9 +151,9 @@ clickhouse_fdw_validator(PG_FUNCTION_ARGS) {
                 strcmp(val, "auto") != 0) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
-                     errmsg("invalid value for option \"secure\": \"%s\"", val),
-                     errhint("Valid values are: on, off, auto."))
+                    errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
+                    errmsg("invalid value for option \"secure\": \"%s\"", val),
+                    errhint("Valid values are: on, off, auto.")
                 );
             }
         }
@@ -165,11 +165,9 @@ clickhouse_fdw_validator(PG_FUNCTION_ARGS) {
             if (!parse_min_tls_version(val, &v)) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
-                     errmsg(
-                         "invalid value for option \"min_tls_version\": \"%s\"", val
-                     ),
-                     errhint("Valid values are: TLSv1, TLSv1.1, TLSv1.2, TLSv1.3."))
+                    errcode(ERRCODE_FDW_INVALID_STRING_FORMAT),
+                    errmsg("invalid value for option \"min_tls_version\": \"%s\"", val),
+                    errhint("Valid values are: TLSv1, TLSv1.1, TLSv1.2, TLSv1.3.")
                 );
             }
         }
@@ -221,7 +219,7 @@ InitChFdwOptions(void) {
         sizeof(ChFdwOption) * num_ch_opts + sizeof(non_ch_options)
     );
     if (clickhouse_fdw_options == NULL) {
-        ereport(ERROR, (errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory")));
+        ereport(ERROR, errcode(ERRCODE_FDW_OUT_OF_MEMORY), errmsg("out of memory"));
     }
 
     popt = clickhouse_fdw_options;
@@ -257,11 +255,11 @@ validate_fetch_size_option(DefElem* def) {
     if (fetch_size < 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
-             errmsg(
-                 "invalid value for option \"%s\": %s", def->defname, defGetString(def)
-             ),
-             errhint("fetch_size must be greater than or equal to 0"))
+            errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+            errmsg(
+                "invalid value for option \"%s\": %s", def->defname, defGetString(def)
+            ),
+            errhint("fetch_size must be greater than or equal to 0")
         );
     }
 }
@@ -535,12 +533,12 @@ chfdw_parse_options(const char* options_string, bool with_comma, bool with_equal
             if (cp2 == pval) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg(
-                         "pg_clickhouse: missing value for parameter \"%s\" in options "
-                         "string",
-                         pname
-                     ))
+                    errcode(ERRCODE_SYNTAX_ERROR),
+                    errmsg(
+                        "pg_clickhouse: missing value for parameter \"%s\" in options "
+                        "string",
+                        pname
+                    )
                 );
             }
         } else {
@@ -581,12 +579,12 @@ chfdw_parse_options(const char* options_string, bool with_comma, bool with_equal
                 } else if (*cp != '\0') {
                     ereport(
                         ERROR,
-                        (errcode(ERRCODE_SYNTAX_ERROR),
-                         errmsg(
-                             "pg_clickhouse: missing comma after \"%s\" value in "
-                             "options string",
-                             pname
-                         ))
+                        errcode(ERRCODE_SYNTAX_ERROR),
+                        errmsg(
+                            "pg_clickhouse: missing comma after \"%s\" value in "
+                            "options string",
+                            pname
+                        )
                     );
                 }
             }

@@ -261,11 +261,12 @@ ch_binary_simple_query(
         settings = palloc0(n_settings * sizeof(*settings));
         size_t i = 0;
 
-        for (kv_iter it = new_kv_iter(query->settings); !kv_iter_done(&it);
-             kv_iter_next(&it), i++) {
+        kv_iter it = new_kv_iter(query->settings);
+        while (kv_iter_next(&it)) {
             settings[i].name      = it.name;
             settings[i].value     = it.value;
             settings[i].important = true;
+            i++;
         }
         if (want_json_as_string) {
             settings[i].name      = "output_format_native_write_json_as_string";

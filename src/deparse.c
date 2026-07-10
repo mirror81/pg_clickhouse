@@ -168,7 +168,7 @@ typedef struct deparse_expr_cxt {
 #define CSTRING_TOLOWER(str)                                                           \
     do {                                                                               \
         for (int i = 0; str[i]; i++) {                                                 \
-            str[i] = tolower(str[i]);                                                  \
+            str[i] = tolower((unsigned char)str[i]);                                   \
         }                                                                              \
     } while (0)
 
@@ -1851,8 +1851,8 @@ deparseTargetList(
         )) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("clickhouse does not support system columns"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("clickhouse does not support system columns")
         );
     }
 
@@ -2336,8 +2336,8 @@ deparseColumnRef(
     if (varattno <= 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("ClickHouse does not support system attributes"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("ClickHouse does not support system attributes")
         );
     }
 
@@ -2669,8 +2669,8 @@ ch_timestamp_out(PG_FUNCTION_ARGS) {
     } else {
         ereport(
             ERROR,
-            (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
-             errmsg("timestamp out of range"))
+            errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
+            errmsg("timestamp out of range")
         );
     }
 
@@ -2805,8 +2805,8 @@ deparseArray(Datum arr, deparse_expr_cxt* context) {
     if (context->array_as_tuple && ndims > 1) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("pg_clickhouse: tuple-formatted arrays must be one-dimensional"))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg("pg_clickhouse: tuple-formatted arrays must be one-dimensional")
         );
     }
 
@@ -2927,8 +2927,8 @@ deparseConst(Const* node, deparse_expr_cxt* context, int showtype) {
         if (ival->month != 0) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                 errmsg("cannot convert interval with months into clickhouse"))
+                errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                errmsg("cannot convert interval with months into clickhouse")
             );
         }
 
@@ -3158,11 +3158,11 @@ deparseSubPlan(SubPlan* node, deparse_expr_cxt* context) {
         /* Unreachable unless a new SubLinkType is added above. */
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg(
-                 "pg_clickhouse: unsupported SubLink type for deparse: %d",
-                 (int)node->subLinkType
-             ))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg(
+                "pg_clickhouse: unsupported SubLink type for deparse: %d",
+                (int)node->subLinkType
+            )
         );
     }
 }
@@ -3843,8 +3843,8 @@ deparseFuncExpr(FuncExpr* node, deparse_expr_cxt* context) {
             } else {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("date_trunc cannot be exported for: %s", trunctype))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("date_trunc cannot be exported for: %s", trunctype)
                 );
             }
 
@@ -3893,8 +3893,8 @@ deparseFuncExpr(FuncExpr* node, deparse_expr_cxt* context) {
             } else {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("date_part cannot be exported for: %s", parttype))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("date_part cannot be exported for: %s", parttype)
                 );
             }
 
@@ -4110,8 +4110,8 @@ deparseFuncExpr(FuncExpr* node, deparse_expr_cxt* context) {
             } else {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("encode cannot be exported for: %s", format))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("encode cannot be exported for: %s", format)
                 );
             }
 
@@ -4397,11 +4397,11 @@ deparseOpExpr(OpExpr* node, deparse_expr_cxt* context) {
             } else {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg(
-                         "pg_clickhouse supports hstore fetchval "
-                         "only for scalars"
-                     ))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg(
+                        "pg_clickhouse supports hstore fetchval "
+                        "only for scalars"
+                    )
                 );
             }
 
@@ -4521,8 +4521,8 @@ deparseOpExpr(OpExpr* node, deparse_expr_cxt* context) {
             } else {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-                     errmsg("unsupported type of interval"))
+                    errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("unsupported type of interval")
                 );
             }
             pfree(s);
@@ -4666,11 +4666,11 @@ deparseScalarArrayOpExpr(ScalarArrayOpExpr* node, deparse_expr_cxt* context) {
     if (optype == 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg(
-                 "pg_clickhouse supports only equal (not equal) operations on ANY/ALL "
-                 "functions"
-             ))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg(
+                "pg_clickhouse supports only equal (not equal) operations on ANY/ALL "
+                "functions"
+            )
         );
     }
 
@@ -4880,20 +4880,20 @@ appendAggOrderBySuffix(
         /* appendStringInfoString(buf, " DESC"); */
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg(
-                 "pg_clickhouse: ClickHouse does not support \"DESC\" in aggregate "
-                 "expressions"
-             ))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg(
+                "pg_clickhouse: ClickHouse does not support \"DESC\" in aggregate "
+                "expressions"
+            )
         );
     } else {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg(
-                 "pg_clickhouse: ClickHouse does not support \"USING\" in aggregate "
-                 "expressions"
-             ))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg(
+                "pg_clickhouse: ClickHouse does not support \"USING\" in aggregate "
+                "expressions"
+            )
         );
     }
 
@@ -4901,11 +4901,11 @@ appendAggOrderBySuffix(
         /* appendStringInfoString(buf, " NULLS FIRST"); */
         ereport(
             ERROR,
-            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg(
-                 "pg_clickhouse: ClickHouse does not support \"NULLS FIRST\" in "
-                 "aggregate expressions"
-             ))
+            errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+            errmsg(
+                "pg_clickhouse: ClickHouse does not support \"NULLS FIRST\" in "
+                "aggregate expressions"
+            )
         );
     } else {
         /*

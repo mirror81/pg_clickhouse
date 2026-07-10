@@ -69,6 +69,11 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed a use-after-free of a foreign scan's batch memory context on rescan
     that could corrupt memory and hang ([#296]).
 *   Fixed subsecond precision lost inserting timestamps over HTTP ([#300]).
+*   Fixed undefined behavior: out-of-bounds reads in key/value iteration, and
+    binary driver's simple query path; `CollapsingMergeTree` validation; missing
+    rejection of non-`Const`/null units in `date_trunc`/`date_part` pushdown;
+    NULL handling in record conversion; unchecked `curl_easy_escape` failures;
+    and unbounded `DateTime64` scale lookups ([#313]).
 
 ### 📚 Documentation
 
@@ -109,6 +114,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#309 add binary support to clickhouse_raw_query, add clickhouse_query"
   [#310]: https://github.com/ClickHouse/pg_clickhouse/pull/310
     "ClickHouse/pg_clickhouse#310 Disable MinMaxAgg without impacting overall query planner costs"
+  [#313]: https://github.com/ClickHouse/pg_clickhouse/pull/313
+    "ClickHouse/pg_clickhouse#313 Fix misc undefined behavior"
 
 ## [v0.3.2] — 2026-06-16
 

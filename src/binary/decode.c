@@ -98,8 +98,8 @@ ch_kind_to_pg_oid(const chc_type* type) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg("pg_clickhouse: unsupported column type"))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg("pg_clickhouse: unsupported column type")
         );
     }
     /* unreachable */
@@ -191,7 +191,7 @@ format_decimal_text(
 
     /* emit MSD-first, inserting '.' before `scale` trailing digits */
     for (int i = n - 1; i >= 0; i--) {
-        if (i + 1 == scale) {
+        if (i + 1 == (int)scale) {
             *p++ = '.';
         }
         *p++ = buf[i];
@@ -221,8 +221,7 @@ read_decimal(const chc_column* col, const chc_type* type, uint64_t row) {
     rc = format_decimal_text(p + row * es, es, scale, buf, sizeof(buf));
     if (rc < 0) {
         ereport(
-            ERROR,
-            (errcode(ERRCODE_FDW_ERROR), errmsg("pg_clickhouse: decimal too wide"))
+            ERROR, errcode(ERRCODE_FDW_ERROR), errmsg("pg_clickhouse: decimal too wide")
         );
     }
     return DirectFunctionCall3(
@@ -391,8 +390,8 @@ read_lc_string(
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: unexpected LowCardinality key size %d", ks))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: unexpected LowCardinality key size %d", ks)
         );
     }
 
@@ -416,8 +415,8 @@ read_lc_string(
     if (chc_column_layout(dict) != CHC_COL_STRING) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg("pg_clickhouse: unsupported LowCardinality inner type"))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg("pg_clickhouse: unsupported LowCardinality inner type")
         );
     }
     return read_string_as_text(dict, k);
@@ -457,11 +456,11 @@ read_array(
     if (slot->array_type == InvalidOid) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg(
-                 "pg_clickhouse: could not find array type for column type \"%s\"",
-                 chc_type_name(leaf, NULL)
-             ))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg(
+                "pg_clickhouse: could not find array type for column type \"%s\"",
+                chc_type_name(leaf, NULL)
+            )
         );
     }
 
@@ -504,8 +503,8 @@ read_tuple(
     if (n == 0) {
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_ERROR),
-             errmsg("pg_clickhouse: returned tuple is empty"))
+            errcode(ERRCODE_FDW_ERROR),
+            errmsg("pg_clickhouse: returned tuple is empty")
         );
     }
 
@@ -594,8 +593,8 @@ read_value(
         if (v > (uint64_t)PG_INT64_MAX) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-                 errmsg("value %" PRIu64 " is out of range of bigint", v))
+                errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+                errmsg("value %" PRIu64 " is out of range of bigint", v)
             );
         }
         *valtype = INT8OID;
@@ -664,8 +663,8 @@ read_value(
         if (scale >= lengthof(pow10i)) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                 errmsg("pg_clickhouse: DateTime64 scale %u out of range", scale))
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg("pg_clickhouse: DateTime64 scale %u out of range", scale)
             );
         }
         int64 power = pow10i[scale];
@@ -694,8 +693,8 @@ read_value(
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg("pg_clickhouse: unsupported type in binary protocol"))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg("pg_clickhouse: unsupported type in binary protocol")
         );
     }
     /* unreachable */

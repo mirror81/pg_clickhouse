@@ -1086,18 +1086,28 @@ chfdw_apply_custom_table_options(CHFdwRelationInfo* fpinfo, Oid relid) {
             if (strncasecmp(val, collapsing_text, strlen(collapsing_text)) == 0) {
                 char *start = index(val, '('), *end = rindex(val, ')');
                 char sign[CH_ESCAPED_NAMEDATALEN];
+                Size sign_len;
 
-                if (end - start - 1 > (CH_ESCAPED_NAMEDATALEN - 1)) {
+                if (start == NULL || end == NULL || end <= start + 1) {
                     ereport(
                         ERROR,
-                        (errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
-                         errmsg("pg_clickhouse: invalid engine parameter"))
+                        errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+                        errmsg("pg_clickhouse: invalid engine parameter")
+                    );
+                }
+
+                sign_len = end - start - 1;
+                if (sign_len > CH_ESCAPED_NAMEDATALEN - 1) {
+                    ereport(
+                        ERROR,
+                        errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+                        errmsg("pg_clickhouse: invalid engine parameter")
                     );
                 }
 
                 fpinfo->ch_table_engine = CH_COLLAPSING_MERGE_TREE;
-                strncpy(sign, start + 1, end - start - 1);
-                sign[end - start - 1] = '\0';
+                memcpy(sign, start + 1, sign_len);
+                sign[sign_len] = '\0';
                 strlcpy(
                     fpinfo->ch_table_sign_field,
                     ch_quote_ident(sign),

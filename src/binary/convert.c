@@ -14,6 +14,7 @@
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
@@ -113,6 +114,19 @@ convert_record(ch_convert_state* state, Datum val) {
 
     for (size_t i = 0; i < slot->len; i++) {
         ch_convert_state* s = state->conversion_states[i];
+
+        /* Null fields carry no value to convert or to build state from. */
+        if (slot->nulls[i]) {
+            continue;
+        }
+
+        if (s == NULL && slot->types[i] == RECORDOID) {
+            MemoryContext oldcxt = MemoryContextSwitchTo(GetMemoryChunkContext(state));
+
+            s = ch_binary_init_convert_state(slot->datums[i], RECORDOID, RECORDOID);
+            MemoryContextSwitchTo(oldcxt);
+            state->conversion_states[i] = s;
+        }
 
         if (s) {
             slot->datums[i] = s->func(s, slot->datums[i]);
@@ -267,12 +281,12 @@ convert_array(ch_convert_state* state, Datum val) {
         if (slot->ndim > MAXDIM) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-                 errmsg(
-                     "pg_clickhouse: nested array depth %d exceeds maximum %d",
-                     slot->ndim,
-                     MAXDIM
-                 ))
+                errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                errmsg(
+                    "pg_clickhouse: nested array depth %d exceeds maximum %d",
+                    slot->ndim,
+                    MAXDIM
+                )
             );
         }
 
@@ -448,15 +462,19 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype) {
         for (size_t i = 0; i < slot->len; ++i) {
             Oid item_type = slot->types[i];
 
-            if (slot->types[i] == ANYARRAYOID) {
+            if (!slot->nulls[i] && slot->types[i] == ANYARRAYOID) {
                 ch_binary_array_t* arr =
                     (ch_binary_array_t*)DatumGetPointer(slot->datums[i]);
 
                 item_type = arr->array_type;
             }
-            state->conversion_states[i] = ch_binary_init_convert_state(
-                slot->datums[i], slot->types[i], item_type
-            );
+
+            /* Null fields hold Datum 0, convert_record lazily fills these. */
+            state->conversion_states[i] =
+                slot->nulls[i] ? NULL
+                               : ch_binary_init_convert_state(
+                                     slot->datums[i], slot->types[i], item_type
+                                 );
 
             TupleDescInitEntry(state->indesc, (AttrNumber)i + 1, "", item_type, -1, 0);
         }
@@ -482,12 +500,12 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype) {
                 if (typentry->tupDesc == NULL) {
                     ereport(
                         ERROR,
-                        (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                         errmsg(
-                             "pg_clickhouse: cannot return %s as %s",
-                             slot->ch_type_name ? slot->ch_type_name : "?",
-                             format_type_be(outtype)
-                         ))
+                        errcode(ERRCODE_WRONG_OBJECT_TYPE),
+                        errmsg(
+                            "pg_clickhouse: cannot return %s as %s",
+                            slot->ch_type_name ? slot->ch_type_name : "?",
+                            format_type_be(outtype)
+                        )
                     );
                 }
 
@@ -548,12 +566,12 @@ ch_binary_init_convert_state(Datum val, Oid intype, Oid outtype) {
             default:
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                     errmsg(
-                         "pg_clickhouse: could not cast value from %s to %s",
-                         format_type_be(intype),
-                         format_type_be(outtype)
-                     ))
+                    errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                    errmsg(
+                        "pg_clickhouse: could not cast value from %s to %s",
+                        format_type_be(intype),
+                        format_type_be(outtype)
+                    )
                 );
             }
         }
@@ -602,12 +620,12 @@ init_output_convert_state(ch_convert_output_state* state) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg(
-                 "pg_clickhouse: could not find a casting path from %s to %s",
-                 format_type_be(state->intype),
-                 format_type_be(state->outtype)
-             ))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg(
+                "pg_clickhouse: could not find a casting path from %s to %s",
+                format_type_be(state->intype),
+                format_type_be(state->outtype)
+            )
         );
     }
 }
@@ -677,14 +695,14 @@ ch_binary_make_tuple_map(TupleDesc indesc, TupleDesc outdesc, Oid relid) {
         if (curstate->attnum == 0) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_DATATYPE_MISMATCH),
-                 errmsg_internal("pg_clickhouse: could not create conversion map"),
-                 errdetail(
-                     "Attribute \"%s\" of type %s does not exist in type %s.",
-                     outattname,
-                     format_type_be(indesc->tdtypeid),
-                     format_type_be(outdesc->tdtypeid)
-                 ))
+                errcode(ERRCODE_DATATYPE_MISMATCH),
+                errmsg_internal("pg_clickhouse: could not create conversion map"),
+                errdetail(
+                    "Attribute \"%s\" of type %s does not exist in type %s.",
+                    outattname,
+                    format_type_be(indesc->tdtypeid),
+                    format_type_be(outdesc->tdtypeid)
+                )
             );
         }
     }
@@ -752,7 +770,7 @@ ch_binary_do_output_conversion(
     Datum* out_values = insert_state->values;
     bool* out_nulls   = insert_state->nulls;
 
-    for (size_t i = 0; i < insert_state->outdesc->natts; i++) {
+    for (size_t i = 0; i < (size_t)insert_state->outdesc->natts; i++) {
         ch_convert_output_state* cstate =
             &((ch_convert_output_state*)insert_state->conversion_states)[i];
         AttrNumber attnum = cstate->attnum;
@@ -772,13 +790,13 @@ ch_binary_do_output_conversion(
                 if (ndim > MAXDIM) {
                     ereport(
                         ERROR,
-                        (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-                         errmsg(
-                             "pg_clickhouse: inserted array depth %d exceeds maximum "
-                             "%d",
-                             ndim,
-                             MAXDIM
-                         ))
+                        errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                        errmsg(
+                            "pg_clickhouse: inserted array depth %d exceeds maximum "
+                            "%d",
+                            ndim,
+                            MAXDIM
+                        )
                     );
                 }
 

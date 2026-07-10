@@ -2,9 +2,17 @@ SET datestyle = 'ISO';
 CREATE SERVER binary_loopback FOREIGN DATA WRAPPER clickhouse_fdw
     OPTIONS(dbname 'binary_test', driver 'binary');
 CREATE USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
-
 SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS binary_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('CREATE DATABASE binary_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 -- integer types
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.ints (
@@ -13,10 +21,19 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.ints (
     c9 Float32, c10 Float64, c11 Bool
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.ints SELECT
     number, number + 1, number + 2, number + 3, number + 4, number + 5,
     number + 6, number + 7, number + 8.1, number + 9.2, cast(number % 2 as Bool)
     FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 -- date and string types
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.types (
@@ -25,6 +42,11 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.types (
     c7 Enum16(''one'' = 1, ''two'' = 2, ''three'' = 3)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.types SELECT
     addDays(toDate(''1990-01-01''), number),
     addMinutes(addSeconds(addDays(toDateTime(''1990-01-01 10:00:00'', ''UTC''), number), number), number),
@@ -34,33 +56,64 @@ SELECT clickhouse_raw_query('INSERT INTO binary_test.types SELECT
     ''two'',
     ''three''
     FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 -- array types
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.arrays (
     c1 Array(Int), c2 Array(String)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.arrays SELECT
     [number, number + 1],
     [format(''num{0}'', toString(number)), format(''num{0}'', toString(number + 1))]
     FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 -- nested arrays
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.nested_arrays (
     c1 Int8, c2 Array(Array(Int32)), c3 Array(Array(String))
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.nested_arrays VALUES
     (1, [[1,2],[3,4]], [[''a'',''b''],[''c'',''d'']]),
     (2, [[5,6],[7,8]], [[''e'',''f''],[''g'',''h'']]);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 -- ragged nested arrays must error: postgres requires hyper-rectangles
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.ragged_arrays (
     c1 Int8, c2 Array(Array(Int32))
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.ragged_arrays VALUES (1, [[1,2,3],[4]]);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.tuples (
     c1 Int8,
@@ -68,11 +121,20 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.tuples (
     c3 UInt8
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.tuples SELECT
     number,
     (number, toString(number), number + 1.0),
     number % 2
     FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.bytes (
     c1 Int8,
@@ -80,11 +142,20 @@ SELECT clickhouse_raw_query('CREATE TABLE binary_test.bytes (
     c3 FixedString(16)
 ) ENGINE = MergeTree PARTITION BY c1 ORDER BY (c1);
 ');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('INSERT INTO binary_test.bytes SELECT
     number,
     SHA1(''val'' || toString(number)),
     MD5(''val'' || toString(number))
     FROM numbers(10);');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 CREATE FOREIGN TABLE fints (
 	c1 int2,
@@ -99,7 +170,6 @@ CREATE FOREIGN TABLE fints (
     c10 float8,
     c11 bool
 ) SERVER binary_loopback OPTIONS (table_name 'ints');
-
 CREATE FOREIGN TABLE ftypes (
 	c1 date,
 	c2 timestamp with time zone,
@@ -109,107 +179,294 @@ CREATE FOREIGN TABLE ftypes (
     c6 text, -- Enum8
     c7 text  -- Enum16
 ) SERVER binary_loopback OPTIONS (table_name 'types');
-
 CREATE FOREIGN TABLE farrays (
 	c1 int[],
     c2 text[]
 ) SERVER binary_loopback OPTIONS (table_name 'arrays');
-
 CREATE FOREIGN TABLE farrays2 (
 	c1 int8[],
     c2 text[]
 ) SERVER binary_loopback OPTIONS (table_name 'arrays');
-
 CREATE FOREIGN TABLE fnested_arrays (
     c1 int2,
     c2 int[],
     c3 text[]
 ) SERVER binary_loopback OPTIONS (table_name 'nested_arrays');
-
 CREATE FOREIGN TABLE fragged_arrays (
     c1 int2,
     c2 int[]
 ) SERVER binary_loopback OPTIONS (table_name 'ragged_arrays');
-
 CREATE TYPE tupformat AS (a int, b text, c float4);
 CREATE FOREIGN TABLE ftuples (
     c1 int,
     c2 tupformat,
     c3 bool
 ) SERVER binary_loopback OPTIONS (table_name 'tuples');
-
 CREATE FOREIGN TABLE fbytes(
     c1 int,
     c2 BYTEA,
     c3 BYTEA
 ) SERVER binary_loopback OPTIONS (table_name 'bytes');
-
 COPY fints FROM stdin;
-\.
-
 -- integers
 SELECT * FROM fints ORDER BY c1;
+ c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 |  c9  | c10  | c11 
+----+----+----+----+----+----+----+----+------+------+-----
+  0 |  1 |  2 |  3 |  4 |  5 |  6 |  7 |  8.1 |  9.2 | f
+  1 |  2 |  3 |  4 |  5 |  6 |  7 |  8 |  9.1 | 10.2 | t
+  2 |  3 |  4 |  5 |  6 |  7 |  8 |  9 | 10.1 | 11.2 | f
+  3 |  4 |  5 |  6 |  7 |  8 |  9 | 10 | 11.1 | 12.2 | t
+  4 |  5 |  6 |  7 |  8 |  9 | 10 | 11 | 12.1 | 13.2 | f
+  5 |  6 |  7 |  8 |  9 | 10 | 11 | 12 | 13.1 | 14.2 | t
+  6 |  7 |  8 |  9 | 10 | 11 | 12 | 13 | 14.1 | 15.2 | f
+  7 |  8 |  9 | 10 | 11 | 12 | 13 | 14 | 15.1 | 16.2 | t
+  8 |  9 | 10 | 11 | 12 | 13 | 14 | 15 | 16.1 | 17.2 | f
+  9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17.1 | 18.2 | t
+(10 rows)
+
 SELECT c2, c1, c8, c3, c4, c7, c6, c5 FROM fints ORDER BY c1;
+ c2 | c1 | c8 | c3 | c4 | c7 | c6 | c5 
+----+----+----+----+----+----+----+----
+  1 |  0 |  7 |  2 |  3 |  6 |  5 |  4
+  2 |  1 |  8 |  3 |  4 |  7 |  6 |  5
+  3 |  2 |  9 |  4 |  5 |  8 |  7 |  6
+  4 |  3 | 10 |  5 |  6 |  9 |  8 |  7
+  5 |  4 | 11 |  6 |  7 | 10 |  9 |  8
+  6 |  5 | 12 |  7 |  8 | 11 | 10 |  9
+  7 |  6 | 13 |  8 |  9 | 12 | 11 | 10
+  8 |  7 | 14 |  9 | 10 | 13 | 12 | 11
+  9 |  8 | 15 | 10 | 11 | 14 | 13 | 12
+ 10 |  9 | 16 | 11 | 12 | 15 | 14 | 13
+(10 rows)
+
 SELECT a, b FROM (SELECT c1 * 10 as a, c8 * 11 as b FROM fints ORDER BY a LIMIT 2) t1;
+ a  | b  
+----+----
+  0 | 77
+ 10 | 88
+(2 rows)
+
 SELECT NULL FROM fints LIMIT 2;
+ ?column? 
+----------
+ 
+ 
+(2 rows)
+
 SELECT c2, NULL, c1, NULL FROM fints ORDER BY c2 LIMIT 2;
+ c2 | ?column? | c1 | ?column? 
+----+----------+----+----------
+  1 |          |  0 | 
+  2 |          |  1 | 
+(2 rows)
 
 -- types
 SELECT * FROM ftypes ORDER BY c1;
+     c1     |           c2           |    c3    |  c4   |                  c5                  | c6  |  c7   
+------------+------------------------+----------+-------+--------------------------------------+-----+-------
+ 1990-01-01 | 1990-01-01 02:00:00-08 | number 0 | num 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | two | three
+ 1990-01-02 | 1990-01-02 02:01:01-08 | number 1 | num 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | two | three
+ 1990-01-03 | 1990-01-03 02:02:02-08 | number 2 | num 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | two | three
+ 1990-01-04 | 1990-01-04 02:03:03-08 | number 3 | num 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | two | three
+ 1990-01-05 | 1990-01-05 02:04:04-08 | number 4 | num 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | two | three
+ 1990-01-06 | 1990-01-06 02:05:05-08 | number 5 | num 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | two | three
+ 1990-01-07 | 1990-01-07 02:06:06-08 | number 6 | num 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | two | three
+ 1990-01-08 | 1990-01-08 02:07:07-08 | number 7 | num 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | two | three
+ 1990-01-09 | 1990-01-09 02:08:08-08 | number 8 | num 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | two | three
+ 1990-01-10 | 1990-01-10 02:09:09-08 | number 9 | num 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | two | three
+(10 rows)
+
 SELECT c2, c1, c4, c3, c5, c7, c6 FROM ftypes ORDER BY c1;
+           c2           |     c1     |  c4   |    c3    |                  c5                  |  c7   | c6  
+------------------------+------------+-------+----------+--------------------------------------+-------+-----
+ 1990-01-01 02:00:00-08 | 1990-01-01 | num 0 | number 0 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e0 | three | two
+ 1990-01-02 02:01:01-08 | 1990-01-02 | num 1 | number 1 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e1 | three | two
+ 1990-01-03 02:02:02-08 | 1990-01-03 | num 2 | number 2 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e2 | three | two
+ 1990-01-04 02:03:03-08 | 1990-01-04 | num 3 | number 3 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e3 | three | two
+ 1990-01-05 02:04:04-08 | 1990-01-05 | num 4 | number 4 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e4 | three | two
+ 1990-01-06 02:05:05-08 | 1990-01-06 | num 5 | number 5 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e5 | three | two
+ 1990-01-07 02:06:06-08 | 1990-01-07 | num 6 | number 6 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e6 | three | two
+ 1990-01-08 02:07:07-08 | 1990-01-08 | num 7 | number 7 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e7 | three | two
+ 1990-01-09 02:08:08-08 | 1990-01-09 | num 8 | number 8 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e8 | three | two
+ 1990-01-10 02:09:09-08 | 1990-01-10 | num 9 | number 9 | f4bf890f-f9dc-4332-ad5c-0c18e73f28e9 | three | two
+(10 rows)
 
 -- arrays
 SELECT * FROM farrays ORDER BY c1;
-SELECT * FROM farrays2 ORDER BY c1;
+   c1   |      c2      
+--------+--------------
+ {0,1}  | {num0,num1}
+ {1,2}  | {num1,num2}
+ {2,3}  | {num2,num3}
+ {3,4}  | {num3,num4}
+ {4,5}  | {num4,num5}
+ {5,6}  | {num5,num6}
+ {6,7}  | {num6,num7}
+ {7,8}  | {num7,num8}
+ {8,9}  | {num8,num9}
+ {9,10} | {num9,num10}
+(10 rows)
 
+SELECT * FROM farrays2 ORDER BY c1;
+ERROR:  pg_clickhouse: could not cast value from integer[] to bigint[]
+DETAIL:  Remote Query: SELECT c1, c2 FROM binary_test.arrays ORDER BY c1 ASC NULLS LAST
 -- nested arrays
 SELECT * FROM fnested_arrays ORDER BY c1;
-SELECT * FROM fragged_arrays ORDER BY c1;
+ c1 |      c2       |      c3       
+----+---------------+---------------
+  1 | {{1,2},{3,4}} | {{a,b},{c,d}}
+  2 | {{5,6},{7,8}} | {{e,f},{g,h}}
+(2 rows)
 
+SELECT * FROM fragged_arrays ORDER BY c1;
+ERROR:  malformed array literal: "{{"1","2","3"},{"4"}}"
+DETAIL:  Remote Query: SELECT c1, c2 FROM binary_test.ragged_arrays ORDER BY c1 ASC NULLS LAST
 -- tuples
 SELECT * FROM ftuples ORDER BY c1;
+ c1 |    c2    | c3 
+----+----------+----
+  0 | (0,0,1)  | f
+  1 | (1,1,2)  | t
+  2 | (2,2,3)  | f
+  3 | (3,3,4)  | t
+  4 | (4,4,5)  | f
+  5 | (5,5,6)  | t
+  6 | (6,6,7)  | f
+  7 | (7,7,8)  | t
+  8 | (8,8,9)  | f
+  9 | (9,9,10) | t
+(10 rows)
 
 -- Bytes.
 SELECT * FROM fbytes ORDER BY c1;
+ c1 |                     c2                     |                 c3                 
+----+--------------------------------------------+------------------------------------
+  0 | \x24e3800ca47f2504c25917d3b07306a28d0ac6fc | \x8664dccd1d83673d4fa8ef755ae88439
+  1 | \x5e6e4c0fb8ef47b4f1d6eea3e6c51152dbee94ec | \x8de92ce2033cf3ca03fa8cc63e7a703f
+  2 | \x4f47fdcd4e8d3b4802d50f990b401066bbfe0379 | \x38ceaa3b09c5a07d329888ba1ccde9ad
+  3 | \xb6a0af46ee8d92da3f0c176da8d88517a1b21c54 | \x9163c8c66d03c512404cca8549a250e7
+  4 | \xba42461dcb3e24f04e0d236f61d6804a4f4b3bee | \xa8516b0468eb31028c3dd669867c15b1
+  5 | \x483d5aa3a98e3d1d9f3f40c26ac15c9d42c2f6b8 | \x294a6e0d759cdbcf55753c4a58161721
+  6 | \x7d6934814141b108771faa00ba53750372cb413c | \x1b18b7cd2d63787cbe1d97e57a54853c
+  7 | \xd750c9d1e88df77272d3bde4a0ad16ca7ca6f14a | \x7e526a670883f267ce15deff74740a6e
+  8 | \x7673723fea187e3e78522d4b19ea97eb1a3d6787 | \xeafd00c5d025e9d71e9ed588f7f97e4b
+  9 | \xda1a828a08d9d57450ce10a89cb5ee91dc2feed7 | \xa2da4af9e1d8f4d37887f719cda60bda
+(10 rows)
 
 -- clickhouse_raw_query over the binary protocol
 SELECT clickhouse_raw_query('SELECT 1 AS a, ''x'' AS b', 'driver=binary port=9000');
+ clickhouse_raw_query 
+----------------------
+ 1       x           +
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('SELECT number FROM numbers(3) ORDER BY number', 'driver=binary port=9000');
+ clickhouse_raw_query 
+----------------------
+ 0                   +
+ 1                   +
+ 2                   +
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('SELECT [1,2,3] AS arr, (1, ''a'') AS tup', 'driver=binary port=9000');
+ clickhouse_raw_query 
+----------------------
+ {1,2,3} (1,a)       +
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('SELECT NULL', 'driver=binary port=9000');
+ clickhouse_raw_query 
+----------------------
+ \N                  +
+ 
+(1 row)
+
 SELECT clickhouse_raw_query('CREATE TABLE binary_test.raw (c1 Int32) ENGINE = Memory', 'driver=binary port=9000');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
+
 -- explicit http driver still works
 SELECT clickhouse_raw_query('SELECT 1', 'driver=http port=8123');
+ clickhouse_raw_query 
+----------------------
+ 1                   +
+ 
+(1 row)
+
 -- unknown driver is rejected
 SELECT clickhouse_raw_query('SELECT 1', 'driver=bogus');
-
+ERROR:  pg_clickhouse: invalid ClickHouse connection driver "bogus"
 -- clickhouse_query: server-based typed rowset over the binary driver
 SELECT * FROM clickhouse_query(
     'binary_loopback', 'SELECT c1, c3 FROM ints ORDER BY c1 LIMIT 3'
 ) AS t(c1 int2, c3 int);
+ c1 | c3 
+----+----
+  0 |  2
+  1 |  3
+  2 |  4
+(3 rows)
+
 SELECT * FROM clickhouse_query(
     'binary_loopback', 'SELECT toInt32(number) AS n, toString(number) AS s FROM numbers(3) ORDER BY n'
 ) AS t(n int, s text);
+ n | s 
+---+---
+ 0 | 0
+ 1 | 1
+ 2 | 2
+(3 rows)
+
 -- empty result yields no rows
 SELECT count(*) FROM clickhouse_query('binary_loopback', 'SELECT 1 WHERE 0') AS t(x int);
+ count 
+-------
+     0
+(1 row)
+
 -- missing column definition list is rejected
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1');
+ERROR:  a column definition list is required for functions returning "record"
+LINE 1: SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1'...
+                      ^
 -- fewer columns declared than returned is rejected
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1, 2') AS t(x int);
+ERROR:  pg_clickhouse: returned 2 columns, expected 1
+DETAIL:  Remote Query: SELECT 1, 2
 -- more columns declared than returned is rejected
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1') AS t(x int, y text);
+ERROR:  pg_clickhouse: returned 1 columns, expected 2
+DETAIL:  Remote Query: SELECT 1
 -- mismatch is rejected even when query returns no rows
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1 WHERE 0')
     AS t(x int, y text);
+ERROR:  pg_clickhouse: returned 1 columns, expected 2
+DETAIL:  Remote Query: SELECT 1 WHERE 0
 -- DDL returns zero columns, required placeholder column list is ignored
 SELECT * FROM clickhouse_query(
     'binary_loopback', 'CREATE TABLE ddl (c1 Int32) ENGINE = Memory'
 ) AS t(x int);
+ x 
+---
+(0 rows)
+
 SELECT * FROM clickhouse_query('binary_loopback', 'DROP TABLE ddl') AS t(x int);
+ x 
+---
+(0 rows)
+
 -- value not coercible to the declared type is rejected
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT ''abc''') AS t(x int);
+ERROR:  invalid input syntax for type integer: "abc"
+DETAIL:  Remote Query: SELECT 'abc'
 -- unknown server is rejected
 SELECT * FROM clickhouse_query('no_such_server', 'SELECT 1') AS t(x int);
+ERROR:  server "no_such_server" does not exist
 -- Nullable(Tuple(...)) is Beta, off by default, and only exists from CH 26
 -- onward; older servers reject the type outright regardless of settings.
 SELECT split_part(clickhouse_server_version('binary_loopback'), '.', 1)::int >= 26
@@ -261,8 +518,20 @@ SELECT * FROM clickhouse_query(
 ) AS t(v nested_tup);
 DROP TYPE nested_tup, nested_tup_inner;
 \endif
-
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_test');
+ clickhouse_raw_query 
+----------------------
+ 
+(1 row)
 
 DROP SERVER binary_loopback CASCADE;
+NOTICE:  drop cascades to 8 other objects
+DETAIL:  drop cascades to foreign table fints
+drop cascades to foreign table ftypes
+drop cascades to foreign table farrays
+drop cascades to foreign table farrays2
+drop cascades to foreign table fnested_arrays
+drop cascades to foreign table fragged_arrays
+drop cascades to foreign table ftuples
+drop cascades to foreign table fbytes

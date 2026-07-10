@@ -228,6 +228,14 @@ chfdw_is_shippable(
              * pushdown.
              */
             switch (cdef->cf_type) {
+            case CF_DATE_TRUNC:
+            case CF_DATE_PART: {
+                Expr* unit = (Expr*)linitial(((FuncExpr*)node)->args);
+
+                if (!IsA(unit, Const) || ((Const*)unit)->constisnull) {
+                    return false;
+                }
+            } break;
             case CF_ARRAY_SORT_DESC: {
                 /*
                  * If the boolean argument passed to array_sort(arr,

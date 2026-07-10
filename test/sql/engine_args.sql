@@ -140,6 +140,22 @@ OPTIONS (
 );
 EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_var5;
 
+-- Should fail with no parameter delimiters.
+CREATE FOREIGN TABLE engine_args_test.name_bare (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_bare;
+
+-- Should fail with no closing delimiter.
+CREATE FOREIGN TABLE engine_args_test.name_open (id INT) SERVER engine_args_svr
+OPTIONS (
+  table_name 'innocuous',
+  engine 'CollapsingMergeTree(id'
+);
+EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(id) FROM engine_args_test.name_open;
+
 -- Should fail with parameter length > 63.
 CREATE FOREIGN TABLE engine_args_test.name_var6 (id INT) SERVER engine_args_svr
 OPTIONS (

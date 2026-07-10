@@ -6,6 +6,7 @@
 #include "engine.h"
 #include "lib/stringinfo.h"
 #include "nodes/pg_list.h"
+#include <curl/curl.h>
 
 #define CH_HTTP_QUERY_ID_LEN 37
 
@@ -50,8 +51,8 @@ typedef struct {
 void
 ch_http_init(int verbose, uint32_t query_id_prefix);
 void
-ch_http_set_progress_func(void* progressfunc);
-void*
+ch_http_set_progress_func(curl_xferinfo_callback progressfunc);
+curl_xferinfo_callback
 ch_http_get_progress_func(void);
 long
 ch_http_get_verbose(void);

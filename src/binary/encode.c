@@ -62,11 +62,11 @@ ch_kind_to_pg_oid_for_insert(const chc_type* type, const char* colname) {
         if (array_type == InvalidOid) {
             ereport(
                 ERROR,
-                (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                 errmsg(
-                     "pg_clickhouse: could not find array type for column \"%s\"",
-                     colname ? colname : "?"
-                 ))
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg(
+                    "pg_clickhouse: could not find array type for column \"%s\"",
+                    colname ? colname : "?"
+                )
             );
         }
         return array_type;
@@ -79,12 +79,12 @@ ch_kind_to_pg_oid_for_insert(const chc_type* type, const char* colname) {
     default:
         ereport(
             ERROR,
-            (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-             errmsg(
-                 "pg_clickhouse: unsupported column type \"%s\" for \"%s\"",
-                 chc_type_name(type, NULL),
-                 colname ? colname : "?"
-             ))
+            errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+            errmsg(
+                "pg_clickhouse: unsupported column type \"%s\" for \"%s\"",
+                chc_type_name(type, NULL),
+                colname ? colname : "?"
+            )
         );
     }
     return InvalidOid;
@@ -335,10 +335,8 @@ append_one(
             if (fam != expected) {
                 ereport(
                     ERROR,
-                    (errcode(ERRCODE_DATATYPE_MISMATCH),
-                     errmsg(
-                         "pg_clickhouse: inet family mismatch for column %zu", colidx
-                     ))
+                    errcode(ERRCODE_DATATYPE_MISMATCH),
+                    errmsg("pg_clickhouse: inet family mismatch for column %zu", colidx)
                 );
             }
             addr    = ip_addr(ipa);
@@ -376,8 +374,8 @@ append_one(
 type_mismatch:
     ereport(
         ERROR,
-        (errcode(ERRCODE_DATATYPE_MISMATCH),
-         errmsg("pg_clickhouse: unexpected PG/CH type pair for column %zu", colidx))
+        errcode(ERRCODE_DATATYPE_MISMATCH),
+        errmsg("pg_clickhouse: unexpected PG/CH type pair for column %zu", colidx)
     );
 }
 

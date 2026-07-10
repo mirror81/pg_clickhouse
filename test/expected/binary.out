@@ -438,6 +438,28 @@ LINE 1: SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1'...
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1, 2') AS t(x int);
 ERROR:  pg_clickhouse: returned 2 columns, expected 1
 DETAIL:  Remote Query: SELECT 1, 2
+-- more columns declared than returned is rejected
+SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1') AS t(x int, y text);
+ERROR:  pg_clickhouse: returned 1 columns, expected 2
+DETAIL:  Remote Query: SELECT 1
+-- mismatch is rejected even when query returns no rows
+SELECT * FROM clickhouse_query('binary_loopback', 'SELECT 1 WHERE 0')
+    AS t(x int, y text);
+ERROR:  pg_clickhouse: returned 1 columns, expected 2
+DETAIL:  Remote Query: SELECT 1 WHERE 0
+-- DDL returns zero columns, required placeholder column list is ignored
+SELECT * FROM clickhouse_query(
+    'binary_loopback', 'CREATE TABLE ddl (c1 Int32) ENGINE = Memory'
+) AS t(x int);
+ x 
+---
+(0 rows)
+
+SELECT * FROM clickhouse_query('binary_loopback', 'DROP TABLE ddl') AS t(x int);
+ x 
+---
+(0 rows)
+
 -- value not coercible to the declared type is rejected
 SELECT * FROM clickhouse_query('binary_loopback', 'SELECT ''abc''') AS t(x int);
 ERROR:  invalid input syntax for type integer: "abc"
@@ -445,6 +467,75 @@ DETAIL:  Remote Query: SELECT 'abc'
 -- unknown server is rejected
 SELECT * FROM clickhouse_query('no_such_server', 'SELECT 1') AS t(x int);
 ERROR:  server "no_such_server" does not exist
+-- Nullable(Tuple(...)) is Beta, off by default, and only exists from CH 26
+-- onward; older servers reject the type outright regardless of settings.
+SELECT split_part(clickhouse_server_version('binary_loopback'), '.', 1)::int >= 26
+    AS ch_nullable_tuple \gset
+\if :ch_nullable_tuple
+-- null nested tuple in first row, conversion state initializes lazily
+SELECT * FROM clickhouse_query(
+    'binary_loopback',
+    $$
+    SELECT tuple(
+        if(number = 0,
+           CAST(NULL, 'Nullable(Tuple(Int32))'),
+           CAST(tuple(toInt32(number)), 'Nullable(Tuple(Int32))'))
+    )
+    FROM numbers(2)
+    ORDER BY number
+    SETTINGS allow_experimental_nullable_tuple_type = 1
+    $$
+) AS t(v text);
+    v    
+---------
+ ()
+ ("(1)")
+(2 rows)
+
+-- non-null nested tuple first, later null row skips cached converter
+SELECT * FROM clickhouse_query(
+    'binary_loopback',
+    $$
+    SELECT tuple(
+        if(number = 0,
+           CAST(NULL, 'Nullable(Tuple(Int32))'),
+           CAST(tuple(toInt32(number)), 'Nullable(Tuple(Int32))'))
+    )
+    FROM numbers(2)
+    ORDER BY number DESC
+    SETTINGS allow_experimental_nullable_tuple_type = 1
+    $$
+) AS t(v text);
+    v    
+---------
+ ("(1)")
+ ()
+(2 rows)
+
+-- same shape declared as a composite type; null nested tuple yields NULL field
+CREATE TYPE nested_tup_inner AS (a int);
+CREATE TYPE nested_tup AS (t nested_tup_inner);
+SELECT * FROM clickhouse_query(
+    'binary_loopback',
+    $$
+    SELECT tuple(
+        if(number = 0,
+           CAST(NULL, 'Nullable(Tuple(Int32))'),
+           CAST(tuple(toInt32(number)), 'Nullable(Tuple(Int32))'))
+    )
+    FROM numbers(2)
+    ORDER BY number
+    SETTINGS allow_experimental_nullable_tuple_type = 1
+    $$
+) AS t(v nested_tup);
+    v    
+---------
+ ()
+ ("(1)")
+(2 rows)
+
+DROP TYPE nested_tup, nested_tup_inner;
+\endif
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_loopback;
 SELECT clickhouse_raw_query('DROP DATABASE binary_test');
  clickhouse_raw_query 
