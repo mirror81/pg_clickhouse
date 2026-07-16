@@ -1447,7 +1447,7 @@ parse_type(
     List** options
 ) {
     char* typepart = part;
-    char* pos      = strstr(typepart, "(");
+    char* pos      = strchr(typepart, '(');
 
     if (pos != NULL) {
         char* end = strrchr(typepart, ')');
@@ -1463,7 +1463,7 @@ parse_type(
         insidebr = pnstrdup(pos + 1, end - pos - 1);
 
         if (strncmp(typepart, "Decimal", strlen("Decimal")) == 0) {
-            if (strstr(insidebr, ",") == NULL) {
+            if (strchr(insidebr, ',') == NULL) {
                 ereport(
                     ERROR,
                     errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
@@ -1495,8 +1495,11 @@ parse_type(
             );
             return "TEXT";
         } else if (strncmp(typepart, "Array", strlen("Array")) == 0) {
+            /* PostgreSQL arrays always allow NULL elements */
+            bool elem_nullable = false;
             return psprintf(
-                "%s[]", parse_type(table_name, colname, insidebr, NULL, options)
+                "%s[]",
+                parse_type(table_name, colname, insidebr, &elem_nullable, options)
             );
         } else if (strncmp(typepart, "Nullable", strlen("Nullable")) == 0) {
             if (is_nullable == NULL) {
@@ -1517,7 +1520,7 @@ parse_type(
                 typepart, "SimpleAggregateFunction", strlen("SimpleAggregateFunction")
             ) == 0
         ) {
-            char* pos2 = strstr(pos, ",");
+            char* pos2 = strchr(pos, ',');
 
             if (pos2 == NULL) {
                 /* Detect COUNT with no params. */
@@ -1531,7 +1534,7 @@ parse_type(
                 );
             }
 
-            char* func = pnstrdup(pos + 1, strstr(pos + 1, ",") - pos - 1);
+            char* func = pnstrdup(pos + 1, strchr(pos + 1, ',') - pos - 1);
 
             if (options != NULL) {
                 int val = typepart[0] == 'A' ? 1 : 2;
@@ -1734,7 +1737,7 @@ chfdw_construct_create_tables(ImportForeignSchemaStmt* stmt, ForeignServer* serv
         );
 
         if (engine && engine_full && strcmp(engine, "CollapsingMergeTree") == 0) {
-            char* sub = strstr(engine_full, ")");
+            char* sub = strchr(engine_full, ')');
 
             if (sub) {
                 sub[1] = '\0';

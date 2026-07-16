@@ -191,7 +191,7 @@ SELECT clickhouse_raw_query($$
 		-- TIMESTAMPOID, TIMESTAMPTZOID
 		c23 Nullable(DateTime), c24 Nullable(DateTime64),
 		-- ANYARRAYOID
-		-- c25 Array(Nullable(Int32)), -- pg_clickhouse: nested Nullable is not supported
+		c25 Array(Nullable(Int32)),
 		-- UUIDOID
 		c26 Nullable(UUID),
 		-- INETOID
@@ -205,7 +205,7 @@ FROM SERVER binary_inserts_loopback INTO binary_inserts_test;
 INSERT INTO null_vals VALUES(
 	1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	   NULL, NULL, NULL, NULL, -- ARRAY[NULL]::int[],
+	   NULL, NULL, NULL, NULL, ARRAY[1, NULL, 3]::int[],
 	   NULL, NULL, NULL
 );
 
@@ -235,7 +235,7 @@ SELECT clickhouse_raw_query($$
 		-- TIMESTAMPOID, TIMESTAMPTZOID
 		c23 DateTime, c24 DateTime64,
 		-- ANYARRAYOID
-		c25 Array(Int32), -- pg_clickhouse: nested Nullable is not supported
+		c25 Array(Nullable(Int32)),
 		-- UUIDOID
 		c26 UUID,
 		-- INETOID

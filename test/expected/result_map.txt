@@ -60,6 +60,22 @@ binary_inserts.sql
 ------------|--------------------
  23+        | binary_inserts.out
 
+binary_nullable_json.sql
+------------------------
+
+ Postgres | File
+----------|--------------------------
+ 13-19    | binary_nullable_json.out
+
+ ClickHouse | File
+------------|----------------------------
+ 25.8+      | binary_nullable_json.out
+ 25.3       | binary_nullable_json_1.out
+ 24.8       | binary_nullable_json_2.out
+ 24.3       | binary_nullable_json_3.out
+ 23.8       | binary_nullable_json_4.out
+ 23.3       | binary_nullable_json_5.out
+
 binary_queries.sql
 ------------------
 

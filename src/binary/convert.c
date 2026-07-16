@@ -260,16 +260,20 @@ convert_array(ch_convert_state* state, Datum val) {
     if (slot->len == 0) {
         val = PointerGetDatum(construct_empty_array(slot->item_type));
     } else if (slot->ndim <= 1) {
-        void* arrout = construct_array(
+        int dims[1] = { (int)slot->len };
+        int lbs[1]  = { 1 };
+
+        val = PointerGetDatum(construct_md_array(
             slot->datums,
-            slot->len,
+            slot->nulls,
+            1,
+            dims,
+            lbs,
             slot->item_type,
             state->typlen,
             state->typbyval,
             state->typalign
-        );
-
-        val = PointerGetDatum(arrout);
+        ));
     } else {
         int dims[MAXDIM] = {};
         int lbs[MAXDIM]  = {};

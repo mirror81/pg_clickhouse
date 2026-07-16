@@ -1,13 +1,13 @@
 /*
  * insert.c
  *
- * INSERT path for the binary driver. begin_insert sends the query, takes
- * the server's empty Data block as schema, classifies each column into
- * one of a handful of accumulator layouts (fixed / string / LC / array
- * variants), and exposes typed ch_binary_append_* shims. flush_block
- * materialises the accumulators into a chc_block_builder and ships one
- * Data packet; finalize_insert sends the closing empty Data and drains.
- * release_insert is reset-callback safe: it never talks to the wire.
+ * Handle binary INSERT lifecycle
+ *
+ *  -begin_insert sends query and uses server's empty Data block as schema
+ * - append functions buffer column values in format chosen from schema
+ * - flush_block assembles buffered columns and sends one Data packet
+ * - finalize_insert sends closing empty Data packet and reads final server response
+ * - release_insert can run during memory context reset and never writes to connection.
  */
 
 #include "postgres.h"
@@ -94,58 +94,60 @@ u64buf_reset(u64buf* b) {
 }
 
 /*
- * Insert column layout decided at begin_insert from the column's chc_type.
- * Each typed append_* appends into one of three storage groups:
- *   - body / body_offs:  fixed-width or string values for the top-level
- *     column or, when an array context is open, the inner items.
- *   - arr_offs:          cumulative outer ends for Array(*) columns.
- *   - nulls:             one byte per top-level row for Nullable(*).
+ * Buffer-node tree mirroring the column's chc_type, one node per CH
+ * structural level. Typed append_* functions write leaves, array begin/end
+ * records offsets on Array nodes, flush assembles chc_build_* bottom-up
+ * from the same shape.
  */
 typedef enum {
-    IC_FIXED,
-    IC_STRING,
-    IC_LC_STRING,
-    IC_ARRAY_FIXED,
-    IC_ARRAY_STRING,
-    IC_ARRAY_NESTED_FIXED,
-    IC_ARRAY_NESTED_STRING,
-    IC_JSON_STRING,
-} ic_layout;
+    ICN_FIXED,
+    ICN_STRING,
+    ICN_NULLABLE,
+    ICN_ARRAY,
+    ICN_LC,
+} icn_kind;
 
-static inline bool
-ic_layout_array_fixed(ic_layout l) {
-    return l == IC_ARRAY_FIXED || l == IC_ARRAY_NESTED_FIXED;
-}
+typedef struct icn icn;
 
-static inline bool
-ic_layout_array_string(ic_layout l) {
-    return l == IC_ARRAY_STRING || l == IC_ARRAY_NESTED_STRING;
-}
+struct icn {
+    icn_kind kind;
+    const chc_type* type; /* this level's type; source of elem size, enum
+                           * table, decimal scale, dt64 precision */
+    union {
+        struct {
+            dynbuf data; /* row-aligned values */
+            size_t elem_size;
+            uint32_t dt64_precision;
+        } fixed;
+
+        struct {
+            dynbuf data; /* byte-flat rows */
+            u64buf offs; /* cumulative ends per row */
+            bool is_json;
+        } str;
+
+        struct {
+            dynbuf null_map; /* one byte per row */
+            icn* inner;
+        } nullable;
+
+        struct {
+            u64buf offs; /* cumulative ends per committed row */
+            icn* values;
+        } array;
+
+        struct {
+            dynbuf data; /* raw rows; dict dedup happens at flush */
+            u64buf offs;
+            dynbuf null_map; /* only when inner_nullable */
+            bool inner_nullable;
+        } lc;
+    };
+};
 
 typedef struct ic_col {
-    const chc_type* t;       /* full column type (incl. Nullable wrapper) */
-    const chc_type* inner_t; /* possibly unwrapped Nullable */
-    const chc_type* elem_t;  /* Array element type, with Nullable
-                              * unwrapped */
-    ic_layout layout;
-    bool is_nullable;
-    int array_depth; /* current open begin/end nesting */
-    int ndim;        /* >=1 for array layouts; 1 for top-level
-                      * Array */
-    bool array_inner_is_string;
-    size_t elem_size; /* fixed elem size (top-level FIXED or array
-                       * element FIXED) */
-    uint32_t dt64_precision;
-    dynbuf body;            /* row-aligned for FIXED, byte-flat for
-                             * STRING/LC */
-    u64buf body_offs;       /* offsets per row for STRING/LC inner */
-    dynbuf nulls;           /* per top-level row */
-    u64buf arr_offs;        /* cumulative ends for outermost array layer
-                             * (or only layer when ndim==1) */
-    u64buf* arr_offs_inner; /* for ndim>1: ndim-1 inner-layer offsets,
-                             * [0]=just inside outer, [ndim-2]=adjacent to
-                             * leaves */
-    size_t n_rows;          /* committed top-level rows */
+    const chc_type* t; /* full column type (incl. Nullable wrapper) */
+    icn* root;
 
     /*
      * Cached column info exposed to callers. info.type borrows from the
@@ -162,24 +164,36 @@ struct ch_binary_insert_handle {
     chc_block* initial_block;      /* schema source (server's empty Data) */
     size_t ncols;
     ic_col* cols;
-    bool array_active;
-    size_t array_col_idx;
+    icn** cursor; /* stack of open Array nodes; top's values child
+                   * receives appends. Empty at top level */
+    size_t cursor_len;
+    size_t cursor_cap;
+    size_t cursor_col; /* column that opened cursor[0] */
     bool started;
     bool finalized; /* finalize_insert has run (success or raised) */
 };
 
-static void
-classify_column(ic_col* ic, const chc_type* t) {
-    ic->t = t;
-    if (chc_type_kind(t) == CHC_NULLABLE) {
-        ic->is_nullable = true;
-        t               = chc_type_child(t, 0);
-    }
-    ic->inner_t = t;
+/* Build one buffer node per structural level of `t` */
+static icn*
+build_node(const chc_type* t) {
+    icn* n = palloc0(sizeof(icn));
 
-    chc_kind k = chc_type_kind(t);
-
-    if (k == CHC_LOW_CARDINALITY) {
+    n->type = t;
+    switch (chc_type_kind(t)) {
+    case CHC_NULLABLE:
+        n->kind           = ICN_NULLABLE;
+        n->nullable.inner = build_node(chc_type_child(t, 0));
+        return n;
+    case CHC_ARRAY:
+        n->kind         = ICN_ARRAY;
+        n->array.values = build_node(chc_type_child(t, 0));
+        return n;
+    case CHC_LOW_CARDINALITY: {
+        /*
+         * Nullable lives inside LowCardinality, not as a wrapper above it:
+         * resolve_leaf tracks the per-row null bits build_lc_dict reads to
+         * map nulls onto dict slot 0.
+         */
         const chc_type* inner = chc_type_child(t, 0);
         bool inner_nullable   = chc_type_kind(inner) == CHC_NULLABLE;
         const chc_type* base  = inner_nullable ? chc_type_child(inner, 0) : inner;
@@ -194,107 +208,51 @@ classify_column(ic_col* ic, const chc_type* t) {
                 )
             );
         }
-
-        /*
-         * Nullable lives inside LowCardinality, not as an outer wrapper, so
-         * record it here: resolve_col tracks the per-row null bits
-         * build_lc_dict reads to map nulls onto dict slot 0.
-         */
-        ic->is_nullable = inner_nullable;
-        ic->layout      = IC_LC_STRING;
-        ic->elem_t      = base;
-        return;
+        n->kind              = ICN_LC;
+        n->lc.inner_nullable = inner_nullable;
+        return n;
     }
-    if (k == CHC_ARRAY) {
-        /*
-         * Walk through nested Array layers to the leaf element type so
-         * Array(Array(...)) maps to a single ic_col with ndim levels.
-         */
-        const chc_type* base = t;
-        int ndim             = 0;
+    case CHC_STRING:
+        n->kind = ICN_STRING;
+        return n;
+    case CHC_JSON:
+        n->kind        = ICN_STRING;
+        n->str.is_json = true;
+        return n;
+    case CHC_DATETIME64: {
+        int scale = chc_type_datetime64_scale(t);
 
-        while (chc_type_kind(base) == CHC_ARRAY) {
-            ndim++;
-            base = chc_type_child(base, 0);
+        if (scale < 0 || (size_t)scale >= lengthof(pow10i)) {
+            ereport(
+                ERROR,
+                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                errmsg("pg_clickhouse: DateTime64 scale %d out of range", scale)
+            );
         }
-        bool elem_nullable = chc_type_kind(base) == CHC_NULLABLE;
+        n->kind                 = ICN_FIXED;
+        n->fixed.elem_size      = chc_type_elem_size(t);
+        n->fixed.dt64_precision = (uint32_t)scale;
+        return n;
+    }
+    default: {
+        size_t es = chc_type_elem_size(t);
 
-        /* Array(Nullable(T)) not supported yet. */
-        if (elem_nullable) {
+        if (es == 0) {
             ereport(
                 ERROR,
                 errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
                 errmsg(
-                    "pg_clickhouse: %s not currently supported",
-                    chc_type_name(base, NULL)
+                    "pg_clickhouse: could not prepare insert - unsupported column "
+                    "type: %s",
+                    chc_type_name(t, NULL)
                 )
             );
         }
-        chc_kind ek = chc_type_kind(base);
-
-        ic->elem_t = base;
-        ic->ndim   = ndim;
-        if (ek == CHC_STRING || ek == CHC_FIXED_STRING) {
-            ic->layout = ndim == 1 ? IC_ARRAY_STRING : IC_ARRAY_NESTED_STRING;
-            ic->array_inner_is_string = true;
-        } else if (chc_type_elem_size(base) > 0) {
-            ic->layout    = ndim == 1 ? IC_ARRAY_FIXED : IC_ARRAY_NESTED_FIXED;
-            ic->elem_size = chc_type_elem_size(base);
-        } else {
-            ereport(
-                ERROR,
-                errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                errmsg(
-                    "pg_clickhouse: unsupported Array element type: %s",
-                    chc_type_name(base, NULL)
-                )
-            );
-        }
-        if (ndim > 1) {
-            ic->arr_offs_inner = palloc0((size_t)(ndim - 1) * sizeof(u64buf));
-        }
-        return;
+        n->kind            = ICN_FIXED;
+        n->fixed.elem_size = es;
+        return n;
     }
-    if (k == CHC_STRING) {
-        ic->layout = IC_STRING;
-        return;
     }
-    if (k == CHC_JSON) {
-        ic->layout = IC_JSON_STRING;
-        return;
-    }
-    size_t es = chc_type_elem_size(t);
-
-    if (es > 0) {
-        ic->layout    = IC_FIXED;
-        ic->elem_size = es;
-        if (k == CHC_DATETIME64) {
-            int scale = chc_type_datetime64_scale(t);
-
-            if (scale < 0 || (size_t)scale >= lengthof(pow10i)) {
-                ereport(
-                    ERROR,
-                    errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-                    errmsg("pg_clickhouse: DateTime64 scale %d out of range", scale)
-                );
-            }
-            ic->dt64_precision = (uint32_t)scale;
-        }
-        return;
-    }
-    if (k == CHC_FIXED_STRING) {
-        ic->layout    = IC_FIXED;
-        ic->elem_size = (size_t)chc_type_fixed_size(t);
-        return;
-    }
-    ereport(
-        ERROR,
-        errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-        errmsg(
-            "pg_clickhouse: could not prepare insert - unsupported column type: %s",
-            chc_type_name(t, NULL)
-        )
-    );
 }
 
 static void
@@ -338,7 +296,7 @@ recv_initial_block(struct ch_binary_state* s, ch_binary_insert_handle* h) {
 }
 
 /*
- * After classify_column ereports the server is mid-INSERT awaiting our
+ * After build_node ereports the server is mid-INSERT awaiting our
  * Data; send empty Data + drain so the connection stays usable.
  */
 static void
@@ -448,24 +406,32 @@ ch_binary_begin_insert(
             size_t nlen;
             const char* nm;
 
-            classify_column(c, ct);
-            nm                  = chc_block_column_name(h->initial_block, i, &nlen);
-            c->info.name        = pnstrdup(nm ? nm : "", nlen);
-            c->info.is_nullable = c->is_nullable;
+            c->t         = ct;
+            c->root      = build_node(ct);
+            nm           = chc_block_column_name(h->initial_block, i, &nlen);
+            c->info.name = pnstrdup(nm ? nm : "", nlen);
 
             /*
-             * inner_t already unwrapped Nullable; unwrap LowCardinality and
-             * perhaps its inner Nullable to expose innermost type.
+             * Unwrap Nullable, then LowCardinality and perhaps its inner
+             * Nullable to expose innermost type. Nullable inside LC counts
+             * as column nullability.
              */
-            const chc_type* vt = c->inner_t;
+            const chc_type* vt = ct;
+            bool is_nullable   = false;
 
+            if (chc_type_kind(vt) == CHC_NULLABLE) {
+                is_nullable = true;
+                vt          = chc_type_child(vt, 0);
+            }
             if (chc_type_kind(vt) == CHC_LOW_CARDINALITY) {
-                vt = chc_type_child(vt, 0);
-                if (chc_type_kind(vt) == CHC_NULLABLE) {
+                vt          = chc_type_child(vt, 0);
+                is_nullable = chc_type_kind(vt) == CHC_NULLABLE;
+                if (is_nullable) {
                     vt = chc_type_child(vt, 0);
                 }
             }
-            c->info.type = vt;
+            c->info.type        = vt;
+            c->info.is_nullable = is_nullable;
         }
 
         *out_cols = NULL;
@@ -494,19 +460,37 @@ ch_binary_begin_insert(
     return h;
 }
 
-/*
- * Resolve the storage to receive a value for column `col_idx`, accounting
- * for an active array context. Returns the ic_col* whose body buffer is
- * the target. For Nullable wrappers, records the null bit. ereports on
- * NULL-into-NOT-NULL.
- */
-static ic_col*
-resolve_col(ch_binary_insert_handle* h, size_t col_idx, bool isnull) {
-    ic_col* c = h->array_active ? &h->cols[h->array_col_idx] : &h->cols[col_idx];
+/* Node receiving values: innermost open array's values child, else column root */
+static inline icn*
+cursor_node(const ch_binary_insert_handle* h, size_t col) {
+    return h->cursor_len ? h->cursor[h->cursor_len - 1]->array.values
+                         : h->cols[col].root;
+}
 
-    if (isnull && !h->array_active && !c->is_nullable) {
+/*
+ * Descend from the append target to its leaf FIXED/STRING/LC node,
+ * recording a null bit on each Nullable level crossed (or on
+ * LowCardinality(Nullable(...))). ereports on NULL-into-NOT-NULL.
+ */
+static icn*
+resolve_leaf(ch_binary_insert_handle* h, size_t col, bool isnull) {
+    icn* node     = cursor_node(h, col);
+    uint8_t b     = isnull ? 1 : 0;
+    bool nullable = false;
+
+    while (node->kind == ICN_NULLABLE) {
+        dynbuf_append(&node->nullable.null_map, &b, 1);
+        nullable = true;
+        node     = node->nullable.inner;
+    }
+    if (node->kind == ICN_LC && node->lc.inner_nullable) {
+        dynbuf_append(&node->lc.null_map, &b, 1);
+        nullable = true;
+    }
+    if (isnull && !nullable) {
+        const chc_type* t = h->cols[h->cursor_len ? h->cursor_col : col].t;
         size_t tnlen;
-        const char* tname = chc_type_name(c->t, &tnlen);
+        const char* tname = chc_type_name(t, &tnlen);
 
         ereport(
             ERROR,
@@ -518,30 +502,36 @@ resolve_col(ch_binary_insert_handle* h, size_t col_idx, bool isnull) {
             )
         );
     }
-    if (!h->array_active && c->is_nullable) {
-        uint8_t b = isnull ? 1 : 0;
-
-        dynbuf_append(&c->nulls, &b, 1);
+    if (node->kind == ICN_ARRAY) {
+        ereport(
+            ERROR,
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: scalar value into Array column")
+        );
     }
-    return c;
+    return node;
 }
 
-static void
-append_fixed_bytes(ic_col* c, const void* p, size_t n) {
-    dynbuf_append(&c->body, p, n);
+/* Leaf buffer for fixed-width appends; guards union access on misdispatch */
+static dynbuf*
+fixed_data(icn* node) {
+    if (node->kind != ICN_FIXED) {
+        ereport(
+            ERROR,
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: fixed-width value into non-fixed-width column")
+        );
+    }
+    return &node->fixed.data;
 }
 
+/* STRING & LC rows: append bytes, record cumulative end */
 static void
-append_fixed_zero(ic_col* c, size_t n) {
-    dynbuf_append_zero(&c->body, n);
-}
-
-static void
-append_string_row(ic_col* c, const void* p, size_t n) {
+append_row_offs(dynbuf* data, u64buf* offs, const void* p, size_t n) {
     if (n) {
-        dynbuf_append(&c->body, p, n);
+        dynbuf_append(data, p, n);
     }
-    u64buf_push(&c->body_offs, c->body.len);
+    u64buf_push(offs, data->len);
 }
 
 /*
@@ -620,36 +610,33 @@ decimal_text_to_bytes(const char* s, uint32_t scale, size_t width, uint8_t* out)
 }
 
 static void
-append_int_kind(ic_col* c, int64_t val) {
-    chc_kind k = ic_layout_array_fixed(c->layout) ? chc_type_kind(c->elem_t)
-                                                  : chc_type_kind(c->inner_t);
-
-    switch (k) {
+append_int_kind(icn* node, int64_t val) {
+    switch (chc_type_kind(node->type)) {
     case CHC_INT8:
     case CHC_UINT8:
     case CHC_BOOL: {
         int8_t v = (int8_t)val;
 
-        append_fixed_bytes(c, &v, 1);
+        dynbuf_append(fixed_data(node), &v, 1);
         return;
     }
     case CHC_INT16:
     case CHC_UINT16: {
         int16_t v = (int16_t)val;
 
-        append_fixed_bytes(c, &v, 2);
+        dynbuf_append(fixed_data(node), &v, 2);
         return;
     }
     case CHC_INT32:
     case CHC_UINT32: {
         int32_t v = (int32_t)val;
 
-        append_fixed_bytes(c, &v, 4);
+        dynbuf_append(fixed_data(node), &v, 4);
         return;
     }
     case CHC_INT64:
     case CHC_UINT64: {
-        append_fixed_bytes(c, &val, 8);
+        dynbuf_append(fixed_data(node), &val, 8);
         return;
     }
     default:
@@ -664,12 +651,14 @@ append_int_kind(ic_col* c, int64_t val) {
 void
 ch_binary_append_int(ch_binary_insert_handle* h, size_t col, int64_t val, bool isnull) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
 
     if (isnull) {
-        append_fixed_zero(c, c->elem_size);
+        dynbuf* d = fixed_data(node);
+
+        dynbuf_append_zero(d, node->fixed.elem_size);
     } else {
-        append_int_kind(c, val);
+        append_int_kind(node, val);
     }
     MemoryContextSwitchTo(old);
 }
@@ -697,12 +686,12 @@ ch_binary_append_double(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
 
     if (isnull) {
-        append_fixed_zero(c, 8);
+        dynbuf_append_zero(fixed_data(node), 8);
     } else {
-        append_fixed_bytes(c, &val, 8);
+        dynbuf_append(fixed_data(node), &val, 8);
     }
     MemoryContextSwitchTo(old);
 }
@@ -710,79 +699,54 @@ ch_binary_append_double(
 void
 ch_binary_append_float(ch_binary_insert_handle* h, size_t col, float val, bool isnull) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
 
     if (isnull) {
-        append_fixed_zero(c, 4);
+        dynbuf_append_zero(fixed_data(node), 4);
     } else {
-        append_fixed_bytes(c, &val, 4);
+        dynbuf_append(fixed_data(node), &val, 4);
     }
     MemoryContextSwitchTo(old);
 }
 
-void
-ch_binary_append_bytes(
-    ch_binary_insert_handle* h,
-    size_t col,
-    const void* p,
-    size_t n,
-    bool isnull
-) {
-    MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
-    chc_kind k        = ic_layout_array_string(c->layout) ? chc_type_kind(c->elem_t)
-                                                          : chc_type_kind(c->inner_t);
-
-    if (c->layout == IC_LC_STRING) {
-        /* Accumulate via body+body_offs; dict materialized at flush. */
-        if (isnull) {
-            append_string_row(c, NULL, 0);
-        } else {
-            append_string_row(c, p, n);
-        }
-        MemoryContextSwitchTo(old);
-        return;
-    }
+/* FixedString width-pads, Enum maps name to value via node's type table */
+static void
+append_bytes_fixed(icn* node, const void* p, size_t n, bool isnull) {
+    chc_kind k   = chc_type_kind(node->type);
+    dynbuf* data = &node->fixed.data;
 
     if (k == CHC_FIXED_STRING) {
-        size_t w = (size_t)chc_type_fixed_size(
-            ic_layout_array_string(c->layout) ? c->elem_t : c->inner_t
-        );
+        size_t w = node->fixed.elem_size;
 
         if (isnull) {
-            append_fixed_zero(c, w);
-        } else {
-            size_t take = n < w ? n : w;
-
-            if (take) {
-                dynbuf_append(&c->body, p, take);
-            }
-            if (take < w) {
-                dynbuf_append_zero(&c->body, w - take);
-            }
+            dynbuf_append_zero(data, w);
+            return;
         }
-        MemoryContextSwitchTo(old);
+        size_t take = n < w ? n : w;
+
+        if (take) {
+            dynbuf_append(data, p, take);
+        }
+        if (take < w) {
+            dynbuf_append_zero(data, w - take);
+        }
         return;
     }
     if (k == CHC_ENUM8 || k == CHC_ENUM16) {
-        size_t ew = (k == CHC_ENUM8) ? 1 : 2;
-
         if (isnull) {
-            append_fixed_zero(c, ew);
-            MemoryContextSwitchTo(old);
+            dynbuf_append_zero(data, node->fixed.elem_size);
             return;
         }
-        const chc_type* et = ic_layout_array_string(c->layout) ? c->elem_t : c->inner_t;
-        size_t nenum       = chc_type_enum_count(et);
-        int64_t val        = 0;
-        bool found         = false;
+        size_t nenum = chc_type_enum_count(node->type);
+        int64_t val  = 0;
+        bool found   = false;
 
         for (size_t i = 0; i < nenum; i++) {
             const char* en;
             size_t el;
             int64_t ev;
 
-            chc_type_enum_at(et, i, &en, &el, &ev);
+            chc_type_enum_at(node->type, i, &en, &el, &ev);
             if (el == n && memcmp(en, p, n) == 0) {
                 val   = ev;
                 found = true;
@@ -801,22 +765,12 @@ ch_binary_append_bytes(
         if (k == CHC_ENUM8) {
             int8_t v = (int8_t)val;
 
-            append_fixed_bytes(c, &v, 1);
+            dynbuf_append(data, &v, 1);
         } else {
             int16_t v = (int16_t)val;
 
-            append_fixed_bytes(c, &v, 2);
+            dynbuf_append(data, &v, 2);
         }
-        MemoryContextSwitchTo(old);
-        return;
-    }
-    if (k == CHC_STRING || k == CHC_JSON || k == CHC_OBJECT) {
-        if (isnull) {
-            append_string_row(c, NULL, 0);
-        } else {
-            append_string_row(c, p, n);
-        }
-        MemoryContextSwitchTo(old);
         return;
     }
     ereport(
@@ -827,6 +781,47 @@ ch_binary_append_bytes(
 }
 
 void
+ch_binary_append_bytes(
+    ch_binary_insert_handle* h,
+    size_t col,
+    const void* p,
+    size_t n,
+    bool isnull
+) {
+    MemoryContext old = MemoryContextSwitchTo(h->cxt);
+    icn* node         = resolve_leaf(h, col, isnull);
+
+    switch (node->kind) {
+    case ICN_LC:
+        /* Buffer values and offsets, build LowCardinality dictionary during flush */
+        append_row_offs(
+            &node->lc.data, &node->lc.offs, isnull ? NULL : p, isnull ? 0 : n
+        );
+        break;
+    case ICN_STRING:
+        if (isnull && node->str.is_json) {
+            /* CH still parses Nullable's values, choking on invalid JSON */
+            append_row_offs(&node->str.data, &node->str.offs, "{}", 2);
+        } else {
+            append_row_offs(
+                &node->str.data, &node->str.offs, isnull ? NULL : p, isnull ? 0 : n
+            );
+        }
+        break;
+    case ICN_FIXED:
+        append_bytes_fixed(node, p, n, isnull);
+        break;
+    default:
+        ereport(
+            ERROR,
+            errcode(ERRCODE_DATATYPE_MISMATCH),
+            errmsg("pg_clickhouse: bytes into non-text column")
+        );
+    }
+    MemoryContextSwitchTo(old);
+}
+
+void
 ch_binary_append_decimal(
     ch_binary_insert_handle* h,
     size_t col,
@@ -834,12 +829,10 @@ ch_binary_append_decimal(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
-    const chc_type* t = ic_layout_array_fixed(c->layout) ? c->elem_t : c->inner_t;
-    chc_kind k        = chc_type_kind(t);
+    icn* node         = resolve_leaf(h, col, isnull);
     size_t w;
 
-    switch (k) {
+    switch (chc_type_kind(node->type)) {
     case CHC_DECIMAL32:
         w = 4;
         break;
@@ -862,11 +855,11 @@ ch_binary_append_decimal(
     uint8_t raw[32] = {};
 
     if (!isnull && digits) {
-        uint32_t scale = (uint32_t)chc_type_decimal_scale(t);
+        uint32_t scale = (uint32_t)chc_type_decimal_scale(node->type);
 
         decimal_text_to_bytes(digits, scale, w, raw);
     }
-    append_fixed_bytes(c, raw, w);
+    dynbuf_append(&node->fixed.data, raw, w);
     MemoryContextSwitchTo(old);
 }
 
@@ -878,7 +871,7 @@ ch_binary_append_uuid(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
     uint8_t wire[16]  = {};
 
     if (!isnull) {
@@ -891,7 +884,7 @@ ch_binary_append_uuid(
         memcpy(wire, &a, 8);
         memcpy(wire + 8, &b, 8);
     }
-    append_fixed_bytes(c, wire, 16);
+    dynbuf_append(fixed_data(node), wire, 16);
     MemoryContextSwitchTo(old);
 }
 
@@ -909,9 +902,8 @@ ch_binary_append_inet(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
-    const chc_type* t = ic_layout_array_fixed(c->layout) ? c->elem_t : c->inner_t;
-    chc_kind k        = chc_type_kind(t);
+    icn* node         = resolve_leaf(h, col, isnull);
+    chc_kind k        = chc_type_kind(node->type);
 
     if (k == CHC_IPV4 && addrlen == 4) {
         uint32_t addr = 0;
@@ -922,7 +914,7 @@ ch_binary_append_inet(
             memcpy(&be, addr_be, 4);
             addr = pg_ntoh32(be);
         }
-        append_fixed_bytes(c, &addr, 4);
+        dynbuf_append(&node->fixed.data, &addr, 4);
         MemoryContextSwitchTo(old);
         return;
     }
@@ -932,7 +924,7 @@ ch_binary_append_inet(
         if (!isnull && addr_be) {
             memcpy(raw, addr_be, 16);
         }
-        append_fixed_bytes(c, raw, 16);
+        dynbuf_append(&node->fixed.data, raw, 16);
         MemoryContextSwitchTo(old);
         return;
     }
@@ -951,18 +943,17 @@ ch_binary_append_date_seconds(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
-    const chc_type* t = ic_layout_array_fixed(c->layout) ? c->elem_t : c->inner_t;
-    chc_kind k        = chc_type_kind(t);
+    icn* node         = resolve_leaf(h, col, isnull);
+    chc_kind k        = chc_type_kind(node->type);
 
     if (k == CHC_DATE) {
         uint16_t days = isnull ? 0 : (uint16_t)(seconds / 86400);
 
-        append_fixed_bytes(c, &days, 2);
+        dynbuf_append(&node->fixed.data, &days, 2);
     } else if (k == CHC_DATE32) {
         int32_t days = isnull ? 0 : (int32_t)(seconds / 86400);
 
-        append_fixed_bytes(c, &days, 4);
+        dynbuf_append(&node->fixed.data, &days, 4);
     } else {
         ereport(
             ERROR,
@@ -981,10 +972,10 @@ ch_binary_append_datetime_seconds(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
     uint32_t v        = isnull ? 0 : (uint32_t)seconds;
 
-    append_fixed_bytes(c, &v, 4);
+    dynbuf_append(fixed_data(node), &v, 4);
     MemoryContextSwitchTo(old);
 }
 
@@ -996,102 +987,95 @@ ch_binary_append_datetime64_raw(
     bool isnull
 ) {
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
-    ic_col* c         = resolve_col(h, col, isnull);
+    icn* node         = resolve_leaf(h, col, isnull);
     int64_t v         = isnull ? 0 : raw;
 
-    append_fixed_bytes(c, &v, 8);
+    dynbuf_append(fixed_data(node), &v, 8);
     MemoryContextSwitchTo(old);
+}
+
+/* Rows committed to a node so far; an array level counts closed subarrays */
+static uint64_t
+icn_n_rows(const icn* n) {
+    switch (n->kind) {
+    case ICN_FIXED:
+        return n->fixed.elem_size ? n->fixed.data.len / n->fixed.elem_size : 0;
+    case ICN_STRING:
+        return n->str.offs.len;
+    case ICN_NULLABLE:
+        return icn_n_rows(n->nullable.inner);
+    case ICN_ARRAY:
+        return n->array.offs.len;
+    case ICN_LC:
+        return n->lc.offs.len;
+    }
+    pg_unreachable();
 }
 
 void
 ch_binary_array_begin(ch_binary_insert_handle* h, size_t col) {
-    /*
-     * Nested arrays recurse via append_one with col=0, so once an array is
-     * open the caller's col is meaningless, resolve from array_col_idx.
-     */
-    size_t idx = h->array_active ? h->array_col_idx : col;
+    icn* node;
 
-    if (idx >= h->ncols) {
-        ereport(
-            ERROR,
-            errcode(ERRCODE_FDW_ERROR),
-            errmsg("pg_clickhouse: array_begin: col out of range")
-        );
+    if (h->cursor_len) {
+        /*
+         * Nested arrays recurse via append_one with col=0, so once an array
+         * is open the caller's col is meaningless, descend from cursor.
+         */
+        node = h->cursor[h->cursor_len - 1]->array.values;
+    } else {
+        if (col >= h->ncols) {
+            ereport(
+                ERROR,
+                errcode(ERRCODE_FDW_ERROR),
+                errmsg("pg_clickhouse: array_begin: col out of range")
+            );
+        }
+        node = h->cols[col].root;
     }
-    ic_col* c = &h->cols[idx];
 
-    if (c->layout != IC_ARRAY_FIXED && c->layout != IC_ARRAY_STRING &&
-        c->layout != IC_ARRAY_NESTED_FIXED && c->layout != IC_ARRAY_NESTED_STRING) {
+    MemoryContext old = MemoryContextSwitchTo(h->cxt);
+
+    if (node->kind == ICN_NULLABLE && node->nullable.inner->kind == ICN_ARRAY) {
+        /* Nullable(Array(...)): the array value itself is non-null */
+        uint8_t b = 0;
+
+        dynbuf_append(&node->nullable.null_map, &b, 1);
+        node = node->nullable.inner;
+    }
+    if (node->kind != ICN_ARRAY) {
         ereport(
             ERROR,
             errcode(ERRCODE_FDW_ERROR),
             errmsg("pg_clickhouse: array_begin: column is not Array")
         );
     }
-    if (c->array_depth >= c->ndim) {
-        ereport(
-            ERROR,
-            errcode(ERRCODE_FDW_ERROR),
-            errmsg("pg_clickhouse: array_begin: nesting exceeds column ndim")
-        );
+    if (h->cursor_len == h->cursor_cap) {
+        h->cursor_cap = h->cursor_cap ? h->cursor_cap * 2 : 4;
+        h->cursor     = h->cursor ? repalloc(h->cursor, h->cursor_cap * sizeof(icn*))
+                                  : palloc(h->cursor_cap * sizeof(icn*));
     }
-    if (c->array_depth == 0) {
-        if (c->is_nullable) {
-            uint8_t b         = 0;
-            MemoryContext old = MemoryContextSwitchTo(h->cxt);
-
-            dynbuf_append(&c->nulls, &b, 1);
-            MemoryContextSwitchTo(old);
-        }
-        h->array_active  = true;
-        h->array_col_idx = idx;
+    if (h->cursor_len == 0) {
+        h->cursor_col = col;
     }
-    c->array_depth++;
+    h->cursor[h->cursor_len++] = node;
+    MemoryContextSwitchTo(old);
 }
 
 void
 ch_binary_array_end(ch_binary_insert_handle* h) {
-    if (!h->array_active) {
+    if (h->cursor_len == 0) {
         return;
     }
-    ic_col* c = &h->cols[h->array_col_idx];
-
-    if (c->array_depth == 0) {
-        return;
-    }
-
-    uint64_t end;
-
-    /*
-     * At innermost depth, count is leaf-element count; at outer levels the
-     * count is total children written so far at the level below.
-     */
-    if (c->array_depth == c->ndim) {
-        if (c->layout == IC_ARRAY_FIXED || c->layout == IC_ARRAY_NESTED_FIXED) {
-            end = c->elem_size ? (uint64_t)(c->body.len / c->elem_size) : 0;
-        } else {
-            end = c->body_offs.len;
-        }
-    } else {
-        end = c->arr_offs_inner[c->array_depth - 1].len;
-    }
-
+    icn* a            = h->cursor[--h->cursor_len];
     MemoryContext old = MemoryContextSwitchTo(h->cxt);
 
-    if (c->array_depth == 1) {
-        u64buf_push(&c->arr_offs, end);
-        c->n_rows++;
-        h->array_active = false;
-    } else {
-        u64buf_push(&c->arr_offs_inner[c->array_depth - 2], end);
-    }
+    u64buf_push(&a->array.offs, icn_n_rows(a->array.values));
     MemoryContextSwitchTo(old);
-    c->array_depth--;
 }
 
 bool
 ch_binary_array_active(const ch_binary_insert_handle* h) {
-    return h && h->array_active;
+    return h && h->cursor_len > 0;
 }
 
 chc_kind
@@ -1099,28 +1083,24 @@ ch_binary_column_kind(const ch_binary_insert_handle* h, size_t col) {
     if (col >= h->ncols) {
         return CHC_VOID;
     }
-    const ic_col* c = &h->cols[col];
 
-    if (h->array_active) {
-        c = &h->cols[h->array_col_idx];
+    /*
+     * While nested, surface CHC_ARRAY until the innermost layer is open;
+     * at that point return the leaf kind so encode targets scalars.
+     */
+    const icn* node = cursor_node(h, col);
 
-        /*
-         * While nested, surface CHC_ARRAY until the innermost layer is open;
-         * at that point return the leaf kind so encode targets scalars.
-         */
-        if (c->array_depth < c->ndim) {
-            return CHC_ARRAY;
-        }
-        return chc_type_kind(c->elem_t);
+    if (node->kind == ICN_NULLABLE) {
+        node = node->nullable.inner;
     }
-    if (c->layout == IC_ARRAY_FIXED || c->layout == IC_ARRAY_STRING ||
-        c->layout == IC_ARRAY_NESTED_FIXED || c->layout == IC_ARRAY_NESTED_STRING) {
+    switch (node->kind) {
+    case ICN_ARRAY:
         return CHC_ARRAY;
-    }
-    if (c->layout == IC_LC_STRING) {
+    case ICN_LC:
         return CHC_STRING; /* PG side targets TEXT */
+    default:
+        return chc_type_kind(node->type);
     }
-    return chc_type_kind(c->inner_t);
 }
 
 uint32_t
@@ -1128,7 +1108,18 @@ ch_binary_column_datetime64_precision(const ch_binary_insert_handle* h, size_t c
     if (col >= h->ncols) {
         return 0;
     }
-    return h->cols[col].dt64_precision;
+    const icn* node = cursor_node(h, col);
+
+    for (;;) {
+        if (node->kind == ICN_NULLABLE) {
+            node = node->nullable.inner;
+        } else if (node->kind == ICN_ARRAY) {
+            node = node->array.values;
+        } else {
+            break;
+        }
+    }
+    return node->kind == ICN_FIXED ? node->fixed.dt64_precision : 0;
 }
 
 /* Dedup map for LowCardinality dict */
@@ -1158,8 +1149,7 @@ typedef struct lcd_entry {
 /* Build LC dict (collect unique strings in insertion order) */
 static void
 build_lc_dict(
-    ic_col* c,
-    bool nullable,
+    const icn* node,
     uint64_t** out_dict_offs,
     uint8_t** out_dict_data,
     size_t* out_dict_n,
@@ -1167,7 +1157,8 @@ build_lc_dict(
     int* out_key_size,
     size_t* out_n_rows
 ) {
-    size_t n_rows       = c->body_offs.len;
+    bool nullable       = node->lc.inner_nullable;
+    size_t n_rows       = node->lc.offs.len;
     uint64_t* dict_offs = NULL;
     uint8_t* dict_data  = NULL;
     uint32_t* keys      = n_rows ? palloc(n_rows * sizeof(uint32_t)) : NULL;
@@ -1190,16 +1181,16 @@ build_lc_dict(
     }
 
     for (size_t i = 0; i < n_rows; i++) {
-        uint64_t start       = i == 0 ? 0 : c->body_offs.data[i - 1];
-        uint64_t end         = c->body_offs.data[i];
+        uint64_t start       = i == 0 ? 0 : node->lc.offs.data[i - 1];
+        uint64_t end         = node->lc.offs.data[i];
         size_t len           = (size_t)(end - start);
-        const uint8_t* bytes = c->body.data + start;
+        const uint8_t* bytes = node->lc.data.data + start;
         lcd_key k            = { bytes, len };
         lcd_entry* entry;
         bool found;
 
         /* If nullable and this row was null (signalled by null bit), key 0. */
-        if (nullable && c->nulls.data[i]) {
+        if (nullable && node->lc.null_map.data[i]) {
             keys[i] = 0;
             continue;
         }
@@ -1246,6 +1237,102 @@ build_lc_dict(
     *out_n_rows    = n_rows;
 }
 
+static inline chc_column*
+col_node(chc_column v) {
+    chc_column* n = palloc(sizeof(*n));
+
+    *n = v;
+    return n;
+}
+
+/*
+ * Build chc_column tree in current context, 1:1 with the node tree. Result
+ * holds references to nested chc_column objects, buffered column data, and
+ * any LowCardinality dictionary. Keep context and column buffers alive
+ * until send_data returns.
+ */
+static chc_column*
+finalize_node(icn* n) {
+    switch (n->kind) {
+    case ICN_FIXED: {
+        size_t n_rows = icn_n_rows(n);
+
+        return col_node(
+            chc_build_fixed(n->fixed.data.data, n->fixed.elem_size, n_rows)
+        );
+    }
+    case ICN_STRING:
+        return col_node(
+            chc_build_string(n->str.offs.data, n->str.data.data, n->str.offs.len)
+        );
+    case ICN_NULLABLE:
+        return col_node(chc_build_nullable(
+            n->nullable.null_map.data, finalize_node(n->nullable.inner)
+        ));
+    case ICN_ARRAY:
+        return col_node(chc_build_array(
+            n->array.offs.data, n->array.offs.len, finalize_node(n->array.values)
+        ));
+    case ICN_LC: {
+        size_t dict_n, n_rows;
+        int key_size;
+        uint64_t* lc_offs;
+        uint8_t* lc_data;
+        void* lc_keys;
+
+        build_lc_dict(n, &lc_offs, &lc_data, &dict_n, &lc_keys, &key_size, &n_rows);
+        chc_column* dict = col_node(chc_build_string(lc_offs, lc_data, dict_n));
+
+        return col_node(chc_build_lc(key_size, lc_keys, n_rows, dict));
+    }
+    }
+    pg_unreachable();
+}
+
+static size_t
+node_bytes(const icn* n) {
+    switch (n->kind) {
+    case ICN_FIXED:
+        return n->fixed.data.len;
+    case ICN_STRING:
+        return n->str.data.len + n->str.offs.len * sizeof(uint64_t);
+    case ICN_NULLABLE:
+        return n->nullable.null_map.len + node_bytes(n->nullable.inner);
+    case ICN_ARRAY:
+        return n->array.offs.len * sizeof(uint64_t) + node_bytes(n->array.values);
+    case ICN_LC:
+        return n->lc.data.len + n->lc.offs.len * sizeof(uint64_t) + n->lc.null_map.len;
+    }
+    pg_unreachable();
+}
+
+static void
+reset_node(icn* n) {
+    switch (n->kind) {
+    case ICN_FIXED:
+        dynbuf_reset(&n->fixed.data);
+        return;
+    case ICN_STRING:
+        dynbuf_reset(&n->str.data);
+        u64buf_reset(&n->str.offs);
+        return;
+    case ICN_NULLABLE:
+        dynbuf_reset(&n->nullable.null_map);
+        reset_node(n->nullable.inner);
+        return;
+    case ICN_ARRAY:
+        u64buf_reset(&n->array.offs);
+        reset_node(n->array.values);
+        return;
+    case ICN_LC:
+        dynbuf_reset(&n->lc.data);
+        u64buf_reset(&n->lc.offs);
+        dynbuf_reset(&n->lc.null_map);
+        return;
+    }
+    pg_unreachable();
+}
+
 /*
  * Flush once insert buffered reaches 64MiB, so large COPY or INSERT SELECT
  * streams blocks instead of accumulating all rows in memory. Server coalesces
@@ -1258,9 +1345,7 @@ ch_binary_insert_autoflush(ch_binary_insert_state* state) {
     if (h) {
         size_t total = 0;
         for (size_t i = 0; i < h->ncols; i++) {
-            const ic_col* c = &h->cols[i];
-            total += c->body.len + c->nulls.len +
-                     (c->body_offs.len + c->arr_offs.len) * sizeof(uint64_t);
+            total += node_bytes(h->cols[i].root);
         }
         if (total >= 64 * 1024 * 1024) {
             ch_binary_flush_block(h);
@@ -1270,179 +1355,34 @@ ch_binary_insert_autoflush(ch_binary_insert_state* state) {
 
 void
 ch_binary_flush_block(ch_binary_insert_handle* h) {
-    MemoryContext old     = MemoryContextSwitchTo(h->cxt);
-    chc_err err           = {};
-    chc_block_builder* bb = NULL;
-    int rc                = chc_block_builder_init(&bb, &pg_chc_alloc, &err);
+    /* Unbalanced array_begin/array_end leaves offsets short of leaf rows */
+    Assert(h->cursor_len == 0);
 
-    if (rc != CHC_OK) {
-        raise_chc(&err, ERRCODE_FDW_ERROR, "could not append data to column - ");
-    }
+    /*
+     * Allocate chc_column objects, block metadata, and LowCardinality dictionaries
+     * in per-flush context.
+     */
+    MemoryContext old  = MemoryContextSwitchTo(h->cxt);
+    MemoryContext bcxt = AllocSetContextCreate(
+        h->cxt, "pg_clickhouse binary insert flush", ALLOCSET_DEFAULT_SIZES
+    );
+
+    MemoryContextSwitchTo(bcxt);
+
+    chc_err err          = {};
+    chc_block_col* bcols = h->ncols ? palloc(h->ncols * sizeof(*bcols)) : NULL;
+    chc_block_builder bb;
+
+    chc_block_builder_init(&bb, bcols);
 
     for (size_t i = 0; i < h->ncols; i++) {
         ic_col* c        = &h->cols[i];
         const char* name = c->info.name ? c->info.name : "";
-        size_t nlen      = strlen(name);
-
-        switch (c->layout) {
-        case IC_FIXED: {
-            size_t n_rows = c->elem_size ? c->body.len / c->elem_size : 0;
-
-            if (c->is_nullable) {
-                rc = chc_block_builder_append_nullable_fixed(
-                    bb, name, nlen, c->t, c->nulls.data, c->body.data, n_rows, &err
-                );
-            } else {
-                rc = chc_block_builder_append_fixed(
-                    bb, name, nlen, c->t, c->body.data, n_rows, &err
-                );
-            }
-            break;
-        }
-        case IC_STRING: {
-            size_t n_rows = c->body_offs.len;
-
-            if (c->is_nullable) {
-                rc = chc_block_builder_append_nullable_string(
-                    bb,
-                    name,
-                    nlen,
-                    c->t,
-                    c->nulls.data,
-                    c->body_offs.data,
-                    c->body.data,
-                    n_rows,
-                    &err
-                );
-            } else {
-                rc = chc_block_builder_append_string(
-                    bb, name, nlen, c->body_offs.data, c->body.data, n_rows, &err
-                );
-            }
-            break;
-        }
-        case IC_JSON_STRING: {
-            /*
-             * JSON columns share IC_STRING's per-row accumulator; the
-             * library emits the 8-byte SerializationObject::STRING
-             * prefix and writes rows as String-Binary.
-             */
-            size_t n_rows = c->body_offs.len;
-
-            rc = chc_block_builder_append_json_string(
-                bb, name, nlen, c->t, c->body_offs.data, c->body.data, n_rows, &err
-            );
-            break;
-        }
-        case IC_LC_STRING: {
-            bool nullable_inner =
-                chc_type_kind(chc_type_child(c->inner_t, 0)) == CHC_NULLABLE;
-            size_t dict_n, n_rows;
-            int key_size;
-            uint64_t* lc_offs;
-            uint8_t* lc_data;
-            void* lc_keys;
-
-            build_lc_dict(
-                c,
-                nullable_inner,
-                &lc_offs,
-                &lc_data,
-                &dict_n,
-                &lc_keys,
-                &key_size,
-                &n_rows
-            );
-            rc = chc_block_builder_append_low_cardinality_string(
-                bb,
-                name,
-                nlen,
-                c->t,
-                key_size,
-                lc_keys,
-                lc_offs,
-                lc_data,
-                dict_n,
-                n_rows,
-                &err
-            );
-            break;
-        }
-        case IC_ARRAY_FIXED: {
-            size_t n_rows = c->arr_offs.len;
-
-            rc = chc_block_builder_append_array_fixed(
-                bb, name, nlen, c->t, c->arr_offs.data, c->body.data, n_rows, &err
-            );
-            break;
-        }
-        case IC_ARRAY_STRING: {
-            size_t n_rows = c->arr_offs.len;
-
-            rc = chc_block_builder_append_array_string(
-                bb,
-                name,
-                nlen,
-                c->t,
-                c->arr_offs.data,
-                c->body_offs.data,
-                c->body.data,
-                n_rows,
-                &err
-            );
-            break;
-        }
-        case IC_ARRAY_NESTED_FIXED:
-        case IC_ARRAY_NESTED_STRING: {
-            size_t n_rows = c->arr_offs.len;
-            const uint64_t** lvl_offsets =
-                palloc((size_t)c->ndim * sizeof(*lvl_offsets));
-            size_t* lvl_lens = palloc((size_t)c->ndim * sizeof(*lvl_lens));
-
-            lvl_offsets[0] = c->arr_offs.data;
-            lvl_lens[0]    = c->arr_offs.len;
-            for (int lvl = 1; lvl < c->ndim; lvl++) {
-                lvl_offsets[lvl] = c->arr_offs_inner[lvl - 1].data;
-                lvl_lens[lvl]    = c->arr_offs_inner[lvl - 1].len;
-            }
-            if (c->layout == IC_ARRAY_NESTED_FIXED) {
-                rc = chc_block_builder_append_array_nested_fixed(
-                    bb,
-                    name,
-                    nlen,
-                    c->t,
-                    c->ndim,
-                    lvl_offsets,
-                    lvl_lens,
-                    c->body.data,
-                    n_rows,
-                    &err
-                );
-            } else {
-                rc = chc_block_builder_append_array_nested_string(
-                    bb,
-                    name,
-                    nlen,
-                    c->t,
-                    c->ndim,
-                    lvl_offsets,
-                    lvl_lens,
-                    c->body_offs.data,
-                    c->body.data,
-                    n_rows,
-                    &err
-                );
-            }
-            break;
-        }
-        }
-        if (rc != CHC_OK) {
-            raise_chc(&err, ERRCODE_FDW_ERROR, "could not append data to column - ");
-        }
+        chc_block_builder_append(&bb, name, strlen(name), c->t, finalize_node(c->root));
     }
 
-    rc = chc_client_send_data(h->client, bb, &err);
-    chc_block_builder_destroy(bb);
+    int rc = chc_client_send_data(h->client, &bb, &err);
+
     if (rc != CHC_OK) {
         if (h->state) {
             h->state->broken = true;
@@ -1450,20 +1390,12 @@ ch_binary_flush_block(ch_binary_insert_handle* h) {
         raise_chc(&err, ERRCODE_FDW_ERROR, "could not insert columns - ");
     }
 
+    MemoryContextSwitchTo(h->cxt);
+    MemoryContextDelete(bcxt);
+
     /* Reset per-column buffers for next batch. */
     for (size_t i = 0; i < h->ncols; i++) {
-        ic_col* c = &h->cols[i];
-
-        dynbuf_reset(&c->body);
-        dynbuf_reset(&c->nulls);
-        u64buf_reset(&c->body_offs);
-        u64buf_reset(&c->arr_offs);
-        if (c->arr_offs_inner) {
-            for (int lvl = 0; lvl + 1 < c->ndim; lvl++) {
-                u64buf_reset(&c->arr_offs_inner[lvl]);
-            }
-        }
-        c->n_rows = 0;
+        reset_node(h->cols[i].root);
     }
     MemoryContextSwitchTo(old);
 }

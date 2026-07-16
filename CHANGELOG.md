@@ -53,6 +53,7 @@ All notable changes to this project will be documented in this file. It uses the
     dates and drifted across DST boundaries ([#301]).
 *   Binary driver now flushes insert block once it buffers 64MiB,
     bounding memory for large `COPY FROM` and `INSERT SELECT` ([#303]).
+*   Binary driver now supports inserting into `Array(Nullable(T))` columns ([#316]).
 *   Added pushdown for the three-argument forms of `ltrim`, `rtrim`, and
     `btrim` ([#307]).
 *   Added support for binary driver to `clickhouse_raw_query()` ([#309]).
@@ -142,6 +143,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#313 Fix misc undefined behavior"
   [#315]: https://github.com/ClickHouse/pg_clickhouse/pull/315
     "ClickHouse/pg_clickhouse#315 Preserve NULL semantics in IN-family pushdown"
+  [#316]: https://github.com/ClickHouse/pg_clickhouse/pull/316
+    "ClickHouse/pg_clickhouse#316 Support inserting Array(Nullable(T)) via binary driver"
 
 ## [v0.3.2] — 2026-06-16
 

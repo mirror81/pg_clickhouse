@@ -1,0 +1,19 @@
+CREATE SERVER binary_nullable_json_loopback FOREIGN DATA WRAPPER clickhouse_fdw
+	OPTIONS(dbname 'binary_nullable_json_test', driver 'binary');
+CREATE USER MAPPING FOR CURRENT_USER SERVER binary_nullable_json_loopback;
+
+SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS binary_nullable_json_test');
+SELECT clickhouse_raw_query('CREATE DATABASE binary_nullable_json_test');
+SELECT clickhouse_raw_query('CREATE TABLE binary_nullable_json_test.json_vals (
+	c1 Int32, c2 Nullable(JSON)
+) ENGINE = MergeTree ORDER BY (c1);');
+
+CREATE FOREIGN TABLE json_vals (c1 int, c2 jsonb)
+	SERVER binary_nullable_json_loopback OPTIONS (table_name 'json_vals');
+INSERT INTO json_vals VALUES (1, '{"a": 1}'), (2, NULL), (3, '{"b": 2}');
+SELECT * FROM json_vals ORDER BY c1;
+
+DROP FOREIGN TABLE json_vals;
+DROP USER MAPPING FOR CURRENT_USER SERVER binary_nullable_json_loopback;
+SELECT clickhouse_raw_query('DROP DATABASE binary_nullable_json_test');
+DROP SERVER binary_nullable_json_loopback CASCADE;
