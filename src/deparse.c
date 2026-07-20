@@ -4947,6 +4947,14 @@ deparseOpExpr(OpExpr* node, deparse_expr_cxt* context) {
 
             goto cleanup;
         } break;
+        case CF_RE2_MATCH: {
+            appendStringInfoString(buf, "match(");
+            deparseExpr(linitial(node->args), context);
+            appendStringInfoString(buf, ", ");
+            deparseExpr(lsecond(node->args), context);
+            appendStringInfoChar(buf, ')');
+            goto cleanup;
+        } break;
         case CF_ARRAY_CONTAINS: {
             appendStringInfoString(buf, "hasAll(");
             deparseExpr(linitial(node->args), context);

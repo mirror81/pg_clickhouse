@@ -33,6 +33,10 @@ SELECT * FROM t1 WHERE re2match(val, 're2');
 SELECT * FROM t1 WHERE re2match(val, 're2');
 
 EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE val @~ 're2';
+SELECT * FROM t1 WHERE val @~ 're2';
+
+EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t1 WHERE re2extract(val, '(re2)') = 're2';
 SELECT * FROM t1 WHERE re2extract(val, '(re2)') = 're2';
 

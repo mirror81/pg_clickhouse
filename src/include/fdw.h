@@ -393,6 +393,7 @@ typedef enum {
     CF_DATETIME_MI_INTERVAL, /* date/timestamp/timestamptz - interval */
     CF_TIMEZONE,             /* timezone */
     CF_HSTORE_FETCHVAL,      /* -> operation on hstore */
+    CF_RE2_MATCH,            /* @~ re operation */
     CF_INTARRAY_IDX,
     CF_CH_FUNCTION,            /* adapted clickhouse function */
     CF_MATCH,                  /* regexp_match function */

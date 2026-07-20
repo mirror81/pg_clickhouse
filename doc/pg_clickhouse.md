@@ -1353,8 +1353,9 @@ pushing them down to their ClickHouse equivalents.
 
 #### re2
 
-All [re2 extension] functions push down 1:1 to ClickHouse:
+All [re2 extension] operators and functions push down 1:1 to ClickHouse:
 
+*   `@~` → [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `re2match` → [match](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#match)
 *   `re2extract` → [extract](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extract)
 *   `re2extractall` → [extractAll](https://clickhouse.com/docs/sql-reference/functions/string-search-functions#extractAll)

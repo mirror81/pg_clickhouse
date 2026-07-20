@@ -1040,6 +1040,10 @@ chfdw_check_for_custom_operator(Oid opoid, Form_pg_operator form) {
                     if (form && strcmp(NameStr(form->oprname), "->") == 0) {
                         entry->cf_type = CF_HSTORE_FETCHVAL;
                     }
+                } else if (STR_EQUAL(extname, "re2")) {
+                    if (form && strcmp(NameStr(form->oprname), "@~") == 0) {
+                        entry->cf_type = CF_RE2_MATCH;
+                    }
                 }
                 pfree(extname);
             }

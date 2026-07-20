@@ -71,6 +71,8 @@ All notable changes to this project will be documented in this file. It uses the
     aggregation. Requires `enable_partitionwise_aggregate` ([#298]).
 *   Disabled remote MIN/MAX optimization by raising `MinMaxAggPath` cost
     rather than understating foreign scan cost ([#310]).
+*   Added mapping to push down the re2 v0.4 `@~` operator to ClickHouse as
+    the `match()` function ([#318]).
 
 ### 🐞 Bug Fixes
 
@@ -145,6 +147,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#315 Preserve NULL semantics in IN-family pushdown"
   [#316]: https://github.com/ClickHouse/pg_clickhouse/pull/316
     "ClickHouse/pg_clickhouse#316 Support inserting Array(Nullable(T)) via binary driver"
+  [#318]: https://github.com/ClickHouse/pg_clickhouse/pull/318
+    "ClickHouse/pg_clickhouse#318 Push down the re2 v0.4 `@~` operator"
 
 ## [v0.3.2] — 2026-06-16
 

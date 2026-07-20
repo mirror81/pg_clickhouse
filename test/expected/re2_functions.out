@@ -59,6 +59,21 @@ SELECT * FROM t1 WHERE re2match(val, 're2');
 (1 row)
 
 EXPLAIN (VERBOSE, COSTS OFF)
+SELECT * FROM t1 WHERE val @~ 're2';
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Foreign Scan on re2_test.t1
+   Output: id, val
+   Remote SQL: SELECT id, val FROM re2_test.t1 WHERE (match(val, 're2'))
+(3 rows)
+
+SELECT * FROM t1 WHERE val @~ 're2';
+ id |           val            
+----+--------------------------
+  2 | re2 uses finite automata
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS OFF)
 SELECT * FROM t1 WHERE re2extract(val, '(re2)') = 're2';
                                       QUERY PLAN                                       
 ---------------------------------------------------------------------------------------
