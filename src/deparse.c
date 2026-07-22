@@ -1874,7 +1874,12 @@ ch_format_type_extended(Oid type_oid, int32 typemod, uint16 flags) {
 
     case NUMERICOID:
         if (with_typemod) {
-            buf = printTypmod("Decimal", typemod, typeform->typmodout);
+            /*
+             * Unconstrained numeric potentially much larger than ClickHouse can
+               do; max it out when no precision specified.
+            */
+            buf = typemod < 0 ? "Decimal(76, 38)"
+                              : printTypmod("Decimal", typemod, typeform->typmodout);
         } else {
             buf = pstrdup("Decimal");
         }

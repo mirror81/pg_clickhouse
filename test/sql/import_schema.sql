@@ -15,7 +15,7 @@ SELECT clickhouse_raw_query('CREATE DATABASE import_test');
 SELECT clickhouse_raw_query('DROP DATABASE IF EXISTS import_test_2');
 SELECT clickhouse_raw_query('CREATE DATABASE import_test_2');
 
--- integer types
+-- numeric types
 SELECT clickhouse_raw_query('CREATE TABLE import_test.ints (
     c1 Int8, c2 Int16, c3 Int32, c4 Int64,
     c5 UInt8, c6 UInt16, c7 UInt32, c8 UInt64,
