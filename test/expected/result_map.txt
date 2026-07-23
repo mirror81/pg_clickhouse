@@ -201,7 +201,8 @@ import_schema.sql
 
  ClickHouse | File
 ------------|---------------------
- 23+        | import_schema.out
+ 26.7+      | import_schema.out
+ 23+-26.6   | import_schema_2.out
 
 json.sql
 --------
