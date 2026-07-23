@@ -197,6 +197,27 @@ SELECT COUNT(DISTINCT c1) FILTER (WHERE c1 < 20) FROM ft2;
 EXPLAIN (VERBOSE, COSTS OFF) SELECT COUNT(*) FILTER (WHERE c1 < 20) FROM ft2;
 SELECT COUNT(*) FILTER (WHERE c1 < 10) FROM ft2;
 
+-- Pulled-up subqueries can place an outer-join RTE before the base foreign
+-- tables represented by a pushed-down scan.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT t4.c1, COUNT(DISTINCT t4.c2)
+FROM (SELECT * FROM ft1) t1
+JOIN (SELECT * FROM ft2) t2 ON t1.c1 = t2.c1
+LEFT JOIN (SELECT * FROM ft4) t3 ON t1.c2 = t3.c2
+JOIN (SELECT * FROM ft5) t4 ON t2.c1 = t4.c1
+WHERE t1.c1 < 4
+GROUP BY t4.c1
+ORDER BY t4.c1;
+
+SELECT t4.c1, COUNT(DISTINCT t4.c2)
+FROM (SELECT * FROM ft1) t1
+JOIN (SELECT * FROM ft2) t2 ON t1.c1 = t2.c1
+LEFT JOIN (SELECT * FROM ft4) t3 ON t1.c2 = t3.c2
+JOIN (SELECT * FROM ft5) t4 ON t2.c1 = t4.c1
+WHERE t1.c1 < 4
+GROUP BY t4.c1
+ORDER BY t4.c1;
+
 SELECT clickhouse_raw_query('DROP DATABASE binary_queries_test');
 
 DROP USER MAPPING FOR CURRENT_USER SERVER binary_queries_loopback2;

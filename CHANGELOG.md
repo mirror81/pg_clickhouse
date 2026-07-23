@@ -103,6 +103,9 @@ All notable changes to this project will be documented in this file. It uses the
     `1 <> ANY('{1,5}')` is `TRUE`. For now, do not push down ([#315]).
 *   Fixed the pushdown of a `CASE arg WHEN ..` expression without checking its
     branches when the tested expression was itself unshippable ([#315]).
+*   Fixed an error when incorrectly selecting an invalid relation OID when
+    selecting the user to execute the remote query. Thanks to Kostia R for the
+    PR ([#319])!
 
 ### 📚 Documentation
 
@@ -155,6 +158,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#318 Push down the re2 v0.4 `@~` operator"
   [#317]: https://github.com/ClickHouse/pg_clickhouse/pull/317
     "ClickHouse/pg_clickhouse#317 Push down the array IN family unconditionally"
+  [#319]: https://github.com/ClickHouse/pg_clickhouse/pull/319
+    "ClickHouse/pg_clickhouse#319 Fix foreign scan RTE selection"
 
 ## [v0.3.2] — 2026-06-16
 

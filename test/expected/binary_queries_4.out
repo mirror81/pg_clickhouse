@@ -752,6 +752,40 @@ SELECT COUNT(*) FILTER (WHERE c1 < 10) FROM ft2;
      9
 (1 row)
 
+-- Pulled-up subqueries can place an outer-join RTE before the base foreign
+-- tables represented by a pushed-down scan.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT t4.c1, COUNT(DISTINCT t4.c2)
+FROM (SELECT * FROM ft1) t1
+JOIN (SELECT * FROM ft2) t2 ON t1.c1 = t2.c1
+LEFT JOIN (SELECT * FROM ft4) t3 ON t1.c2 = t3.c2
+JOIN (SELECT * FROM ft5) t4 ON t2.c1 = t4.c1
+WHERE t1.c1 < 4
+GROUP BY t4.c1
+ORDER BY t4.c1;
+                                                                                                                                                                         QUERY PLAN                                                                                                                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: ft5.c1, (count(DISTINCT ft5.c2))
+   Relations: Aggregate on ((((ft1) INNER JOIN (ft2)) LEFT JOIN (ft4)) INNER JOIN (ft5))
+   Remote SQL: SELECT r11.c1, count(DISTINCT r11.c2) FROM    binary_queries_test.t1 r8 ALL INNER JOIN binary_queries_test.t2 r9 ON (((r8.c1 = r9.c1))) ALL LEFT JOIN binary_queries_test.t4 r10 ON (((r8.c2 = r10.c2))) ALL INNER JOIN binary_queries_test.t4 r11 ON (((r8.c1 = r11.c1))) WHERE ((r8.c1 < 4)) GROUP BY r11.c1 ORDER BY r11.c1 ASC NULLS LAST
+(4 rows)
+
+SELECT t4.c1, COUNT(DISTINCT t4.c2)
+FROM (SELECT * FROM ft1) t1
+JOIN (SELECT * FROM ft2) t2 ON t1.c1 = t2.c1
+LEFT JOIN (SELECT * FROM ft4) t3 ON t1.c2 = t3.c2
+JOIN (SELECT * FROM ft5) t4 ON t2.c1 = t4.c1
+WHERE t1.c1 < 4
+GROUP BY t4.c1
+ORDER BY t4.c1;
+ c1 | count 
+----+-------
+  1 |     1
+  2 |     1
+  3 |     1
+(3 rows)
+
 SELECT clickhouse_raw_query('DROP DATABASE binary_queries_test');
  clickhouse_raw_query 
 ----------------------
