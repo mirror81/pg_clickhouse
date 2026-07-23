@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file. It uses the
     `pg_clickhouse.session_settings` parameter, so that a ClickHouse server
     profile cannot silently change the `IN` semantics the pushdown rules rely
     on ([#315]).
+*   Added or corrected pushdown for `IN`-family operations on arrays. Previous
+    behavior was missing or incorrect, either structurally or due to behavioral
+    differences in the ClickHouse implementation of the operation. Corrected
+    the structurally incorrect pushdown ([#315]) and handled ClickHouse
+    behavioral changes using special case statements where needed ([#317]).
 *   Added pushdown for more aggregate functions ([#290]):
     *   [corr]
     *   [covarpop]
@@ -92,8 +97,7 @@ All notable changes to this project will be documented in this file. It uses the
 *   Fixed wrong results from pushed-down `= ANY`/`<> ALL` expressions and `IN`
     expressions over constant lists and when a `NULL` could reach the
     comparison, because ClickHouse evaluates `IN` under two-valued logic while
-    PostgreSQL evaluates three-value `NULL` logic. These cases now ship only
-    where PostgreSQL's three-valued answer can be provably preserved ([#315]).
+    PostgreSQL evaluates three-value `NULL` logic ([#315], [#317]).
 *   Fixed `<> ANY(array)` deparsing to ClickHouse SQL that computes `<> ALL`,
     which is wrong even with no `NULL`s involved: In Postgres,
     `1 <> ANY('{1,5}')` is `TRUE`. For now, do not push down ([#315]).
@@ -149,6 +153,8 @@ All notable changes to this project will be documented in this file. It uses the
     "ClickHouse/pg_clickhouse#316 Support inserting Array(Nullable(T)) via binary driver"
   [#318]: https://github.com/ClickHouse/pg_clickhouse/pull/318
     "ClickHouse/pg_clickhouse#318 Push down the re2 v0.4 `@~` operator"
+  [#317]: https://github.com/ClickHouse/pg_clickhouse/pull/317
+    "ClickHouse/pg_clickhouse#317 Push down the array IN family unconditionally"
 
 ## [v0.3.2] — 2026-06-16
 

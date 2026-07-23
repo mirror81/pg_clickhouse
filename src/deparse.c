@@ -174,7 +174,7 @@ typedef struct deparse_expr_cxt {
 
 /*
  * How an expression's result is consumed, for the IN-family NULL-semantics
- * rules (see the block comment for saop_null_semantics_ok).
+ * rules (see the block comment for deparseScalarArrayOpExpr).
  *
  * EXPR_CTX_TRUTH    only qualifies rows: NULL and FALSE are interchangeable.
  * EXPR_CTX_NEGATED  the direct operand of one NOT whose own result is in a
@@ -185,6 +185,12 @@ typedef struct deparse_expr_cxt {
  *                   exactly which SubPlans get the guarded form.
  * EXPR_CTX_EXACT    the value itself is observable: exact three-valued
  *                   equivalence required.
+ *
+ * NOTE: deparseExpr's own switch on nodeTag degrades its analogous
+ * deparse_expr_cxt.truth_ctx to false before dispatch for every node type
+ * except T_BoolExpr/T_CaseExpr/T_RelabelType/T_ScalarArrayOpExpr -- the same
+ * types this walker does something other than force EXPR_CTX_EXACT for. If
+ * you add a type here that preserves ctx for its children, add it there too.
  */
 typedef enum ExprTruthCtx {
     EXPR_CTX_TRUTH,
@@ -459,12 +465,11 @@ chfdw_is_foreign_expr(
     return true;
 }
 
-/* 1: '=', 2: '<>', 0 - false */
-int
+CHEqualOp
 chfdw_is_equal_op(Oid opno) {
     Form_pg_operator operform;
     HeapTuple opertup;
-    int res = 0;
+    CHEqualOp res = CH_OP_NONE;
 
     opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
     if (!HeapTupleIsValid(opertup)) {
@@ -474,11 +479,11 @@ chfdw_is_equal_op(Oid opno) {
     operform = (Form_pg_operator)GETSTRUCT(opertup);
 
     if (NameStr(operform->oprname)[0] == '=' && NameStr(operform->oprname)[1] == '\0') {
-        res = 1;
+        res = CH_OP_EQ;
     } else if (
         NameStr(operform->oprname)[0] == '<' && NameStr(operform->oprname)[1] == '>'
     ) {
-        res = 2;
+        res = CH_OP_NE;
     }
 
     ReleaseSysCache(opertup);
@@ -555,10 +560,14 @@ agg_partial_kind(Aggref* agg) {
 static bool
 is_ok_in_expr(Expr* expr);
 
+static bool
+op_expr_never_null(OpExpr* op, foreign_glob_cxt* glob_cxt);
+
 /*
- * True if `expr` provably cannot evaluate to NULL: a non-NULL constant, or a
+ * True if `expr` provably cannot evaluate to NULL: a non-NULL constant, a
  * column of a scanned relation that is declared NOT NULL and cannot have been
- * null-extended by an outer join. Anything else is assumed nullable.
+ * null-extended by an outer join, or certain arithmetic operators over such
+ * inputs (see op_expr_never_null). Anything else is assumed nullable.
  *
  * PG 17+ precomputes the catalog half of this as
  * RelOptInfo->notnullattnums; the syscache lookup below keeps one code path
@@ -624,7 +633,117 @@ expr_never_null(Expr* expr, foreign_glob_cxt* glob_cxt) {
         return notnull;
     }
 
+    if (IsA(expr, OpExpr)) {
+        return op_expr_never_null((OpExpr*)expr, glob_cxt);
+    }
+
     return false;
+}
+
+/*
+ * Operator implementation funcs that cannot return NULL when no input is NULL.
+ * Limited to basic arithmetic, which returns a value or raises an error.
+ * Being strict alone proves nothing here: a strict function may still compute
+ * NULL from non-NULL inputs (json's ->> on a missing key, for one), and no
+ * catalog flag distinguishes the two, so every entry below is hand-picked.
+ * Extend as pushdown-worthy shapes turn up; the list need not stay sorted here,
+ * since `sort_never_null_opfuncs` (below) sorts it in place once, at load time,
+ * for consistency across PG versions.
+ */
+static Oid never_null_opfuncs[] = {
+    /* + */
+    F_INT2PL,
+    F_INT4PL,
+    F_INT8PL,
+    F_INT24PL,
+    F_INT42PL,
+    F_INT28PL,
+    F_INT82PL,
+    F_INT48PL,
+    F_INT84PL,
+    F_FLOAT4PL,
+    F_FLOAT8PL,
+    F_FLOAT48PL,
+    F_FLOAT84PL,
+    F_NUMERIC_ADD,
+    /* - */
+    F_INT2MI,
+    F_INT4MI,
+    F_INT8MI,
+    F_INT24MI,
+    F_INT42MI,
+    F_INT28MI,
+    F_INT82MI,
+    F_INT48MI,
+    F_INT84MI,
+    F_FLOAT4MI,
+    F_FLOAT8MI,
+    F_FLOAT48MI,
+    F_FLOAT84MI,
+    F_NUMERIC_SUB,
+    /* * */
+    F_INT2MUL,
+    F_INT4MUL,
+    F_INT8MUL,
+    F_INT24MUL,
+    F_INT42MUL,
+    F_INT28MUL,
+    F_INT82MUL,
+    F_INT48MUL,
+    F_INT84MUL,
+    F_FLOAT4MUL,
+    F_FLOAT8MUL,
+    F_FLOAT48MUL,
+    F_FLOAT84MUL,
+    F_NUMERIC_MUL,
+    /* unary - */
+    F_INT2UM,
+    F_INT4UM,
+    F_INT8UM,
+    F_FLOAT4UM,
+    F_FLOAT8UM,
+    F_NUMERIC_UMINUS,
+};
+
+static void __attribute__((constructor))
+sort_never_null_opfuncs(void) {
+    qsort(never_null_opfuncs, lengthof(never_null_opfuncs), sizeof(Oid), oid_cmp);
+}
+
+/*
+ * True if `opfuncid` is one of never_null_opfuncs.
+ */
+static bool
+is_non_nullable_op(Oid opfuncid) {
+    return bsearch(
+               &opfuncid,
+               never_null_opfuncs,
+               lengthof(never_null_opfuncs),
+               sizeof(Oid),
+               oid_cmp
+           ) != NULL;
+}
+
+/*
+ * Proves non-nullability of an OpExpr (in some cases). More cases = nicer SQL.
+ * (If we fail to prove something is non-nullable, we just emit runtime guards.)
+ * Returns true if `op` is a never-null operator (see `is_non_nullable_op`) and
+ * every argument is itself provably non-NULL.
+ */
+static bool
+op_expr_never_null(OpExpr* op, foreign_glob_cxt* glob_cxt) {
+    ListCell* lc;
+
+    set_opfuncid(op);
+    if (!is_non_nullable_op(op->opfuncid)) {
+        return false;
+    }
+    foreach (lc, op->args) {
+        if (!expr_never_null((Expr*)lfirst(lc), glob_cxt)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /*
@@ -670,122 +789,6 @@ saop_array_nulls(Expr* arr, foreign_glob_cxt* glob_cxt) {
     }
 
     return SAOP_ARR_UNKNOWN;
-}
-
-/*
- * Decide whether a ScalarArrayOpExpr keeps Postgres semantics on ClickHouse.
- * This comment is the reference for the divergence rules used here and in
- * the SubPlan gate (is_shippable_subplan) and deparse (deparseGuardedNotIn).
- *
- * ClickHouse evaluates IN under two-valued logic (given transform_null_in =
- * 0, the ClickHouse default, which pg_clickhouse.session_settings sets
- * per-query so a server profile cannot change it; overriding the GUC is at
- * the user's own risk, like the join_use_nulls default the pushed outer
- * joins rely on): a probe that finds no match yields 0 even when the searched set
- * contains a NULL, and NOT IN is the exact complement, where Postgres
- * yields NULL in both cases. The two systems agree whenever no NULL can
- * reach the comparison; when one can, ClickHouse substitutes FALSE where
- * Postgres computes NULL, and for the complemented forms (NOT IN, <> ALL)
- * TRUE where Postgres computes NULL. The has()/countEqual() deparse forms
- * additionally match a NULL probe against NULL elements as if they were
- * ordinary values.
- *
- * A FALSE-for-NULL substitution is invisible exactly where a NULL qualifies
- * a row the same way FALSE does: WHERE/JOIN/HAVING conditions, CASE WHEN
- * branches, and aggregate FILTERs, composed through any number of AND/OR
- * (EXPR_CTX_TRUTH). Under NOT, in a function/operator/aggregate argument,
- * in a grouping or ordering expression — anywhere the boolean's value is
- * consumed — the substitution is observable, so exact three-valued
- * equivalence is demanded. A TRUE-for-NULL substitution is wrong in every
- * context, so the complemented forms require a provably NULL-free
- * right-hand side.
- *
- * The decision follows the same form deparseScalarArrayOpExpr will choose:
- * the IN-list form for a non-empty constant array (is_ok_in_expr),
- * has()/countEqual() otherwise. `optype` is chfdw_is_equal_op's
- * classification: 1 for = ANY, 2 for <> ALL.
- */
-static bool
-saop_null_semantics_ok(
-    ScalarArrayOpExpr* saop,
-    int optype,
-    ExprTruthCtx ctx,
-    foreign_glob_cxt* glob_cxt
-) {
-    /* Arrays have no guarded deparse form: negated means exact */
-    bool exact_ctx       = ctx != EXPR_CTX_TRUTH;
-    Expr* probe          = linitial(saop->args);
-    Expr* arr            = lsecond(saop->args);
-    SaopArrayNulls nulls = saop_array_nulls(arr, glob_cxt);
-
-    /*
-     * A NULL array constant survives const-folding when the probe is not
-     * constant, and the operator's strictness makes the result NULL for
-     * every row. Keep it local: no deparse form models that, and
-     * is_ok_in_expr cannot inspect a NULL array datum.
-     */
-    if (IsA(arr, Const) && ((Const*)arr)->constisnull) {
-        return false;
-    }
-
-    /*
-     * <> ANY has no correct deparse form yet: the not has() ClickHouse SQL it
-     * would produce computes <> ALL (Postgres: 1 <> ANY of {1,5} is TRUE, one
-     * element differs; not has({1,5}, 1) is FALSE). Always evaluate locally.
-     * A truth-context spelling exists for a future follow-up — TRUE exactly
-     * when a non-NULL element differs from a non-NULL probe:
-     *   x IS NOT NULL AND
-     *   length(arr) - countEqual(arr, x) - countEqual(arr, NULL) > 0
-     */
-    if (saop->useOr && optype == 2) {
-        return false;
-    }
-
-    /*
-     * = ALL deparses as countEqual() = length(), which counts a NULL element
-     * as equal to a NULL probe where Postgres never compares two NULLs equal.
-     * An empty array is exact by arithmetic (0 = 0 is TRUE on both systems,
-     * NULL probe included); otherwise ship only when no NULL can be involved.
-     */
-    if (!saop->useOr && optype == 1) {
-        if (nulls == SAOP_ARR_EMPTY) {
-            return true;
-        }
-        return nulls == SAOP_ARR_NULL_FREE && expr_never_null(probe, glob_cxt);
-    }
-
-    /*
-     * Both systems compare against nothing: = ANY is FALSE and <> ALL is TRUE
-     * for every probe, NULL included, in both deparse forms.
-     */
-    if (nulls == SAOP_ARR_EMPTY) {
-        return true;
-    }
-
-    if (is_ok_in_expr(arr)) {
-        /*
-         * IN-list form. ClickHouse's native IN yields NULL for a NULL probe,
-         * so a NULL-free list is exact for both = ANY and <> ALL. A list that
-         * may carry a NULL diverges only toward FALSE for = ANY (tolerable in
-         * truth context) and toward TRUE for <> ALL (never tolerable).
-         */
-        if (nulls == SAOP_ARR_NULL_FREE) {
-            return true;
-        }
-        return optype == 1 && !exact_ctx;
-    }
-
-    /*
-     * has()/countEqual() form: a NULL probe is matched like a value, so
-     * exactness additionally requires the probe to be provably non-NULL.
-     */
-    if (optype == 1) {
-        if (nulls == SAOP_ARR_NULL_FREE) {
-            return !exact_ctx || expr_never_null(probe, glob_cxt);
-        }
-        return !exact_ctx && expr_never_null(probe, glob_cxt);
-    }
-    return nulls == SAOP_ARR_NULL_FREE && expr_never_null(probe, glob_cxt);
 }
 
 /*
@@ -903,7 +906,7 @@ classify_notin_subplan(SubPlan* subplan, PlannerInfo* root, Relids relids) {
  * currently considered here.
  *
  * ctx tracks whether the expression's value is observable beyond qualifying
- * rows (see ExprTruthCtx and saop_null_semantics_ok's block comment):
+ * rows (see ExprTruthCtx and deparseScalarArrayOpExpr's block comment):
  * EXPR_CTX_TRUTH only while every enclosing node treats NULL and FALSE
  * identically.
  */
@@ -1071,14 +1074,26 @@ foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, ExprTruthCtx ctx) {
     } break;
     case T_ScalarArrayOpExpr: {
         ScalarArrayOpExpr* oe = (ScalarArrayOpExpr*)node;
-        int optype            = chfdw_is_equal_op(oe->opno);
+        CHEqualOp optype      = chfdw_is_equal_op(oe->opno);
+        Expr* arr;
 
-        if (!optype) {
+        if (optype == CH_OP_NONE) {
             return false;
         }
 
-        /* IN under two-valued ClickHouse logic; see saop_null_semantics_ok */
-        if (!saop_null_semantics_ok(oe, optype, ctx, glob_cxt)) {
+        /*
+         * ClickHouse doesn't support null arrays, and Postgres's planner won't
+         * optimize away `x in NULL::int[]` unless x is also NULL. Postgres will
+         * always evaluate this to null, but pushing the whole test down as NULL
+         * would remove the SQL in the probe (and any side-effects thereof).
+         * This is a pathological case and the most correct form to push would
+         * look like `tupleElement((<probe_sql>, NULL), 2)`, which is dumb.
+         * Keep the pathological case local. Everything else ships; see
+         * deparseScalarArrayOpExpr's block comment for how it preserves
+         * Postgres's NULL semantics across the more difficult cases.
+         */
+        arr = (Expr*)lsecond(oe->args);
+        if (IsA(arr, Const) && ((Const*)arr)->constisnull) {
             return false;
         }
 
@@ -1590,7 +1605,7 @@ is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt, ExprTruthCtx 
         if (list_length(op->args) != 2) {
             return false;
         }
-        if (chfdw_is_equal_op(op->opno) != 1) {
+        if (chfdw_is_equal_op(op->opno) != CH_OP_EQ) {
             return false;
         }
         if (!IsA(lsecond(op->args), Param)) {
@@ -1668,7 +1683,7 @@ is_shippable_subplan(SubPlan* subplan, foreign_glob_cxt* glob_cxt, ExprTruthCtx 
      * Postgres answer even when a NULL can reach the comparison, so only
      * grouped/aggregated bodies fall back; a genuine value position demands
      * exactness, which requires that no NULL can arrive from either side.
-     * See saop_null_semantics_ok's block comment for the divergence rules
+     * See deparseScalarArrayOpExpr's block comment for the divergence rules
      * and deparseGuardedNotIn for the guarded form.
      */
     if (subplan->subLinkType == ANY_SUBLINK && ctx != EXPR_CTX_TRUTH) {
@@ -5152,13 +5167,13 @@ deparseNullIfExpr(NullIfExpr* node, deparse_expr_cxt* context) {
 }
 
 static void
-deparseAsIn(ScalarArrayOpExpr* node, deparse_expr_cxt* context, int optype) {
+deparseAsIn(ScalarArrayOpExpr* node, deparse_expr_cxt* context, CHEqualOp optype) {
     StringInfo buf = context->buf;
     Expr* arg1     = linitial(node->args);
     Expr* arg2     = lsecond(node->args);
 
     deparseExpr(arg1, context);
-    if (optype == 1) {
+    if (optype == CH_OP_EQ) {
         appendStringInfoString(buf, " IN ");
     } else {
         appendStringInfoString(buf, " NOT IN ");
@@ -5204,89 +5219,226 @@ is_ok_in_expr(Expr* expr) {
 }
 
 /*
- * Deparse given ScalarArrayOpExpr expression. To avoid problems around
- * priority of operations, we always parenthesize the arguments.
+ * Deparse `expr` into a freshly allocated string instead of context->buf,
+ * for callers that splice the same SQL into a template more than once.
+ * Slightly ups our memory footprint during planning, but safer than trying
+ * to reuse a buffer slice and more performant than deparsing multiple times.
+ */
+static char*
+deparseExprToString(Expr* expr, deparse_expr_cxt* context) {
+    StringInfo buf = context->buf;
+    StringInfoData capture;
+
+    initStringInfo(&capture);
+    context->buf = &capture;
+    deparseExpr(expr, context);
+    context->buf = buf;
+    return capture.data;
+}
+
+/*
+ * Emit a guarded CASE reproducing Postgres's exact three-valued answer for
+ * any combination of the IN family (useOr, optype), checking at runtime
+ * rather than requiring a plan-time proof:
+ *   CASE WHEN <probe> IS NULL AND notEmpty(<array>) THEN NULL
+ *        WHEN <a non-NULL element matches probe> THEN <match_result>
+ *        WHEN <array contains a NULL> THEN NULL
+ *        ELSE <not(match_result)>
+ *   END
+ *
+ * This is ExecEvalScalarArrayOp's order of business. Here, match_result is what
+ * is returned when an element of the array genuinely matches the probe, which
+ * depends on the operation (elaboration below).
+ *
+ * An empty array gives the complement of that (`no_match_result` in the code)
+ * for every probe, NULL included: Postgres actually resolves it before looking
+ * at the probe, and in our guarded SQL, every WHEN will be false thanks to the
+ * `notEmpty()` check in the first branch, so the ELSE answers.
+ *
+ * A NULL probe against a non-empty array is NULL on both systems.
+ *
+ * The actual predicate implementation for the form above must use `countEqual`,
+ * and there is no `countNotEqual`, which means that complemented forms must
+ * instead compute their count by subtracting from the full array length.
+ * Here, Postgres's `useOr` determines most of our logic, while optype logically
+ * determines which operation we apply to each element but in practice instead
+ * determines how we use the result of `countEqual()`.
+ *
+ * `= ANY`:  optype=EQ, useOr=True,  exhaustive_op=NE (match > 0)
+ * `= ALL`:  optype=EQ, useOr=False, exhaustive_op=EQ (match + null < length)
+ * `<> ANY`: optype=NE, useOr=True,  exhaustive_op=NE (match + null < length)
+ * `<> ALL`: optype=NE, useOr=False, exhaustive_op=EQ (match > 0)
+ */
+static void
+deparseGuardedScalarArrayOp(
+    bool useOr,
+    CHEqualOp optype,
+    Expr* probe,
+    Expr* arr,
+    deparse_expr_cxt* context
+) {
+    StringInfo buf              = context->buf;
+    CHEqualOp exhaustive_op     = useOr ? CH_OP_NE : CH_OP_EQ;
+    const char* match_result    = useOr ? "true" : "false";
+    const char* no_match_result = useOr ? "false" : "true";
+    char* probesql              = deparseExprToString(probe, context);
+    char* arrsql                = deparseExprToString(arr, context);
+
+    appendStringInfo(
+        buf, "(CASE WHEN %s IS NULL AND notEmpty(%s) THEN NULL WHEN ", probesql, arrsql
+    );
+    if (optype != exhaustive_op) {
+        appendStringInfo(buf, "countEqual(%s, %s) > 0", arrsql, probesql);
+    } else {
+        appendStringInfo(
+            buf,
+            "(length(%s) - countEqual(%s, %s) - countEqual(%s, NULL)) > 0",
+            arrsql,
+            arrsql,
+            probesql,
+            arrsql
+        );
+    }
+    appendStringInfo(
+        buf,
+        " THEN %s WHEN countEqual(%s, NULL) > 0 THEN NULL ELSE %s END)",
+        match_result,
+        arrsql,
+        no_match_result
+    );
+}
+
+/*
+ * Deparse given ScalarArrayOpExpr expression. Every branch below
+ * self-parenthesizes its own output rather than relying on a shared
+ * wrapper, so none of them depend on how a neighboring branch is spelled.
+ *
+ * ClickHouse's IN-family behavior diverges from Postgres, so we push down two
+ * forms (simple and guarded) below to account for it. This comment is the
+ * reference for the divergence rules used here and in the SubPlan gate
+ * (`is_shippable_subplan`) and deparse (`deparseGuardedNotIn`).
+ *
+ * ClickHouse evaluates IN under two-valued logic:
+ *   1    in {1, 2, 3}:   1
+ *   10   in {1, 2, 3}:   0
+ *   1    in {1, NULL}:   1
+ *   10   in {1, NULL}:   0
+ *   NULL in {1, NULL}:   1 if transform_null_in else NULL
+ *   NULL in {1, 2, 3}:   0 if transform_null_in else NULL
+ *
+ * Postgres/Standard SQL usually disagrees:
+ *   1    in {1, 2, 3}:   1
+ *   10   in {1, 2, 3}:   0
+ *   1    in {1, NULL}:   1
+ *   10   in {1, NULL}:   NULL  <-- The problem case
+ *   NULL in {1, NULL}:   NULL
+ *   NULL in {1, 2, 3}:   NULL
+ *
+ * The two systems agree when NULL is not involved, but in standard SQL, NULL serves as
+ * "dunno, LOL" and wildcard matches anything, resulting in a final "dunno, LOL"
+ * answer, while ClickHouse just treats NULL as an ordinary value to match on.
+ * The two systems technically agree where FALSE/NULL are both falsey, such as
+ * WHERE/JOIN/HAVING conditions, CASE WHEN branches, and aggregate FILTERs.
+ *
+ * Under NOT, in a function/operator/aggregate argument, in a grouping or
+ * ordering expression, or anywhere else the boolean's value is observable,
+ * exact three-valued equivalence is required. And anywhere ClickHouse gives
+ * TRUE where Postgres gives NULL is guaranteed to be wrong, so the complemented
+ * forms require a provably NULL-free right-hand side or guardrails to handle
+ * the divergent cases.
+ *
+ * ClickHouse has a separate behavioral quirk for arrays, similar to its `IN`
+ * mechanics: `has()` and `countEqual()` will match NULL strictly against NULL
+ * in those contexts as well, and are unaffected by `transform_null_in` or
+ * similar settings. This means these routines cannot directly be used to
+ * implement `<> ALL()` / `= ANY()`, but it also gives us a correct (if uglier)
+ * pushdown spelling.
+ *
+ * We force `transform_null_in=0` to cover the cases it can, and in cases where
+ * values are nullable (or we cannot prove that they aren't), emit the extra guard
+ * branches below to ensure Postgres behavior is preserved after pushdown.
  */
 static void
 deparseScalarArrayOpExpr(ScalarArrayOpExpr* node, deparse_expr_cxt* context) {
-    StringInfo buf = context->buf;
-    Expr* arg1;
-    Expr* arg2;
+    StringInfo buf   = context->buf;
+    Expr* arg1       = linitial(node->args);
+    Expr* arg2       = lsecond(node->args);
+    CHEqualOp optype = chfdw_is_equal_op(node->opno);
+    foreign_glob_cxt glob_cxt;
+    SaopArrayNulls nulls;
+    bool cheap_ok;
 
-    /* Retrieve information about the operator from system catalog. */
-    int optype = chfdw_is_equal_op(node->opno);
-
-    if (optype == 0) {
+    if (optype == CH_OP_NONE) {
         ereport(
             ERROR,
             errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
             errmsg(
-                "pg_clickhouse supports only equal (not equal) operations on ANY/ALL "
+                "pg_clickhouse supports only equal and not equal operations on ANY/ALL "
                 "functions"
             )
         );
     }
 
-    /* Sanity check. */
     Assert(list_length(node->args) == 2);
 
-    appendStringInfoChar(buf, '(');
-    if (node->useOr) {
-        arg2 = lsecond(node->args);
+    memset(&glob_cxt, 0, sizeof(glob_cxt));
+    glob_cxt.root   = context->root;
+    glob_cxt.relids = context->scanrel->relids;
+    nulls           = saop_array_nulls(arg2, &glob_cxt);
 
-        /* very narrow case for IN() and = ANY(ARRAY) */
-        if (optype == 1 && is_ok_in_expr(arg2)) {
-            deparseAsIn(node, context, optype);
-        } else {
-            if (optype == 1) {
-                appendStringInfoString(buf, "has(");
-            } else {
-                appendStringInfoString(buf, "not has(");
-            }
-
-            /* Deparse right operand. */
-            deparseExpr(arg2, context);
-            appendStringInfoChar(buf, ',');
-
-            /* Deparse left operand. */
-            arg1 = linitial(node->args);
-            deparseExpr(arg1, context);
-
-            /* Close function call */
-            appendStringInfoChar(buf, ')');
-        }
-    } else {
-        arg2 = lsecond(node->args);
-
-        /* very narrow case for NOT IN() and <> ANY(ARRAY) */
-        if (optype == 2 && is_ok_in_expr(arg2)) {
-            deparseAsIn(node, context, optype);
-        } else {
-            appendStringInfoString(buf, "countEqual(");
-
-            /* Deparse right operand. */
-            arg2 = lsecond(node->args);
-            deparseExpr(arg2, context);
-            appendStringInfoChar(buf, ',');
-
-            /* Deparse left operand. */
-            arg1 = linitial(node->args);
-            deparseExpr(arg1, context);
-
-            /* Close function call */
-            if (optype == 1) {
-                appendStringInfoString(buf, ") = length(");
-
-                /* Deparse right operand again */
-                deparseExpr(arg2, context);
-                appendStringInfoChar(buf, ')');
-            } else {
-                appendStringInfoString(buf, ") = 0");
-            }
-        }
+    /*
+     * Very narrow case for IN()/NOT IN(): the native form is exact once the
+     * array is a nice, non-empty, provably NULL-free constant, regardless
+     * of the probe (ClickHouse's native IN propagates a NULL probe
+     * correctly; see the block comment above)
+     */
+    if (nulls == SAOP_ARR_NULL_FREE && is_ok_in_expr(arg2) &&
+        ((node->useOr && optype == CH_OP_EQ) || (!node->useOr && optype == CH_OP_NE))) {
+        appendStringInfoChar(buf, '(');
+        deparseAsIn(node, context, optype);
+        appendStringInfoChar(buf, ')');
+        return;
     }
 
-    appendStringInfoChar(buf, ')');
+    /*
+     * An empty array is exact via the cheap form below regardless of the
+     * probe's nullability (has()/countEqual() degenerate correctly on an
+     * empty array by arithmetic), so it counts as "cheap ok" on its own;
+     * otherwise both the array and the probe must be provably non-NULL.
+     */
+    cheap_ok = nulls == SAOP_ARR_EMPTY ||
+               (nulls == SAOP_ARR_NULL_FREE && expr_never_null(arg1, &glob_cxt));
+
+    if (cheap_ok) {
+        char* probesql = deparseExprToString(arg1, context);
+        char* arrsql   = deparseExprToString(arg2, context);
+
+        if (node->useOr && optype == CH_OP_EQ) {
+            /* = ANY */
+            appendStringInfo(buf, "(has(%s, %s))", arrsql, probesql);
+        } else if (node->useOr) {
+            /*
+             * <> ANY: TRUE exactly when an array element differs from the
+             * probe. `not has()` would compute <> ALL instead (see the
+             * block comment above); with the array proven NULL-free, "an
+             * element differs" is just "fewer matches than elements".
+             */
+            appendStringInfo(
+                buf, "(countEqual(%s, %s) < length(%s))", arrsql, probesql, arrsql
+            );
+        } else if (optype == CH_OP_EQ) {
+            /* = ALL */
+            appendStringInfo(
+                buf, "(countEqual(%s, %s) = length(%s))", arrsql, probesql, arrsql
+            );
+        } else {
+            /* <> ALL */
+            appendStringInfo(buf, "(countEqual(%s, %s) = 0)", arrsql, probesql);
+        }
+        return;
+    }
+
+    deparseGuardedScalarArrayOp(node->useOr, optype, arg1, arg2, context);
 }
 
 /*
@@ -5575,8 +5727,7 @@ aggref_on_aggregate_function(Aggref* node, deparse_expr_cxt* context) {
  */
 static void
 deparsePartialStatArray(Aggref* node, AggPartialKind kind, deparse_expr_cxt* context) {
-    StringInfo buf = context->buf;
-    StringInfoData argbuf, condbuf;
+    StringInfo buf       = context->buf;
     TargetEntry* tle     = (TargetEntry*)linitial(node->args);
     const char* ifSuffix = node->aggfilter ? "If" : "";
     char* arg;
@@ -5585,20 +5736,14 @@ deparsePartialStatArray(Aggref* node, AggPartialKind kind, deparse_expr_cxt* con
     Assert(!tle->resjunk);
 
     /* Capture argument SQL so it can be referenced several times. */
-    initStringInfo(&argbuf);
-    context->buf = &argbuf;
-    deparseExpr((Expr*)tle->expr, context);
+    arg = deparseExprToString((Expr*)tle->expr, context);
 
     /* Capture FILTER condition as each component's -If argument. */
     if (node->aggfilter) {
-        initStringInfo(&condbuf);
-        context->buf = &condbuf;
-        deparseExpr((Expr*)node->aggfilter, context);
-        cf = psprintf(", (%s) > 0", condbuf.data);
+        cf = psprintf(
+            ", (%s) > 0", deparseExprToString((Expr*)node->aggfilter, context)
+        );
     }
-
-    context->buf = buf;
-    arg          = argbuf.data;
 
     if (kind == AGG_PARTIAL_AVG_INT) {
         // https://github.com/postgres/postgres/blob/f5cc81719e6da4cbdb1f797c48b693e91018153a/src/backend/utils/adt/numeric.c#L6760
@@ -5645,9 +5790,8 @@ deparsePartialStatArray(Aggref* node, AggPartialKind kind, deparse_expr_cxt* con
 
     if (node->aggfilter) {
         pfree(cf);
-        pfree(condbuf.data);
     }
-    pfree(argbuf.data);
+    pfree(arg);
 }
 
 /*

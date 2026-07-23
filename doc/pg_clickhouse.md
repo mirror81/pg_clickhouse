@@ -1319,18 +1319,25 @@ equivalents as follows:
 ClickHouse evaluates `IN` under two-valued logic: when the probe finds no
 match it returns `0` even if a NULL is involved, where PostgreSQL computes
 NULL. To preserve PostgreSQL semantics, pg_clickhouse pushes down the `IN`
-family (`IN`, `NOT IN`, `= ANY`, `<> ALL`, and `IN (SELECT ...)`) only where
-the two systems provably agree: in a plain filter condition, where a NULL
-disqualifies a row exactly like `FALSE`, or when none of the probe, the list,
-nor the subquery output can produce a NULL. A `NOT IN (SELECT ...)` filter
-over nullable columns still pushes down, deparsed with compensating guards
-that keep PostgreSQL's answer: a set containing a NULL disqualifies every
-row, and a NULL probe passes only against an empty set. Each guard is
-omitted when a `NOT NULL` declaration proves it unnecessary. The remaining
-shapes (NULL-capable `IN` expressions in select lists, `GROUP BY`, or
-`ORDER BY`, and `NOT IN` over arrays or grouped subqueries) are evaluated
-locally. Declaring columns `NOT NULL` maximizes pushdown; [IMPORT FOREIGN
-SCHEMA] does so automatically for non-`Nullable` ClickHouse columns.
+family over a constant list or array (`IN`, `NOT IN`, `= ANY`, `= ALL`,
+`<> ANY`, `<> ALL`) unconditionally: the native or cheap form where it can
+prove neither the probe nor an array element can be NULL, or a guarded
+`CASE` form otherwise that checks for NULL values at runtime instead,
+computing PostgreSQL's exact three-valued answer (TRUE, FALSE, NULL) in
+every context, including value positions like a `SELECT` list or
+`GROUP BY`.
+
+A `NOT IN (SELECT ...)` filter over nullable columns also pushes down,
+deparsed with compensating guards that keep PostgreSQL's behavior: a set
+containing a NULL disqualifies every row, and a NULL probe passes only
+against an empty set. Each guard is omitted when a `NOT NULL` declaration
+proves it unnecessary. Unlike the array forms above, this guard only
+applies in a plain filter condition (or under `NOT`); we still do not push
+down `IN (SELECT ...)` (in a value position) nor grouped/aggregated subquery
+bodies. Declaring columns `NOT NULL` maximizes pushdown by letting the cheaper
+unguarded form ship instead; [IMPORT FOREIGN SCHEMA] does so automatically for
+non-`Nullable` ClickHouse columns. The proof follows non-NULL constants,
+`NOT NULL` columns, and basic arithmetic (`+`, `-`, `*`, unary `-`) over them.
 
 These rules assume ClickHouse's default `transform_null_in = 0`, which
 pg_clickhouse sets on every query through the default value of the

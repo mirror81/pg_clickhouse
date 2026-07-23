@@ -358,11 +358,19 @@ chfdw_get_jointype_name(JoinType jointype);
 char*
 chfdw_array_to_ch_literal(Datum arr);
 
+/* chfdw_is_equal_op's classification of a comparison operator's name. */
+typedef enum CHEqualOp {
+    CH_OP_NONE, /* neither '=' nor '<>' */
+    CH_OP_EQ,   /* '=' */
+    CH_OP_NE,   /* '<>' */
+} CHEqualOp;
+
+extern CHEqualOp
+chfdw_is_equal_op(Oid opno);
+
 /* in shippable.c */
 extern bool
 chfdw_is_builtin(Oid objectId);
-extern int
-chfdw_is_equal_op(Oid opno);
 
 /*
  * Connection cache hash table entry
